@@ -1,10 +1,11 @@
 import LeanDenyTest.Cli
 import LeanDenyTest.Graph
 import LeanDenyTest.Fixtures
+import LeanDenyTest.Harness
 
 /-!
-`lake test` driver. Runs the CLI parser tests, the graph checks and every
-fixture under `tests/fixtures/`. `lake test -- <name>…` runs only the named
+`lake test` driver. Runs the CLI parser tests, the graph checks, the fixture
+runner's own checks and every fixture under `tests/fixtures/`. `lake test -- <name>…` runs only the named
 fixtures. The working directory is the package root (as `lake test` sets it).
 -/
 
@@ -24,6 +25,7 @@ def main (args : List String) : IO UInt32 := do
   if args.isEmpty then
     ok := (← report "cli" Cli.failures) && ok
     ok := (← report "graph" (← Graph.run root)) && ok
+    ok := (← report "harness" (← Harness.run root)) && ok
   let (n, failed) ← Fixtures.run root args
   IO.println s!"{n} fixtures, {failed} failed"
   return if ok && failed == 0 then 0 else 1
