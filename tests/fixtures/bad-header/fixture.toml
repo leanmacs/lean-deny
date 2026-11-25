@@ -1,0 +1,4 @@
+# A header Lake cannot parse: Lake's message, not a bare build failure.
+run = "direct"
+args = ["check"]
+exit = 2

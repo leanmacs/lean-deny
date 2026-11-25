@@ -1,0 +1,5 @@
+# Lake rejects this configuration: a `lean_lib` needs a `name`.
+name = "unloadable-workspace"
+
+[[lean_lib]]
+nme = "Unloadable"

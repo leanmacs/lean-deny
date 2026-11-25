@@ -34,13 +34,12 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
     | .ok p => pure p
     | .error msgs => return ← fail msgs
   -- Load the graph for real, so an unloadable workspace fails now. No rule
-  -- kinds exist yet, so the rows are not used.
+  -- kinds exist yet, so the snapshot is not used. A load error may carry
+  -- several of Lake's messages, one per line; each is its own diagnostic.
   try
-    let env ← Graph.LakeApi.computeEnv
-    let lws ← Graph.LakeApi.loadWs env ws
-    let _rows ← Graph.LakeApi.graphOf lws
+    let _snap ← Graph.LakeApi.snapshot ws
   catch e =>
-    return ← fail #[toString e]
+    return ← fail ((toString e).splitOn "\n").toArray
   IO.println "lean-deny: ok (0 rules)"
   return .holds
 

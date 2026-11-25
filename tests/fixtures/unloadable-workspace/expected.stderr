@@ -1,0 +1,2 @@
+lean-deny: error: lakefile.toml:1:0: missing required key: name
+lean-deny: error: failed to load the Lake workspace at <fixture>

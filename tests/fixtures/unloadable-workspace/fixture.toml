@@ -1,0 +1,4 @@
+# A workspace Lake cannot load: Lake's own message, then lean-deny's.
+run = "direct"
+args = ["check"]
+exit = 2

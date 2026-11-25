@@ -1,0 +1,6 @@
+# One module's header imports `42`, not a module name, which Lake cannot parse.
+name = "bad-header"
+
+[[lean_lib]]
+name = "BadHeader"
+globs = ["BadHeader.+"]
