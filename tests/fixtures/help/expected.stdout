@@ -11,6 +11,10 @@ Options for check:
   --workspace <dir>   The Lake workspace to check (default: .)
   --config <file>     The policy file (default: <dir>/lean-deny.toml)
 
+Loading the workspace elaborates its and its dependencies' lakefile.lean
+files, so check runs their code, as lake does (lakefile.toml is not run).
+Do not point it at a workspace you would not run `lake build` in.
+
 Global options:
   -h, --help          Print this help
   -V, --version       Print the version

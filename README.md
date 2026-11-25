@@ -42,7 +42,9 @@ configurable version that also checks transitive dependencies.
 
 All rules work on one graph: every module of the workspace, the `lean_lib`
 and package it belongs to, the package's `keywords`, and each direct import
-with its file and line. Lake resolves it; lean-deny builds nothing.
+with its file and line. Lake resolves it; lean-deny builds nothing, but it
+does run code: loading the workspace elaborates the `lakefile.lean` of the
+workspace and of each dependency, as `lake` does (see "Using it with Lake").
 
 | Rule | Says | cargo-deny analogue |
 |---|---|---|
@@ -152,6 +154,12 @@ lean-deny's exit code, and `lake lint -- <args>` appends arguments after
 
 lean-deny reads the workspace in-process through Lake's API, so it needs no
 custom Lake facet in your workspace; `lake exe` and `lake lint` cover it.
+
+Reading the workspace runs its code. Lake's loader elaborates the
+`lakefile.lean` of the workspace and of every dependency in-process, so
+`lean-deny check` runs that code exactly as running `lake` would. Do not
+point it at a workspace you would not run `lake build` in. (A package
+configured by `lakefile.toml` is declarative; nothing in it is run.)
 
 The workspace must have a `lake-manifest.json` (run `lake update` or any
 `lake build` once): lean-deny never resolves or fetches dependencies itself.
