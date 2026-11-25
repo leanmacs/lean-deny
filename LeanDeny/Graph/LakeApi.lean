@@ -11,8 +11,9 @@ module's `input` facet (its parsed header plus resolved imports) through
 Lake may write are the cached configuration oleans under
 `<workspace>/.lake/config/` for packages configured with `lakefile.lean`.
 
-See `docs/decisions/graph-source.md` for the decision this prototype fed and
-what phase 3 reuses from it.
+Source 1 was chosen (`docs/decisions/graph-source.md`), and this prototype is
+kept as the starting point for phase 3. The record says what phase 3 reuses
+from it and what it still lacks: `lean_exe` roots and import positions.
 -/
 
 open Lake Lean System
