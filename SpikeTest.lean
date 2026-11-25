@@ -43,10 +43,39 @@ def failures (rows : Array Row) : Array String := Id.run do
     if let some f := c then fs := fs.push f
   return fs
 
+/-- Whether `s` contains `sub`. -/
+def hasSubstr (s sub : String) : Bool :=
+  (s.splitOn sub).length > 1
+
+/-- The failures of the no-manifest guard in `loadWs`: a copy of the fixture
+without its `lake-manifest.json` must be refused before Lake runs, so Lake's
+`updateAndMaterialize` fallback never writes a manifest or `.lake/` into it. -/
+def noManifestFailures (fixture : System.FilePath) : IO (Array String) :=
+  IO.FS.withTempDir fun tmp => do
+    IO.FS.createDirAll (tmp / "Fix")
+    IO.FS.writeFile (tmp / "lakefile.toml") (← IO.FS.readFile (fixture / "lakefile.toml"))
+    for m in ["A", "B", "C", "D"] do
+      let f := s!"{m}.lean"
+      IO.FS.writeFile (tmp / "Fix" / f) (← IO.FS.readFile (fixture / "Fix" / f))
+    let mut fs : Array String := #[]
+    match ← (graph tmp).toBaseIO with
+    | .ok (_, rows, _) =>
+      fs := fs.push s!"loading a workspace without {Lake.defaultManifestFile} should fail, \
+        but resolved {rows.size} modules"
+    | .error e =>
+      let msg := toString e
+      unless hasSubstr msg s!"has no {Lake.defaultManifestFile}" do
+        fs := fs.push s!"expected the no-manifest guard's error, got: {msg}"
+    if ← (tmp / Lake.defaultManifestFile).pathExists then
+      fs := fs.push s!"{Lake.defaultManifestFile} was written into the manifest-less workspace"
+    if ← (tmp / ".lake").pathExists then
+      fs := fs.push ".lake/ was created in the manifest-less workspace"
+    return fs
+
 def main : IO UInt32 := do
   let dir := (← IO.currentDir) / "tests" / "fixtures" / "spike-ws"
   let (_, rows, _) ← graph dir
-  let fs := failures rows
+  let fs := failures rows ++ (← noManifestFailures dir)
   if fs.isEmpty then
     IO.println s!"lean-deny-spike-test: ok ({rows.size} modules)"
     return 0
