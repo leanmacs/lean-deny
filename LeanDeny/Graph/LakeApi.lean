@@ -73,6 +73,9 @@ def timed (x : IO α) : IO (α × Nat) := do
   let a ← x
   return (a, (← IO.monoMsNow) - t0)
 
+/-! Errors are thrown as `IO.userError` with bare messages; the CLI adds the
+single `lean-deny: error: ` prefix when it prints them. -/
+
 /-- Compute the Lake environment from the installs Lake itself would find.
 
 `findInstall?` locates Lake from the running executable's path or `LAKE_HOME`;
@@ -81,11 +84,11 @@ so fall back to the Lake that ships co-located with the detected Lean. -/
 def computeEnv : IO Lake.Env := do
   let (elan?, lean?, lake?) ← findInstall?
   let some lean := lean?
-    | throw <| IO.userError "lean-deny: no Lean installation found (is `lean` on PATH or LEAN_SYSROOT set?)"
+    | throw <| IO.userError "no Lean installation found (is `lean` on PATH or LEAN_SYSROOT set?)"
   let lake := lake?.getD (LakeInstall.ofLean lean)
   match ← (Env.compute lake lean elan?).toBaseIO with
   | .ok env => return env
-  | .error msg => throw <| IO.userError s!"lean-deny: cannot compute the Lake environment: {msg}"
+  | .error msg => throw <| IO.userError s!"cannot compute the Lake environment: {msg}"
 
 /-- Load the workspace rooted at `dir` without updating or fetching anything.
 
@@ -95,7 +98,7 @@ and write a manifest. -/
 def loadWs (env : Lake.Env) (dir : FilePath) : IO Workspace := do
   let dir ← IO.FS.realPath dir
   unless ← (dir / defaultManifestFile).pathExists do
-    throw <| IO.userError s!"lean-deny: {dir} has no {defaultManifestFile}; \
+    throw <| IO.userError s!"{dir} has no {defaultManifestFile}; \
       run `lake update` there first (lean-deny never resolves dependencies itself)"
   let cfg : LoadConfig := {
     lakeEnv := env
@@ -106,7 +109,7 @@ def loadWs (env : Lake.Env) (dir : FilePath) : IO Workspace := do
   }
   match ← (loadWorkspace cfg).toBaseIO with
   | some ws => return ws
-  | none => throw <| IO.userError s!"lean-deny: failed to load the Lake workspace at {dir}"
+  | none => throw <| IO.userError s!"failed to load the Lake workspace at {dir}"
 
 /-- Build a `Row` from a module's fetched input. -/
 def mkRow (pkg : Package) (lib : LeanLib) (mod : Lake.Module) (input : ModuleInput) : Row :=
