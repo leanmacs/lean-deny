@@ -1,0 +1,11 @@
+# lean-deny as this package's lint driver: `lake lint` runs `lean-deny check`.
+name = "lake-lint-broken"
+lintDriver = "«lean-deny»/«lean-deny»"
+lintDriverArgs = ["check"]
+
+[[require]]
+name = "lean-deny"
+path = "../../.."
+
+[[lean_lib]]
+name = "LintBroken"

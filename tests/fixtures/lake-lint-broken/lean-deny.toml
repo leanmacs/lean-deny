@@ -1,0 +1,4 @@
+# Not valid TOML. No rule kinds exist yet, so a malformed policy (exit 2)
+# stands in for a broken one; exit 1 fixtures arrive with `policy-rules`.
+[[deny]]
+from = = "pkg:a"

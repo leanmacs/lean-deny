@@ -1,0 +1,3 @@
+run = "lake"
+args = ["exe", "lean-deny", "check"]
+exit = 0

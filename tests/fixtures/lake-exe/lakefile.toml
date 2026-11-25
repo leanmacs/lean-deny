@@ -1,0 +1,10 @@
+# Requires lean-deny by path, as a user's workspace would by git, and runs
+# `lake exe lean-deny check`.
+name = "lake-exe"
+
+[[require]]
+name = "lean-deny"
+path = "../../.."
+
+[[lean_lib]]
+name = "LakeExe"

@@ -1,0 +1,3 @@
+run = "lake"
+args = ["lint"]
+exit = 0
