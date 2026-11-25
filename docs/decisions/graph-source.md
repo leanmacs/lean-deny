@@ -290,3 +290,30 @@ Why not the others:
 - **The fixture lib has explicit globs.** `lean_lib Fix` has
   `globs = ["Fix.+"]`, because it has no `Fix.lean` root and the default
   glob names only `Fix`.
+
+## Addendum, 2026-11-25: phase 2 (`foundation` / `phase-2-package-and-cli`)
+
+The record above stays as written. Phase 2 changed the prototype around it:
+
+- **`lean-deny-spike` and `SpikeMain.lean` are gone,** replaced by the real
+  `lean-deny` executable (`Main.lean`). `lean-deny check` calls
+  `computeEnv`, `loadWs` and `graphOf` for real and discards the rows until
+  rules exist; phase 3 replaces that call site.
+- **`SpikeTest.lean` became `LeanDenyTest/Graph.lean`,** one suite of the
+  `lake test` driver `lean-deny-test`, with the same checks on
+  `tests/fixtures/spike-ws`, the no-manifest guard included.
+- **`LeanDeny/Graph/LakeApi.lean` changed only in its error messages,**
+  which lost their `lean-deny: ` prefix. The CLI prints every diagnostic
+  once as `lean-deny: error: <msg>`.
+- **The Lake-internal boundary now has two files.** lean-deny parses TOML
+  (`lean-deny.toml`, and the harness's `fixture.toml`) with Lake's parser,
+  `Lake.Toml.loadToml`, which is internal API like `loadWorkspace`. It is
+  reached only through `LeanDeny/Lake/Toml.lean`, which returns plain values
+  and pre-rendered `file:line:col` messages. Toolchain-bump breakage is
+  expected within `LeanDeny/Graph/LakeApi.lean` and
+  `LeanDeny/Lake/Toml.lean`, and nowhere else.
+- **Facet integration was skipped.** A `:leanDeny` facet would run
+  lean-deny inside Lake's build of the user's workspace and need a
+  `lakefile.lean` to declare it; once the `require` is in place it gains
+  nothing over `lake exe lean-deny check` and `lake lint` with
+  `lintDriver = "«lean-deny»/«lean-deny»"`, which cover it.

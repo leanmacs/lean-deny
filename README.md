@@ -11,10 +11,12 @@ non-zero. It is to Lake roughly what [cargo-deny]'s `bans` are to Cargo: the
 place a monorepo says "package A must not depend on package B" and has the
 build hold it.
 
-> **Status: planned, not yet implemented.** This README describes the
-> intended design. The policy syntax and commands below are drafts and will
-> change; nothing here runs yet. The plan lives in the rdm project
-> `lean-deny` (roadmaps `foundation` and `policy-rules`).
+> **Status: early.** `lean-deny check` runs: it loads the workspace's module
+> graph through Lake and exits with the codes below. No rule kinds exist yet,
+> so the only policy it accepts is an empty one; any key in
+> `lean-deny.toml` is an error, never silently ignored. The rule syntax below
+> is a draft and will change. The plan lives in the rdm project `lean-deny`
+> (roadmaps `foundation` and `policy-rules`).
 
 [cargo-deny]: https://github.com/EmbarkStudios/cargo-deny
 
@@ -135,29 +137,42 @@ Then either run it directly:
 lake exe lean-deny check
 ```
 
-or make it your package's lint driver, so `lake lint` runs it (exact syntax
-to be confirmed):
+or make it your package's lint driver, so `lake lint` runs it:
 
 ```toml
-lintDriver = "lean-deny/lean-deny"
+lintDriver = "«lean-deny»/«lean-deny»"
 lintDriverArgs = ["check"]
 ```
 
-### Commands (planned)
+The guillemets are needed: Lake reads `lintDriver` with `String.toName`,
+which turns a bare hyphenated name such as `lean-deny` into an anonymous
+name, and then reports an unknown lint driver package. `lake lint` exits with
+lean-deny's exit code, and `lake lint -- <args>` appends arguments after
+`check`, for example `lake lint -- --config ci/lean-deny.toml`.
 
-| Command | Does |
-|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | Check the policy. `github` prints annotations for pull requests. |
-| `lean-deny graph [--format text\|json\|dot] [--level module\|lib\|package]` | Print the resolved graph. |
-| `lean-deny explain <selector>` | List the modules a selector matches. |
+lean-deny reads the workspace in-process through Lake's API, so it needs no
+custom Lake facet in your workspace; `lake exe` and `lake lint` cover it.
+
+The workspace must have a `lake-manifest.json` (run `lake update` or any
+`lake build` once): lean-deny never resolves or fetches dependencies itself.
+
+### Commands
+
+| Command | Status | Does |
+|---|---|---|
+| `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
+| `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
+| `lean-deny check --format text\|json\|github` | planned | `github` prints annotations for pull requests. |
+| `lean-deny graph [--format text\|json\|dot] [--level module\|lib\|package]` | planned | Print the resolved graph. |
+| `lean-deny explain <selector>` | planned | List the modules a selector matches. |
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds. |
-| 1 | At least one rule is broken. |
-| 2 | The command line, the policy or the workspace is bad: a parse error, a selector that matches nothing, an unused wrapper, or a workspace Lake cannot load. |
+| 1 | At least one rule is broken. Reserved for rule violations; with no rule kinds yet, nothing produces it. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load (later also a selector that matches nothing, or an unused wrapper). Any internal error is also 2, never 1. |
 
 ## Later
 
@@ -175,9 +190,39 @@ Possible later checks, beyond import rules:
 lake build --wfail && lake test
 ```
 
-This is also the project's `rdm verify` command. Each rule kind is tested by
-small fixture workspaces under `tests/fixtures/`, one where the rule holds
-and one where it is broken.
+This is also the project's `rdm verify` command, and what CI runs. `lake
+test` runs `lean-deny-test`: unit tests of the command-line parser, checks of
+the graph Lake resolves for `tests/fixtures/spike-ws`, and every fixture
+under `tests/fixtures/`. `lake test -- <name>...` runs only the named
+fixtures.
+
+A fixture is a directory holding a `fixture.toml`:
+
+```toml
+run  = "direct"   # or "lake"
+args = ["check"]  # direct: lean-deny's arguments; lake: lake's, e.g. ["lint"]
+exit = 0
+```
+
+plus `expected.stdout` and `expected.stderr` (a missing file means "expected
+empty"), and whatever workspace or policy files the case needs. The command
+runs with the fixture directory as its working directory.
+
+- `direct` runs the built `lean-deny` binary. Its stdout and stderr must
+  match exactly.
+- `lake` runs the same toolchain's `lake` (for `lake exe` and `lake lint`
+  cases, whose `lakefile.toml` requires lean-deny with `path = "../../.."`).
+  stdout must match exactly; the expected stderr need only occur in the
+  actual one, since Lake prints build progress there. These fixtures must
+  carry a `lean-toolchain` equal to the root's and a committed
+  `lake-manifest.json`.
+- Before comparing, the fixture's absolute path becomes `<fixture>` and the
+  repository's becomes `<repo>`.
+- A directory without a `fixture.toml` is a failure, not a skip.
+
+Each rule kind will be tested by small fixture workspaces, one where the rule
+holds and one where it is broken. After `lake build --wfail && lake test`,
+`git status --porcelain` must print nothing; CI checks that too.
 
 ## Licence
 
