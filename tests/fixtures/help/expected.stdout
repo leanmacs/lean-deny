@@ -1,0 +1,21 @@
+lean-deny 0.1.0: dependency policy checks for Lean 4 / Lake workspaces
+
+Usage:
+  lean-deny check [--workspace <dir>] [--config <file>]
+  lean-deny --help | --version
+
+Commands:
+  check    Check the workspace's module graph against its policy
+
+Options for check:
+  --workspace <dir>   The Lake workspace to check (default: .)
+  --config <file>     The policy file (default: <dir>/lean-deny.toml)
+
+Global options:
+  -h, --help          Print this help
+  -V, --version       Print the version
+
+Exit codes:
+  0  every rule holds
+  1  at least one rule is broken
+  2  the command line, the policy or the workspace is bad

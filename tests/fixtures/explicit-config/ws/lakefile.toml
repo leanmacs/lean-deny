@@ -1,0 +1,5 @@
+# Has no lean-deny.toml of its own: the policy comes from `--config`.
+name = "explicit-config"
+
+[[lean_lib]]
+name = "Ws"

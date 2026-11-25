@@ -1,0 +1,3 @@
+run = "direct"
+args = ["check", "--workspace", "does-not-exist"]
+exit = 2

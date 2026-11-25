@@ -1,0 +1,2 @@
+lean-deny: error: unknown option '--frob' for 'check'
+Run 'lean-deny --help' for usage.

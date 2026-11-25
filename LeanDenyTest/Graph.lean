@@ -1,14 +1,16 @@
 import LeanDeny
 
 /-!
-Test driver for the graph-source spike: loads `tests/fixtures/spike-ws`
-(relative to the package directory, the working directory under `lake test`)
-through the in-process Lake API and checks the graph it resolves.
+Graph checks (formerly the spike's `SpikeTest`): load `tests/fixtures/spike-ws`
+through the in-process Lake API and check the graph it resolves, including the
+module-system import flags and `prelude`, and the no-manifest guard.
 -/
 
 open Lean LeanDeny.Graph.LakeApi
 
-/-- The failures of the fixture's graph against what the spike expects. -/
+namespace LeanDenyTest.Graph
+
+/-- The failures of the fixture's graph against what is expected. -/
 def failures (rows : Array Row) : Array String := Id.run do
   let mut fs : Array String := #[]
   let fixRows := rows.filter fun r => r.pkg == `«spike-ws» && r.lib == `Fix
@@ -72,12 +74,11 @@ def noManifestFailures (fixture : System.FilePath) : IO (Array String) :=
       fs := fs.push ".lake/ was created in the manifest-less workspace"
     return fs
 
-def main : IO UInt32 := do
-  let dir := (← IO.currentDir) / "tests" / "fixtures" / "spike-ws"
-  let (_, rows, _) ← graph dir
-  let fs := failures rows ++ (← noManifestFailures dir)
-  if fs.isEmpty then
-    IO.println s!"lean-deny-spike-test: ok ({rows.size} modules)"
-    return 0
-  for f in fs do IO.eprintln s!"FAIL: {f}"
-  return 1
+/-- Run the graph checks against `<root>/tests/fixtures/spike-ws`. -/
+def run (root : System.FilePath) : IO (Array String) := do
+  let dir := root / "tests" / "fixtures" / "spike-ws"
+  match ← (graph dir).toBaseIO with
+  | .ok (_, rows, _) => return failures rows ++ (← noManifestFailures dir)
+  | .error e => return #[s!"loading spike-ws failed: {e}"]
+
+end LeanDenyTest.Graph

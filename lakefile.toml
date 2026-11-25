@@ -1,10 +1,15 @@
 name = "lean-deny"
 # Quoted: a bare hyphenated name resolves to `Name.anonymous` (`String.toName`).
-testDriver = "«lean-deny-spike-test»"
-defaultTargets = ["LeanDeny", "lean-deny"]
+testDriver = "«lean-deny-test»"
+defaultTargets = ["LeanDeny", "lean-deny", "lean-deny-test"]
 
 [[lean_lib]]
 name = "LeanDeny"
+
+# The test harness's modules; not part of what users import.
+[[lean_lib]]
+name = "LeanDenyTest"
+globs = ["LeanDenyTest.+"]  # no `LeanDenyTest.lean` root module
 
 # Loading a `lakefile.lean` workspace elaborates it in-process, so the
 # executables need the interpreter, as Lake's own binary does
@@ -14,7 +19,10 @@ name = "lean-deny"
 root = "Main"
 supportInterpreter = true
 
+# The `lake test` driver (TestMain.lean). It runs the real `lean-deny` binary
+# against the fixtures under tests/fixtures/, so it needs it built first.
 [[lean_exe]]
-name = "lean-deny-spike-test"
-root = "SpikeTest"
+name = "lean-deny-test"
+root = "TestMain"
 supportInterpreter = true
+needs = ["lean-deny"]

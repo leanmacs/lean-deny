@@ -1,0 +1,5 @@
+# A one-module workspace whose policy is empty: `check` holds.
+name = "empty-policy"
+
+[[lean_lib]]
+name = "Tiny"

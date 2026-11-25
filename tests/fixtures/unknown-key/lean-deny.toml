@@ -1,0 +1,4 @@
+# Valid TOML, but no rule kinds exist yet: rejected, never ignored.
+[[deny]]
+from = "pkg:a"
+to = "pkg:b"

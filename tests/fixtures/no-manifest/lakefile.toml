@@ -1,0 +1,6 @@
+# No lake-manifest.json on purpose: lean-deny must refuse to load this
+# workspace rather than let Lake resolve (and write) one.
+name = "no-manifest"
+
+[[lean_lib]]
+name = "NoManifest"

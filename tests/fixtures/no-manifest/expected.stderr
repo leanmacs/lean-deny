@@ -1,0 +1,1 @@
+lean-deny: error: <fixture> has no lake-manifest.json; run `lake update` there first (lean-deny never resolves dependencies itself)
