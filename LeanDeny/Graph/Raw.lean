@@ -36,6 +36,16 @@ structure RawModule where
   imports : Array RawImport
   deriving BEq, Repr, Inhabited
 
+/-- One `import` directive of a header, with its line: what
+`HeaderParser.parse` (`LeanDeny.Graph.Header`) returns, kept here so the
+graph builder need not import Lean's parser. -/
+structure HeaderImport where
+  module : Name
+  kind : ImportKind
+  /-- The 1-based line of the directive's first token. -/
+  line : Nat
+  deriving BEq, Repr, Inhabited
+
 /-- Everything the graph builder needs from Lake. -/
 structure Snapshot where
   /-- The workspace directory (a real path). -/

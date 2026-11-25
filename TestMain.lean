@@ -1,6 +1,7 @@
 import LeanDenyTest.Cli
 import LeanDenyTest.Graph
 import LeanDenyTest.Header
+import LeanDenyTest.Query
 import LeanDenyTest.Fixtures
 import LeanDenyTest.Harness
 
@@ -26,6 +27,7 @@ def main (args : List String) : IO UInt32 := do
   if args.isEmpty then
     ok := (← report "cli" Cli.failures) && ok
     ok := (← report "header" (← Header.run)) && ok
+    ok := (← report "query" Query.run) && ok
     ok := (← report "graph" (← Graph.run root)) && ok
     ok := (← report "harness" (← Harness.run root)) && ok
   let (n, failed) ← Fixtures.run root args

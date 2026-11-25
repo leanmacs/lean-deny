@@ -1,6 +1,6 @@
 import Lean.Parser.Module
 import Lean.Elab.ParseImportsFast
-import LeanDeny.Graph.Model
+import LeanDeny.Graph.Raw
 
 /-!
 # Import lines from Lean's header parser
@@ -23,14 +23,6 @@ stable. Nothing else in lean-deny calls it.
 open Lean Parser
 
 namespace LeanDeny.Graph
-
-/-- One `import` directive of a header. -/
-structure HeaderImport where
-  module : Name
-  kind : ImportKind
-  /-- The 1-based line of the directive's first token. -/
-  line : Nat
-  deriving BEq, Repr, Inhabited
 
 /-- What every header parse shares: an empty environment and its token table
 extended with the header's keywords. Build it once per run. -/
