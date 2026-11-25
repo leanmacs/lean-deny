@@ -1,0 +1,1 @@
+-- A plain module with no imports of its own (besides the implicit `Init`).

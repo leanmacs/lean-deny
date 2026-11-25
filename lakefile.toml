@@ -1,0 +1,20 @@
+name = "lean-deny"
+# Quoted: a bare hyphenated name resolves to `Name.anonymous` (`String.toName`).
+testDriver = "«lean-deny-spike-test»"
+defaultTargets = ["LeanDeny", "lean-deny-spike"]
+
+[[lean_lib]]
+name = "LeanDeny"
+
+# Graph-source spike (docs/decisions/graph-source.md). Loading a
+# `lakefile.lean` workspace elaborates it in-process, so the executables need
+# the interpreter, as Lake's own binary does.
+[[lean_exe]]
+name = "lean-deny-spike"
+root = "SpikeMain"
+supportInterpreter = true
+
+[[lean_exe]]
+name = "lean-deny-spike-test"
+root = "SpikeTest"
+supportInterpreter = true

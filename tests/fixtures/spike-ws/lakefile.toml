@@ -1,0 +1,9 @@
+# Fixture for the graph-source spike (docs/decisions/graph-source.md).
+# Never built: SpikeTest only loads this workspace and reads module headers.
+name = "spike-ws"
+
+[[lean_lib]]
+name = "Fix"
+# No `Fix.lean` root: the default glob (`roots.map Glob.one`) would name only
+# a nonexistent module `Fix`, so list the submodules explicitly.
+globs = ["Fix.+"]
