@@ -125,7 +125,7 @@ toolchain:
 # lakefile.toml
 [[require]]
 name = "lean-deny"
-git = "https://github.com/<owner>/lean-deny"
+git = "https://github.com/leanmacs/lean-deny"
 rev = "v0.1.0"
 ```
 
