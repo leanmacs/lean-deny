@@ -45,6 +45,9 @@ and package it belongs to, the package's `keywords`, and each direct import
 with its file and line. Lake resolves it; lean-deny builds nothing, but it
 does run code: loading the workspace elaborates the `lakefile.lean` of the
 workspace and of each dependency, as `lake` does (see "Using it with Lake").
+Executables' root modules are in the graph too, and modules from outside the
+workspace (`Init`, `Lean`, `Std`, …) appear as the external targets of direct
+imports.
 
 | Rule | Says | cargo-deny analogue |
 |---|---|---|
@@ -199,10 +202,12 @@ lake build --wfail && lake test
 ```
 
 This is also the project's `rdm verify` command, and what CI runs. `lake
-test` runs `lean-deny-test`: unit tests of the command-line parser, checks of
-the graph Lake resolves for `tests/fixtures/spike-ws`, and every fixture
-under `tests/fixtures/`. `lake test -- <name>...` runs only the named
-fixtures.
+test` runs `lean-deny-test`: unit tests of the command-line parser (`cli`),
+of the import-line parser (`header`), and of the graph builder and its
+queries on hand-written graphs (`query`); exact checks of the graph loaded
+for `tests/fixtures/spike-ws` and `tests/fixtures/graph-ws` (`graph`); the
+fixture runner's own checks (`harness`); and every fixture under
+`tests/fixtures/`. `lake test -- <name>...` runs only the named fixtures.
 
 A fixture is a directory holding a `fixture.toml`:
 

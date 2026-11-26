@@ -317,3 +317,115 @@ The record above stays as written. Phase 2 changed the prototype around it:
   `lakefile.lean` to declare it; once the `require` is in place it gains
   nothing over `lake exe lean-deny check` and `lake lint` with
   `lintDriver = "«lean-deny»/«lean-deny»"`, which cover it.
+
+## Addendum, 2026-11-25: phase 3 (`foundation` / `phase-3-module-graph`)
+
+The record above stays as written. Phase 3 turned the prototype into the
+module graph every rule will read (`LeanDeny.Graph.load`), and closed the
+three gaps the record listed.
+
+- **The pipeline.** `LakeApi.snapshot` loads the workspace and copies out a
+  plain `Snapshot` (`LeanDeny/Graph/Raw.lean`): one row per (target,
+  module), with Lake's parsed and resolved imports, and every package's
+  metadata. `LeanDeny/Graph.lean` then reads each module's file once,
+  parses its header for import lines, and `LeanDeny/Graph/Build.lean`
+  builds the `Graph` (`LeanDeny/Graph/Model.lean`). Everything after the
+  snapshot is pure and imports neither Lake nor Lean's parser.
+- **Executable roots are walked.** `collect` fetches each `lean_exe` root's
+  `input` as well as each library's modules. A root no library lists is a
+  workspace node owned by the executable. Its imports are ordinary edges.
+- **Shared modules are merged.** A module listed by several targets of one
+  package, from one file, is one node with all of them as owners, sorted.
+  Library membership comes from the `modules` facets, never from Lake's
+  `module?`, which names an arbitrary one of the libraries.
+- **Duplicate names are an error.** The same module name from two files, or
+  from two packages, fails the load (exit 2): Lean could not import both.
+- **External nodes are direct targets only.** Every module some workspace
+  module imports that no workspace target lists (`Init`, `Lean.Data.Json`)
+  is an external node, and the toolchain's own imports are not read. So a
+  module that imports the umbrella `Lean` stops at the node `Lean` and does
+  not reach `Lean.Elab.*` in this graph. Reading the toolchain's headers to
+  close that is left to roadmap `policy-rules`, with the `external:`
+  selectors.
+- **Unresolvable imports are an error.** Lake resolves an import to a
+  library whenever the library's glob matches, even if no file exists, and
+  the old `check` passed such a workspace. It now fails with the file and
+  line of the import.
+- **Import positions come from Lean's header parser.** Lake's
+  `parseImports'` keeps no positions. `LeanDeny/Graph/Header.lean` finds the
+  header's end with Lake's fast parser (`ParseImports.main`) and runs Lean's
+  `Module.header` parser on that prefix alone, with one empty environment
+  per run, as `lake shake` does for whole files. Each module's parsed
+  directives must agree with Lake's imports in order, name and keywords, or
+  the load fails with an internal error. On the toolchain's own 2,534
+  sources (below) every module agreed.
+- **A third toolchain-coupled file.** `LeanDeny/Graph/Header.lean` calls
+  Lean's parser API (`Module.header.fn`, `Module.updateTokens`,
+  `getTokenTable`, `mkEmptyEnvironment`, `mkInputContext`,
+  `mkParserState`, `andthenFn`, `whitespace`, `ParseImports.main`), which is
+  public but not stable. Toolchain-bump breakage is now expected within
+  `LeanDeny/Graph/LakeApi.lean`, `LeanDeny/Lake/Toml.lean` and
+  `LeanDeny/Graph/Header.lean`.
+- **Lake's messages are shown.** `loadWorkspace` runs under `captureLog`,
+  so a configuration Lake rejects prints Lake's error before lean-deny's
+  `failed to load` line, both as `lean-deny: error:` lines; warnings print
+  as `lean-deny: warning:`. Each `modules` and `input` job is wrapped so it
+  never fails. Those jobs are not registered with Lake's build monitor, so
+  a failure used to print only `uncaught top-level build failure`; now its
+  log is reported, for example Lake's `<file>:2:7: expected identifier`.
+
+### Costs, measured
+
+Machine as above. The load average was 17–24 during these runs (other
+builds were running), so the figures are noisy; minimum and median are
+given. editor-project was not available as a throwaway copy, so the large
+case is a workspace made of a copy of the toolchain's own sources
+(`Init`, `Std`, `Lean`, `Lake`: 2,538 files, 29 MB, four `lean_lib`s with
+`X.*` globs), loaded warm with no `lakefile.lean`.
+
+Stage split in milliseconds (min / median of 5 fresh processes, `Timings`):
+
+| Workspace | modules | edges | env | load | fetch | headers | build |
+|---|---|---|---|---|---|---|---|
+| `tests/fixtures/graph-ws` | 10 (+3 external) | 31 | 65 / 66 | 1 / 1 | 104 / 110 | 0 / 0 | 0 / 0 |
+| toolchain sources | 2,538 (+2 external) | 10,934 | 69 / 70 | 0 / 1 | 206 / 212 | 147 / 148 | 7 / 7 |
+
+Wall-clock of `lean-deny check --workspace <toolchain copy>`
+(`/usr/bin/time -p`, 5 runs): 0.46 / 0.48 s. On `graph-ws`: 0.23 s.
+
+The `headers` stage is file reading plus parsing:
+
+- Reading every file whole (`IO.FS.readFile`, 29 MB): 107–138 ms.
+- Parsing the headers of the same 2,534 files, pre-read, with one shared
+  `HeaderParser`: 34–47 ms for 10,827 imports (Lake's position-less
+  `parseImports'`: 3–4 ms). This matches the planning benchmark (35 ms).
+- `build` is 7–9 ms.
+
+So on this workspace phase 3 adds about 155 ms to a 0.3 s load, about a
+third of the total, against the plan's estimate of 25–40 ms. The estimate
+counted parsing only; reading whole files dominates. Toolchain files are
+large (11 KB on average); a workspace of smaller files pays less. Reading
+only a bounded prefix of each file (the header is almost always in its
+first few KiB) would cut most of the read cost; reading a 16 KiB prefix of
+each of the same files took 31–59 ms. That is left as a later optimization.
+These numbers are the baseline a later regression is measured against.
+They are not printed by the CLI or asserted in tests.
+
+### Deviations from the phase-3 plan
+
+- **`HeaderImport` lives in `LeanDeny/Graph/Raw.lean`,** not in
+  `Header.lean`, so the graph builder and its tests need not import Lean's
+  parser.
+- **`graph-ws` globs.** In Lake 4.35, `X.*` lists the module `X` even with
+  no file and then reads the directory `X/`. So `Core` uses `Core.+` (there
+  is no `Core.lean`), and `AppTest` lists `AppTest` and `App.Shared` as
+  single modules (there is no `AppTest/`).
+- **`bad-header` imports `42`,** giving `expected identifier` at 2:7. A bare
+  `import` at the end of a file gives `unexpected end of input` instead,
+  and a bare `import` followed by a declaration is not an error at all:
+  Lake's fast parser reads the next word (`def`) as the module name.
+- **Node order is `Name.cmp`'s,** as planned, which compares prefixes
+  first: `Main` sorts before `App.Shared`, and `T` before
+  `Lean.Data.Json`.
+- **The large-workspace measurement** used a copy of the toolchain's
+  sources, not editor-project (see above).
