@@ -1,0 +1,14 @@
+nodes (3):
+  Lib (Lib.lean): graph-bad-policy/lib/Lib
+  Lib.Util (Lib/Util.lean): graph-bad-policy/lib/Lib
+  Init: external
+
+edges (3):
+  Lib -> Lib.Util (1 import)
+    Lib.lean:1: Lib: import Lib.Util
+  Lib -> Init (2 imports)
+    Lib.lean: Lib: import Init (implicit)
+    Lib.lean: Lib: meta import Init (implicit)
+  Lib.Util -> Init (2 imports)
+    Lib/Util.lean: Lib.Util: import Init (implicit)
+    Lib/Util.lean: Lib.Util: meta import Init (implicit)

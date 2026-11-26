@@ -1,0 +1,5 @@
+# Fixture for graph-bad-policy. Never built.
+name = "graph-bad-policy"
+
+[[lean_lib]]
+name = "Lib"

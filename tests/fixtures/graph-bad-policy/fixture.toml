@@ -1,0 +1,6 @@
+# graph never reads the policy: a malformed lean-deny.toml (the same one as
+# malformed-policy, where check exits 2) must not stop it. Run from inside
+# this minimal workspace, so the default --workspace picks it up.
+run = "direct"
+args = ["graph", "--format", "text", "--level", "module"]
+exit = 0
