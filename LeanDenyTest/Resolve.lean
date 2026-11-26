@@ -166,6 +166,11 @@ def setCases : Array (String × LeanDeny.Policy × Option String × Array String
       none,
       #["error: p.toml:1:10: selector 'mod:Nope' in set 'bad' matches no module: no workspace \
           module is or is under 'Nope'"]),
+    ("an except-side set: naming a failed set that still matches: one error",
+      mkPolicy #[mkSet "bad" 1 ["mod:Nope", "pkg:core"], mkSet "excl" 2 ["pkg:ws"] ["set:bad"]],
+      none,
+      #["error: p.toml:1:10: selector 'mod:Nope' in set 'bad' matches no module: no workspace \
+          module is or is under 'Nope'"]),
     ("errors by set in source order, then by selector",
       mkPolicy
         #[mkSet "z" 1 ["mod:Z1", "pkg:core", "mod:Z2"], mkSet "y" 2 ["mod:Y1"],
