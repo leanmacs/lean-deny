@@ -1,0 +1,14 @@
+# `dep`'s library `Dep` has the root `Dep` only, which imports nothing of
+# `Dep`, so its `modules` facet lists `Dep` alone. `Use`, in this package,
+# imports `Dep.Broken`, a `Dep` module no root reaches whose header imports
+# `42`: it is fetched only in a later round, and its failure must still fail
+# the load with Lake's message. Never built.
+name = "lib-unreached-bad-header"
+
+[[require]]
+name = "dep"
+path = "dep"
+
+[[lean_lib]]
+name = "Use"
+roots = ["Use"]

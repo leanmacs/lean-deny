@@ -1,0 +1,5 @@
+# A header Lake cannot parse in a module no root reaches, found by import in
+# a later round: Lake's message, as for `bad-header`.
+run = "direct"
+args = ["check"]
+exit = 2

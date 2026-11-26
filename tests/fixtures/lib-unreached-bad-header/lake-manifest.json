@@ -1,0 +1,14 @@
+{"version": "1.3.0",
+ "packagesDir": ".lake/packages",
+ "packages":
+ [{"type": "path",
+   "scope": "",
+   "name": "dep",
+   "manifestFile": "lake-manifest.json",
+   "inherited": false,
+   "dir": "dep",
+   "copy": false,
+   "configFile": "lakefile.toml"}],
+ "name": "«lib-unreached-bad-header»",
+ "lakeDir": ".lake",
+ "fixedToolchain": false}
