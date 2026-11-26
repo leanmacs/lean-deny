@@ -1,0 +1,6 @@
+# Lake fetch failures are all reported, once each, in module order: two
+# broken headers (one listed by two libraries) and a library whose module
+# list cannot be computed.
+run = "direct"
+args = ["check"]
+exit = 2

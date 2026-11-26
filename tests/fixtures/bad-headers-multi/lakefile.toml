@@ -1,0 +1,25 @@
+# Several Lake fetch failures in one load, in a fixed order:
+# - `Zed` and `Multi.B` have headers Lake cannot parse; their libraries come
+#   in reverse alphabetical order, so the report must follow the lakefile, not
+#   sort. (Each broken module is alone in its library: within a glob, the
+#   order is the file system's.)
+# - `Multi.B` is listed both by the `Multi` glob and as the root of `Again`,
+#   so its failure is fetched twice but must be reported once.
+# - `Missing`'s glob names a directory that does not exist, so its `modules`
+#   facet itself fails.
+name = "bad-headers-multi"
+
+[[lean_lib]]
+name = "Zed"
+
+[[lean_lib]]
+name = "Multi"
+globs = ["Multi.+"]
+
+[[lean_lib]]
+name = "Again"
+roots = ["Multi.B"]
+
+[[lean_lib]]
+name = "Missing"
+globs = ["Missing.*"]

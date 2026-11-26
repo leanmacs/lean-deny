@@ -213,9 +213,26 @@ def checkFixture (root : System.FilePath) (name : String) (check : Graph → Arr
   | .ok (g, _) => return check g
   | .error e => return #[s!"loading {name} failed: {e}"]
 
+/-- The failures of `failureMessages`, which picks what a load reports for
+its failed Lake fetches. The `bad-header` and `bad-headers-multi` fixtures
+cover real failures; these cover the logs no fixture produces. -/
+def failureMessagesFailures : Array String :=
+  let silent := "a Lake fetch failed without a message"
+  let check (what : String) (failures : Array (Array (Bool × String))) (want : Array String) :=
+    compare s!"failure messages ({what})" (failureMessages failures) want
+  check "no failures" #[] #[] ++
+  check "errors only" #[#[(false, "info"), (true, "e1"), (false, "warn"), (true, "e2")]]
+    #["e1", "e2"] ++
+  check "no error-level entry" #[#[(false, "warn"), (false, "info")]] #["warn", "info"] ++
+  check "empty log" #[#[]] #[silent] ++
+  check "empty log among others" #[#[(true, "a")], #[], #[(false, "b")]] #["a", silent, "b"] ++
+  check "order and dedup" #[#[(true, "b")], #[(true, "a"), (true, "b")], #[(true, "b")]]
+    #["b", "a"]
+
 /-- Run the graph checks against the fixtures under `<root>/tests/fixtures`. -/
 def run (root : System.FilePath) : IO (Array String) := do
-  return (← checkFixture root "spike-ws" spikeFailures) ++
+  return failureMessagesFailures ++
+    (← checkFixture root "spike-ws" spikeFailures) ++
     (← checkFixture root "graph-ws" graphWsFailures) ++
     (← noManifestFailures (root / "tests" / "fixtures" / "spike-ws"))
 

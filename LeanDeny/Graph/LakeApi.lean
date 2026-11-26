@@ -149,29 +149,40 @@ def packageInfo (ws : Workspace) (pkg : Package) : PackageInfo := {
   isRoot := pkg.baseName == ws.root.baseName
 }
 
+/-- The messages to report for failed fetches, each failure given as its
+log's entries, `(isError, message)`, in fetch order.
+
+A failure must never be dropped: each contributes its error-level messages,
+or with none whatever it logged, or with an empty log a placeholder. Each
+distinct message is kept once, at its first place: a module listed by two
+targets is fetched for both, and fails twice with the same log. -/
+def failureMessages (failures : Array (Array (Bool × String))) : Array String := Id.run do
+  let mut errs : Array String := #[]
+  for entries in failures do
+    let es := entries.filter (·.1)
+    let es := if es.isEmpty then entries else es
+    let msgs := if es.isEmpty then #["a Lake fetch failed without a message"] else es.map (·.2)
+    for msg in msgs do
+      unless errs.contains msg do errs := errs.push msg
+  return errs
+
 /-- Load `dir` and copy out everything the graph needs, with stage timings.
 
 A module whose header Lake cannot read, or a library whose module list it
 cannot compute, fails the whole load with Lake's error messages, one per
-line, in module order. -/
+line, in module order (`failureMessages`). -/
 def snapshot (dir : FilePath) : IO (Snapshot × Timings) := do
   let (env, tEnv) ← timed computeEnv
   let (ws, tLoad) ← timed (loadWs env dir)
   let (results, tFetch) ← timed (ws.runBuild (collect ws) fetchCfg)
-  let mut errs : Array String := #[]
+  let mut failures : Array (Array (Bool × String)) := #[]
   let mut modules : Array RawModule := #[]
   for r in results do
     match r with
     | .ok m => modules := modules.push m
-    | .error log =>
-      -- A failure must never be dropped: with no error-level entry, report
-      -- whatever Lake logged, or that it logged nothing.
-      let es := log.entries.filter (·.level ≥ .error)
-      let es := if es.isEmpty then log.entries else es
-      let msgs := if es.isEmpty then #["a Lake fetch failed without a message"]
-        else es.map (·.message.trimAsciiEnd.toString)
-      for msg in msgs do
-        unless errs.contains msg do errs := errs.push msg
+    | .error log => failures := failures.push <|
+        log.entries.map fun e => (e.level ≥ .error, e.message.trimAsciiEnd.toString)
+  let errs := failureMessages failures
   unless errs.isEmpty do
     throw <| IO.userError <| "\n".intercalate errs.toList
   let snap := { root := ws.root.dir, packages := ws.packages.map (packageInfo ws), modules }

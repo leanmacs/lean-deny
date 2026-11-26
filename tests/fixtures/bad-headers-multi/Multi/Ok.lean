@@ -1,0 +1,1 @@
+-- A module Lake reads without trouble.

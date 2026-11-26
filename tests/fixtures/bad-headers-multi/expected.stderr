@@ -1,0 +1,4 @@
+lean-deny: error: <fixture>/Zed.lean:2:7: expected identifier
+lean-deny: error: <fixture>/Multi/B.lean:1:7: expected identifier
+lean-deny: error: no such file or directory (error code: 2)
+lean-deny: error:   file: <fixture>/Missing
