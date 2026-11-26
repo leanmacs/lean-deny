@@ -1,0 +1,12 @@
+lean-deny: error: lean-deny.toml:6:0: allow-only rule 1 has no 'from'
+lean-deny: error: lean-deny.toml:6:0: allow-only rule 1 has no 'allow'
+lean-deny: error: lean-deny.toml:6:0: allow-only rule 1 has no 'reason'
+lean-deny: error: lean-deny.toml:7:9: allow-only rule 1: 'except' is empty (omit it)
+lean-deny: error: lean-deny.toml:10:7: allow-only rule 2: 'from' is empty
+lean-deny: error: lean-deny.toml:11:8: allow-only rule 2: 'allow' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:12:9: allow-only rule 2: 'reason' is empty
+lean-deny: error: lean-deny.toml:16:19: allow-only rule 3 ('except'): expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:17:20: invalid selector 'Core': expected '<kind>:<value>', such as 'mod:Editor.Api'
+lean-deny: error: lean-deny.toml:18:9: allow-only rule 3: unknown key 'allows' (expected from, except, allow, reason)
+lean-deny: error: lean-deny.toml:19:9: allow-only rule 3: 'reason' must be a string, found a boolean
+lean-deny: error: lean-deny.toml:15:7: selector 'set:ap' in allow-only rule 3 ('from') names an unknown set (defined: api)

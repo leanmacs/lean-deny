@@ -1,0 +1,19 @@
+# allow-only tables with shape mistakes, each reported at its line (exit 2,
+# before Lake runs).
+[sets]
+api = ["mod:Core.Api!"]
+
+[[allow-only]]
+except = []
+
+[[allow-only]]
+from = []
+allow = 3
+reason = "  "
+
+[[allow-only]]
+from = "set:ap"
+except = ["mod:X", 4]
+allow = ["set:api", "Core"]
+allows = "external:Init"
+reason = false

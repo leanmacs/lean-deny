@@ -146,7 +146,7 @@ def sortedUnion (a b : Array NodeId) : Array NodeId :=
     return out
 
 /-- The ids of sorted `a` that are not in sorted `b`, sorted. -/
-private def diff (a b : Array NodeId) : Array NodeId :=
+def sortedDiff (a b : Array NodeId) : Array NodeId :=
   Id.run do
     let mut out := #[]
     let mut j := 0
@@ -244,12 +244,12 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
         match m with
         | .ok ns =>
           if let .setExcept _ := r.use then
-            let removesNone := !ns.isEmpty && (diff ns selected).size == ns.size
+            let removesNone := !ns.isEmpty && (sortedDiff ns selected).size == ns.size
             if removesNone && !fromFailedSet && !selectFailed then
               es := es.push (loc r.pos? s!"{r.describe} removes no module from it")
         | _ =>
           es := es.push (loc r.pos? ((matchError? r m).getD ""))
-      let result := diff selected removed
+      let result := sortedDiff selected removed
       if !selectFailed && !selected.isEmpty && result.isEmpty then
         es :=
           es.push <|

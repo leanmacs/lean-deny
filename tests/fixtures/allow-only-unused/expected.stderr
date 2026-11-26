@@ -1,0 +1,3 @@
+lean-deny: error: lean-deny.toml:7:59: selector 'mod:Feat!' in allow-only rule 1 ('allow') allows nothing: no module the rule governs imports a module it matches from outside its own package
+lean-deny: error: lean-deny.toml:7:72: selector 'lib:Leaky' in allow-only rule 1 ('allow') allows nothing: no module the rule governs imports a module it matches from outside its own package
+lean-deny: error: lean-deny.toml:10:0: allow-only rule 2 governs no module: a more specific rule governs each module it covers (allow-only rules 3 and 4)

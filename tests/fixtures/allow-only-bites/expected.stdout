@@ -1,0 +1,7 @@
+deny rule 1 (lean-deny.toml:5:0): no library imports a test double
+  leaky/Leaky.lean:2: Leaky imports CoreTest.Fake
+allow-only rule 1 (lean-deny.toml:10:0): the feature imports the core's API alone
+  Feat/Util.lean:1: Feat.Util imports Std.Data.HashMap
+allow-only rule 1 (lean-deny.toml:10:0): the feature imports the core's API alone
+  FeatTest.lean:2: FeatTest imports CoreTest.Fake
+lean-deny: 3 violations in 2 of 2 rules

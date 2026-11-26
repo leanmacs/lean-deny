@@ -1,0 +1,13 @@
+# A deny rule and an allow-only rule over tier-ws that both bite: deny
+# violations come first, then allow-only ones, each rule's by importing
+# module in the order graph lists them, then in source order. An external
+# module (Std) must be allowed like any other.
+[[deny]]
+from = "pkg:leaky"
+to = "lib:CoreTest"
+reason = "no library imports a test double"
+
+[[allow-only]]
+from = "pkg:feat"
+allow = ["mod:Core.Api!", "external:Init"]
+reason = "the feature imports the core's API alone"

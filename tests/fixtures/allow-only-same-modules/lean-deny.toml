@@ -1,0 +1,11 @@
+# Two allow-only rules that cover exactly the same modules: neither is the
+# more specific, so each module they cover is ambiguous (exit 2).
+[[allow-only]]
+from = "pkg:feat"
+allow = ["mod:Core.Api!", "lib:CoreTest", "external:Init", "external:Std"]
+reason = "the feature's modules"
+
+[[allow-only]]
+from = ["lib:Feat", "lib:FeatTest"]
+allow = ["mod:Core.Api!", "lib:CoreTest", "external:Init", "external:Std"]
+reason = "the feature's libraries"

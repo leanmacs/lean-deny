@@ -1,0 +1,5 @@
+lean-deny: error: lean-deny.toml:5:9: selector 'mod:Leaky!' in allow-only rule 1 ('except') removes no module from 'from'
+lean-deny: error: lean-deny.toml:9:0: allow-only rule 2 covers no module: 'except' removes every workspace module of 'from'
+lean-deny: error: lean-deny.toml:16:24: selector 'mod:Nope' in allow-only rule 3 ('from') matches no module: no workspace module is or is under 'Nope'
+lean-deny: error: lean-deny.toml:17:9: selector 'lib:Missing' in allow-only rule 3 ('allow') matches no module: no package has a lean_lib named 'Missing'
+lean-deny: error: lean-deny.toml:16:8: selector 'external:Std' in allow-only rule 3 ('from') matches only modules outside the workspace, which import nothing in the graph

@@ -1,0 +1,5 @@
+# The allow-only fixtures' workspace (tests/fixtures/allow-only-*): its own
+# policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0

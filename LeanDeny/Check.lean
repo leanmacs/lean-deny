@@ -3,6 +3,7 @@ import LeanDeny.Exit
 import LeanDeny.Load
 import LeanDeny.Policy
 import LeanDeny.Policy.Resolve
+import LeanDeny.Rules.AllowOnly
 import LeanDeny.Rules.Deny
 
 /-!
@@ -10,7 +11,8 @@ import LeanDeny.Rules.Deny
 
 Resolve the workspace, load the policy, load the workspace's module graph,
 resolve every set of the policy against it (each selector must match), then
-check the policy's rules. Cheap failures come first: a bad workspace path or
+check the policy's rules: deny rules (`LeanDeny.Rules.Deny`), then
+allow-only rules (`LeanDeny.Rules.AllowOnly`). Cheap failures come first: a bad workspace path or
 policy is reported before Lake runs.
 
 The report goes to stdout: `lean-deny: ok (N rules)` when every rule holds
@@ -31,12 +33,23 @@ def okLine (rules : Nat) : String :=
 def summaryLine (violations broken rules : Nat) : String :=
   s!"lean-deny: {Graph.plural violations "violation"} in {broken} of {Graph.plural rules "rule"}"
 
+/-- Every rule of `p`, with the policy's sets resolved in `sets`: deny rules,
+then allow-only rules. Every error of both kinds (deny's first), or, when
+there is none, every violation (deny's first). -/
+def checkRules (g : Graph.Graph) (p : Policy) (sets : Std.HashMap String (Array Graph.NodeId)) :
+    Except (Array String) (Array Violation) :=
+  match checkDeny g p sets, checkAllowOnly g p sets with
+  | .ok dvs, .ok avs => .ok (dvs ++ avs)
+  | .error des, .error aes => .error (des ++ aes)
+  | .error des, .ok _ => .error des
+  | .ok _, .error aes => .error aes
+
 /-- What `check` prints on stdout for the rules' result `vs`: the ok line, or
 every violation's block followed by the summary line. -/
-def checkReport (g : Graph.Graph) (p : Policy) (vs : Array DenyViolation) : Array String :=
+def checkReport (g : Graph.Graph) (p : Policy) (vs : Array Violation) : Array String :=
   if vs.isEmpty then #[okLine p.ruleCount]
   else
-    let broken := (vs.map (·.rule.index)).toList.eraseDups.length
+    let broken := (vs.map (·.label)).toList.eraseDups.length
     vs.flatMap (·.render g p.path) |>.push (summaryLine vs.size broken p.ruleCount)
 
 /-- Run `check`. Diagnostics go to stderr; the report to stdout. -/
@@ -68,7 +81,7 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
       pure sets
     | .error msgs =>
       return ← fail msgs
-  match checkDeny g policy sets with
+  match checkRules g policy sets with
   | .error msgs =>
     fail msgs
   | .ok vs =>

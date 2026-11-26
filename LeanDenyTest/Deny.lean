@@ -34,7 +34,7 @@ def outcome (ms : Array M) (src : String) : IO (Array String) := do
     | .error es =>
       return es.map ("sets: " ++ ·)
     | .ok sets =>
-      match checkDeny g p sets with
+      match checkRules g p sets with
       | .error es =>
         return es
       | .ok vs =>
@@ -223,7 +223,7 @@ def cases : Array (String × Array M × String × Array String) :=
 
 /-- `okLine`, `summaryLine` and a violation's header without a position. -/
 def renderingFailures : Array String :=
-  let v : DenyViolation := { rule := { index := 1, pos? := none, reason := "r" }, chain := #[] }
+  let v : Violation := { label := "deny rule 1", pos? := none, reason := "r", chain := #[] }
   let want :=
     [(okLine 0, "lean-deny: ok (0 rules)"), (okLine 1, "lean-deny: ok (1 rule)"),
       (okLine 2, "lean-deny: ok (2 rules)"),

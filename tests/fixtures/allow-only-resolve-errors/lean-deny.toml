@@ -1,0 +1,23 @@
+# allow-only rules whose selectors resolve badly: each is an error (exit 2)
+# naming the rule and the field, and no violation is reported.
+[[allow-only]]
+from = "pkg:feat"
+except = "mod:Leaky!"
+allow = "external:Init"
+reason = "an except entry outside 'from' removes nothing"
+
+[[allow-only]]
+from = "lib:FeatTest"
+except = "mod:FeatTest"
+allow = "external:Init"
+reason = "the except list empties 'from'"
+
+[[allow-only]]
+from = ["external:Std", "mod:Nope"]
+allow = ["lib:Missing", "external:Init"]
+reason = "selectors that match nothing, and a 'from' outside the workspace"
+
+[[allow-only]]
+from = "pkg:leaky"
+allow = "external:Init"
+reason = "it would bite, but a bad policy is reported alone"

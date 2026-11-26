@@ -1,0 +1,18 @@
+# A tiered allow-only policy over the feature package that holds. Its
+# library imports the core's API, Std, and its own package (never checked);
+# its tests also import a test double. Leaky, which no rule covers, is not
+# checked, though its library imports a test double.
+[sets]
+core-api = ["mod:Core.Api!"]
+doubles = ["lib:CoreTest"]
+
+[[allow-only]]
+from = "pkg:feat"
+except = ["lib:FeatTest"]
+allow = ["set:core-api", "external:Init", "external:Std"]
+reason = "the feature's library imports the core's API alone"
+
+[[allow-only]]
+from = "lib:FeatTest"
+allow = ["set:core-api", "set:doubles", "external:Init"]
+reason = "the feature's tests may also import the core's test doubles"

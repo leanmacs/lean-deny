@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:9:0: allow-only rules 1 and 2 overlap without nesting: both cover Feat.Util, FeatTest, but each also covers a module the other does not, so neither is the most specific for them (nest one rule's modules inside the other's, or take the shared modules out of one with 'except')

@@ -1,0 +1,9 @@
+name = "core"
+
+[[lean_lib]]
+name = "Core"
+globs = ["Core.+"]  # no Core.lean root module
+
+[[lean_lib]]
+name = "CoreTest"
+globs = ["CoreTest.+"]  # the core's test doubles

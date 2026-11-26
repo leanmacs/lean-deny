@@ -1,0 +1,21 @@
+# The allow-only fixtures' workspace: this feature package (a library and a
+# test library), a second feature package `leaky` whose library imports a
+# test double, and `core` with an API library and a test-double library.
+# Joined by path `require`s. Never built.
+name = "feat"
+keywords = ["editor-package"]
+
+[[require]]
+name = "core"
+path = "core"
+
+[[require]]
+name = "leaky"
+path = "leaky"
+
+[[lean_lib]]
+name = "Feat"
+globs = ["Feat.*"]  # Feat.lean and everything under Feat/
+
+[[lean_lib]]
+name = "FeatTest"

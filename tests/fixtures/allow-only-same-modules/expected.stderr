@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:8:0: allow-only rule 2 covers exactly the modules allow-only rule 1 covers, so neither is the most specific (merge the two rules, or narrow one with 'except')

@@ -1,0 +1,3 @@
+# `allow-only` must be an array of tables: `[allow-only]` is a single table.
+[allow-only]
+from = "pkg:a"

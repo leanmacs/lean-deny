@@ -1,5 +1,6 @@
 import LeanDeny.Graph.Query
 import LeanDeny.Policy.Resolve
+import LeanDeny.Rules.Common
 
 /-!
 # `[[deny]]` rules
@@ -52,25 +53,10 @@ structure DenyResolved where
   wrappers : Array (SelectorRef × Array NodeId)
   deriving Inhabited
 
-/-- One violation: a chain of imports from a module in `from` to a module in
-`to`. -/
-structure DenyViolation where
-  rule : DenyRule
-  /-- At least one edge, exactly one for a direct rule; consecutive
-  (`chain[i].dst = chain[i+1].src`). -/
-  chain : Array Edge
-  deriving BEq, Repr, Inhabited
-
-/-- The name of node `n`. -/
-private def nameOf (g : Graph) (n : NodeId) : String :=
-  (g.nodes[n]?.map (·.name.toString)).getD "?"
-
-private def isExternalId (g : Graph) (n : NodeId) : Bool :=
-  (g.nodes[n]?.map (·.origin == .external)).getD false
-
-/-- Membership in `ns`, as an array over the graph's nodes. -/
-private def memberMask (g : Graph) (ns : Array NodeId) : Array Bool :=
-  ns.foldl (fun m i => if i < m.size then m.set! i true else m) (Array.replicate g.nodes.size false)
+/-- The violation of rule `r` that `chain` witnesses: a chain of imports
+from a module in `from` to a module in `to`. -/
+def DenyRule.violation (r : DenyRule) (chain : Array Edge) : Violation :=
+  { label := r.label, pos? := r.pos?, reason := r.reason, chain }
 
 /-- Resolve rule `r`'s selectors in `g`, with the policy's sets resolved in
 `sets`. The errors, in order: each selector that matches nothing (source
@@ -108,7 +94,7 @@ def resolveDeny (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeI
       let inTo := memberMask g targets
       let shared := sources.filter (inTo[·]?.getD false)
       if !shared.isEmpty then
-        let names := ", ".intercalate ((displayOrder g shared).map (nameOf g)).toList
+        let names := ", ".intercalate ((displayOrder g shared).map (nodeName g)).toList
         let msg :=
           s!"{r.label}: 'from' and 'to' share modules: {names} (take them out of one side \
             with a set's 'except')"
@@ -120,7 +106,7 @@ def resolveDeny (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeI
 /-- Evaluate a resolved rule: its violations, in report order (each `from`
 module in `displayOrder`, then, for a direct rule, its imports in source
 order), and, per wrapper selector, whether it excuses anything. -/
-def evalDeny (g : Graph) (d : DenyResolved) : Array DenyViolation × Array Bool :=
+def evalDeny (g : Graph) (d : DenyResolved) : Array Violation × Array Bool :=
   Id.run do
     let inTo := memberMask g d.targets
     let inFrom := memberMask g d.sources
@@ -133,14 +119,14 @@ def evalDeny (g : Graph) (d : DenyResolved) : Array DenyViolation × Array Bool 
         continue
       if d.rule.transitive then
         if let some chain := g.shortestPath? #[f] isTo (follow := fun e => !isW e.src) then
-          vs := vs.push { rule := d.rule, chain }
+          vs := vs.push (d.rule.violation chain)
       else
         -- One violation per imported module: the first directive is the witness.
         let mut seen : Array NodeId := #[]
         for e in g.imports f do
           if isTo e.dst && !seen.contains e.dst then
             seen := seen.push e.dst
-            vs := vs.push { rule := d.rule, chain := #[e] }
+            vs := vs.push (d.rule.violation #[e])
     -- Modules reached from `from` without walking out of a wrapper or a `to`
     -- module: a wrapper among them, or in `from`, is a first wrapper.
     let reached :=
@@ -172,7 +158,7 @@ private def unusedWrapper (r : DenyRule) (ref : SelectorRef) (allInTo : Bool) : 
 violations in rule order, or every error of every rule (rule order; per rule,
 resolution errors, then unused wrappers in source order). -/
 def checkDeny (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeId)) :
-    Except (Array String) (Array DenyViolation) :=
+    Except (Array String) (Array Violation) :=
   Id.run do
     let mut errs := #[]
     let mut vs := #[]
@@ -190,17 +176,5 @@ def checkDeny (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeId)
     if errs.isEmpty then
       return .ok vs
     return .error errs
-
-/-- One step of a chain: `<file>[:<line>]: <importer> imports <imported>[ (implicit)]`,
-the file relative to the workspace. -/
-def chainLine (g : Graph) (e : Edge) : String :=
-  let pos := g.relPath e.file ++ ((e.line?.map (s!":{·}")).getD "")
-  s!"{pos}: {nameOf g e.src} imports {nameOf g e.dst}{if e.implicit then " (implicit)" else ""}"
-
-/-- A violation as a block: `deny rule N (<path>:<line>:<column>): <reason>`,
-then one step per edge, indented two spaces. `path` is the policy's. -/
-def DenyViolation.render (g : Graph) (path : String) (v : DenyViolation) : Array String :=
-  #[s!"{v.rule.label} ({Policy.posText path v.rule.pos?}): {v.rule.reason}"] ++
-    v.chain.map fun e => s!"  {chainLine g e}"
 
 end LeanDeny

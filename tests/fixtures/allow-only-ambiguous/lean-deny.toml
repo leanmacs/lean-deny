@@ -1,0 +1,13 @@
+# Two allow-only rules that overlap without nesting: both cover Feat.Util
+# and FeatTest, and each covers a module the other does not (Feat; Leaky),
+# so no rule is the most specific for the shared modules (exit 2).
+[[allow-only]]
+from = "pkg:feat"
+allow = ["mod:Core.Api!", "lib:CoreTest", "external:Init", "external:Std"]
+reason = "the feature's modules"
+
+[[allow-only]]
+from = "keyword:editor-package"
+except = "mod:Feat!"
+allow = ["mod:Core.Api!", "lib:CoreTest", "external:Init", "external:Std"]
+reason = "every package but the feature's root"

@@ -1,0 +1,9 @@
+name = "leaky"
+keywords = ["editor-package"]
+
+[[require]]
+name = "core"
+path = "../core"
+
+[[lean_lib]]
+name = "Leaky"

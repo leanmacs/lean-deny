@@ -1,0 +1,18 @@
+# Tiers over every package (the phase's Done-when). The library rule covers
+# every module of a package with keyword editor-package; the test rule
+# covers the feature's test library, nested inside it, and is the more
+# specific, so it alone governs FeatTest. Leaky's library imports the test
+# double CoreTest.Fake and bites; FeatTest makes the same import and holds.
+[sets]
+core-api = ["mod:Core.Api!"]
+doubles = ["lib:CoreTest"]
+
+[[allow-only]]
+from = "keyword:editor-package"
+allow = ["set:core-api", "external:Init", "external:Std"]
+reason = "a package's library imports the core's API alone"
+
+[[allow-only]]
+from = "lib:FeatTest"
+allow = ["set:core-api", "set:doubles", "external:Init"]
+reason = "a package's tests may also import the core's test doubles"

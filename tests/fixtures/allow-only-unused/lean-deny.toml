@@ -1,0 +1,23 @@
+# allow-only entries that excuse nothing, each an error (exit 2). Rule 1
+# governs FeatTest alone: it imports Feat from its own package, which needs
+# no allow entry, and nothing of Leaky. Rule 2 governs no module: rules 3
+# and 4 are more specific for each of its two modules.
+[[allow-only]]
+from = "pkg:feat"
+allow = ["mod:Core.Api!", "lib:CoreTest", "external:Init", "mod:Feat!", "lib:Leaky"]
+reason = "the feature's tests import the core's API and test doubles"
+
+[[allow-only]]
+from = "lib:Feat"
+allow = ["mod:Core.Api!", "external:Init"]
+reason = "the feature's library imports the core's API"
+
+[[allow-only]]
+from = "mod:Feat!"
+allow = ["mod:Core.Api!", "external:Init"]
+reason = "the feature's root imports the core's API"
+
+[[allow-only]]
+from = "mod:Feat.Util!"
+allow = ["external:Std", "external:Init"]
+reason = "the feature's utilities import Std"

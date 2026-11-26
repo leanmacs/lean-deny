@@ -110,7 +110,7 @@ Exit codes:
   0  every rule holds (check), or the graph or the matches were printed
   1  at least one rule is broken
   2  the command line, the policy or the workspace is bad, a selector
-     matches nothing, or a wrapper excuses nothing
+     matches nothing, or a wrapper, except or allow entry has no effect
 "
 
 private def isHelp (a : String) : Bool :=

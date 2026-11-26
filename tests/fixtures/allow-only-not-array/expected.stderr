@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:2:0: 'allow-only' must be an array of tables, such as [[allow-only]]
