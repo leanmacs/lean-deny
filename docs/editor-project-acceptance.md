@@ -1096,7 +1096,11 @@ it part of `lake test`:
   rule 4, mirroring `host-shipped-themes`: the fixtures host root
   `Editor.Test.Fixture.Main` imports `ShippedThemes.EditorPackage`, an entry
   module only the stand-in roots name. For deny rule 5 the entry module
-  `Shell.EditorPackage` imports `Std.Data.HashMap`; for deny rule 6 the
+  `Shell.EditorPackage` imports `Std.Data.HashMap`, and the entry module
+  `ShippedThemes.EditorPackage` imports the core module `Editor.Api` and
+  `Lean.Data.Json`, so each of the rule's `pkg:editor-core`, `external:Std`
+  and `external:Lean` targets bites (as `host-entry-core` and
+  `host-entry-lean` do); for deny rule 6 the
   entry module `Compile.EditorPackage` imports `CompileTest.FixtureSupport`,
   so `EditorSetRoot` reaches it. For reachable rule 1 it adds the empty
   core module `lean/Editor/Test/Shell.lean`, imported only by the package
@@ -1122,12 +1126,13 @@ it part of `lake test`:
   twice (`Editor.Main` and `Editor.Test.Fixture.Main`, through
   `Editor.Headless` and `Editor.Loop`).
 - `tests/fixtures/editor-acceptance-bites` runs the same policy over
-  `editor-broken-ws`: `lean-deny: 24 violations in 14 of 14 rules`. Deny rule
+  `editor-broken-ws`: `lean-deny: 26 violations in 14 of 14 rules`. Deny rule
   1 bites five times (`Editor.Core` through `Editor.Main`, `Editor.Main`,
   `Editor.Test.Fixture.Main`, `ModelTest` through `ModelTest.Bound`,
   `ModelTest.Bound`), deny rule 2 twice, deny rule 4 twice (`Editor.Main`,
-  `Editor.Test.Fixture.Main`), deny rule 5 once (`Shell.EditorPackage`
-  imports `Std.Data.HashMap`), deny rule 6 once (`EditorSetRoot` →
+  `Editor.Test.Fixture.Main`), deny rule 5 three times (`Shell.EditorPackage`
+  imports `Std.Data.HashMap`, `ShippedThemes.EditorPackage` imports
+  `Editor.Api` and `Lean.Data.Json`), deny rule 6 once (`EditorSetRoot` →
   `Compile.EditorPackage` → `CompileTest.FixtureSupport`), allow-only rule 4 twice (`Editor.Ffi.Text`,
   `Editor.Window.Real`), `layers` four times (compile → shell,
   editor-core → compile, editor-core → shipped-themes,
@@ -1137,7 +1142,14 @@ it part of `lake test`:
   `Editor`, and target-config rule 1 on `editor-core/FilesApi`. Without the
   `except`, the `Editor.Window.Real` violation is not reported; with a
   hand-written entry-module list lacking `ShippedThemes.EditorPackage`, deny
-  rule 4 misses `Editor.Test.Fixture.Main`.
+  rule 4 misses `Editor.Test.Fixture.Main`; with deny rule 5's `to` cut to
+  `external:Std`, its `Editor.Api` and `Lean.Data.Json` violations are not
+  reported. The `Editor.Api` import also makes `Editor.Api` a feature
+  module, which `Editor.Main` and `Editor.Test.Fixture.Main` reach through
+  `Editor.Headless` and `Editor.Loop`, but deny rule 4 reports one shortest
+  chain per host root, and both already have a shorter one, so it adds no
+  deny rule 4 line (over `editor-ws`, the same import alone gives deny rule 4
+  twice through `Editor.Loop`: a fixture-sized `host-entry-core`).
 
 The fixtures are a model of editor-project's structure, not a copy of it:
 each `.lean` file holds only `import` lines (two hold none), with

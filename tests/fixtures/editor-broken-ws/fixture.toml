@@ -1,7 +1,8 @@
 # The editor-acceptance fixtures' workspace, editor-ws plus one breaking
 # import per import rule of the acceptance policy (an entry module that
-# imports Std, and an entry module that imports the fixture support module
-# CompileTest.FixtureSupport among them), a core module,
+# imports Std, an entry module that imports the core module Editor.Api and
+# Lean.Data.Json, and an entry module that imports the fixture support
+# module CompileTest.FixtureSupport among them), a core module,
 # Editor.Test.Shell, that only a package test imports, outside the core
 # root's closure, and a fixture-harness root, EditorSetFixtures, that reaches
 # the config elaborator without importing the config base, and a core

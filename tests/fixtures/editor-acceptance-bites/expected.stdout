@@ -26,6 +26,10 @@ deny rule 4 (../editor-acceptance-holds/lean-deny.toml:59:0): the host is handed
   lean/Editor/Test/Fixture/Main.lean:2: Editor.Test.Fixture.Main imports ShippedThemes.EditorPackage
 deny rule 5 (../editor-acceptance-holds/lean-deny.toml:67:0): an entry module imports package modules and nothing else (host imports)
   shell/Shell/EditorPackage.lean:2: Shell.EditorPackage imports Std.Data.HashMap
+deny rule 5 (../editor-acceptance-holds/lean-deny.toml:67:0): an entry module imports package modules and nothing else (host imports)
+  shipped-themes/ShippedThemes/EditorPackage.lean:2: ShippedThemes.EditorPackage imports Editor.Api
+deny rule 5 (../editor-acceptance-holds/lean-deny.toml:67:0): an entry module imports package modules and nothing else (host imports)
+  shipped-themes/ShippedThemes/EditorPackage.lean:3: ShippedThemes.EditorPackage imports Lean.Data.Json
 deny rule 6 (../editor-acceptance-holds/lean-deny.toml:73:0): a fixture support module is a test module: the fixture harness's root imports it, never the editor's (host imports)
   root/EditorSetRoot.lean:3: EditorSetRoot imports Compile.EditorPackage
   compile/Compile/EditorPackage.lean:2: Compile.EditorPackage imports CompileTest.FixtureSupport
@@ -55,4 +59,4 @@ co-reach rule 1 (../editor-acceptance-holds/lean-deny.toml:118:0): the elaborato
   lean/Editor/Headless.lean:2: Editor.Headless imports Editor.Config.Elaborate
 target-config rule 1 (../editor-acceptance-holds/lean-deny.toml:126:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/FilesApi does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   lean/lakefile.toml: lean_lib FilesApi
-lean-deny: 24 violations in 14 of 14 rules
+lean-deny: 26 violations in 14 of 14 rules

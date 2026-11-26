@@ -2,9 +2,11 @@
 # (exit 1): one breaking import per rule of the first eleven (deny rule 5:
 # Shell.EditorPackage imports Std.Data.HashMap; deny rule 6:
 # Compile.EditorPackage imports the fixture support module
-# CompileTest.FixtureSupport, so EditorSetRoot reaches it), a second for
-# allow-only rule 4 (the linked root imports Editor.Window.Real, which its
-# `except` excludes), and a second for deny rule 4 (Editor.Test.Fixture.Main
+# CompileTest.FixtureSupport, so EditorSetRoot reaches it), two more for
+# deny rule 5 (ShippedThemes.EditorPackage imports the core module
+# Editor.Api and Lean.Data.Json, so its pkg:editor-core and external:Lean
+# targets bite too), a second for allow-only rule 4 (the linked root
+# imports Editor.Window.Real, which its `except` excludes), and a second for deny rule 4 (Editor.Test.Fixture.Main
 # imports ShippedThemes.EditorPackage, an entry module only the declared
 # roots name, as the acceptance edit host-shipped-themes does); and, for
 # reachable rule 1, the module Editor.Test.Shell, which only a package test
