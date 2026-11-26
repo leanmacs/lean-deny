@@ -14,7 +14,9 @@ import LeanDeny.Graph.Raw
   (`Init`, `Lean.Data.Json`, …). The toolchain's own imports are not read.
 - **Unresolvable imports.** An import Lake resolves to a workspace library
   (its glob matches) whose module has no file is an error, as it is for
-  Lake's build.
+  Lake's build. The loader has already fetched every resolved import whose
+  file exists (`LakeApi.collectAll`), so an unmerged resolved import here
+  means exactly that the file is missing.
 - **Positions.** Each explicit import's line comes from the header parse,
   which must agree with Lake's imports in order, name and keywords. Lean's
   two implicit `Init` imports have no line.

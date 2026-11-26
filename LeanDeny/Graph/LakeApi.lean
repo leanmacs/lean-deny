@@ -8,7 +8,11 @@ import LeanDeny.Graph.Raw
 Load a Lake workspace in-process with `Lake.loadWorkspace`, then fetch each
 library's `modules` facet, and each module's and each executable root's
 `input` facet (its parsed header plus resolved imports), through
-`Workspace.runBuild` with `noBuild := true`. Nothing is built; the only files
+`Workspace.runBuild` with `noBuild := true`. A module no `modules` facet
+lists, but that a fetched module imports and that Lake resolves to a
+workspace library with an existing file, is fetched too, owned by that
+library (`ws.findModule?`, as Lake's `module?`), repeated until no new module
+appears (`collectAll`). Nothing is built; the only files
 Lake may write are the cached configuration oleans under
 `<workspace>/.lake/config/` for packages configured with `lakefile.lean`.
 
@@ -112,6 +116,19 @@ def rawModule (owner : Owner) (mod : Lake.Module) (input : ModuleInput) : RawMod
           importAll := imp.importAll
           resolved? := imp.module?.map fun m => (m.pkg.baseName, m.lib.name) } }
 
+/-- The library Lake's `module?` resolves `mod` to, as an owner. -/
+def libOwner (mod : Lake.Module) : Owner :=
+  { pkg := mod.pkg.baseName, kind := .lib, target := mod.lib.name }
+
+/-- Fetch the `input` of each of `mods`, each owned by `owner mod`, as one job
+that never fails. -/
+def fetchRows (owner : Lake.Module → Owner) (mods : Array Lake.Module) :
+    FetchM (Job (Array (Except Log RawModule))) := do
+  let rows ←
+    mods.mapM fun mod => do
+        return (capture (← mod.input.fetch)).map (sync := true) (·.map (rawModule (owner mod) mod))
+  return Job.collectArray rows
+
 /-- Every module of every library, and the root module of every executable,
 of every package of `ws`, with its direct imports, as one job that never
 fails. Reads headers only. -/
@@ -123,12 +140,7 @@ def collect (ws : Workspace) : FetchM (Job (Array (Except Log RawModule))) := do
       let job ←
         (capture (← lib.modules.fetch)).bindM (sync := true) fun
             | .error log => return Job.pure #[.error log]
-            | .ok mods => do
-              let rows ←
-                mods.mapM fun mod => do
-                    return (capture (← mod.input.fetch)).map (sync := true)
-                        (·.map (rawModule owner mod))
-              return Job.collectArray rows
+            | .ok mods => fetchRows (fun _ => owner) mods
       jobs := jobs.push job
     for exe in pkg.leanExes do
       let owner := { pkg := pkg.baseName, kind := .exe, target := exe.name : Owner }
@@ -142,6 +154,51 @@ def collect (ws : Workspace) : FetchM (Job (Array (Except Log RawModule))) := do
 real build fail instead of run. -/
 def fetchCfg : BuildConfig :=
   { noBuild := true, verbosity := .quiet }
+
+/-- The modules `rows` import that Lake resolves to a workspace library, that
+are not yet in `seen`, and whose file exists, in first-occurrence order, with
+`seen` extended by them. Each is `ws.findModule?`'s, the module Lake's
+`module?` names. A resolved import with no file is left out, so the graph
+builder reports it with its file and line. -/
+def unreached (ws : Workspace) (seen : Std.HashSet Name) (rows : Array (Except Log RawModule)) :
+    IO (Array Lake.Module × Std.HashSet Name) := do
+  let mut seen := seen
+  let mut found : Array Lake.Module := #[]
+  for r in rows do
+    let .ok m := r
+      | continue
+    for imp in m.imports do
+      if imp.resolved?.isNone || seen.contains imp.module then
+        continue
+      let some mod := ws.findModule? imp.module
+        | continue
+      unless ← mod.leanFile.pathExists do
+        continue
+      seen := seen.insert imp.module
+      found := found.push mod
+  return (found, seen)
+
+/-- `collect`'s rows, plus every module the `modules` facets do not list but
+some fetched module imports and Lake resolves to a workspace library with an
+existing file, owned by that library, repeated until no new module appears.
+It terminates: `seen` only grows, within the workspace's finitely many
+modules. -/
+def collectAll (ws : Workspace) : IO (Array (Except Log RawModule)) := do
+  let mut rows ← ws.runBuild (collect ws) fetchCfg
+  let mut seen : Std.HashSet Name := {}
+  for r in rows do
+    if let .ok m := r then
+      seen := seen.insert m.name
+  let mut frontier := rows
+  repeat
+    let (extra, seen') ← unreached ws seen frontier
+    seen := seen'
+    if extra.isEmpty then
+      break
+    let new ← ws.runBuild (fetchRows libOwner extra) fetchCfg
+    rows := rows ++ new
+    frontier := new
+  return rows
 
 /-- A package's metadata. -/
 def packageInfo (ws : Workspace) (pkg : Package) : PackageInfo :=
@@ -184,7 +241,7 @@ line, in module order (`failureMessages`). -/
 def snapshot (dir : FilePath) : IO (Snapshot × Timings) := do
   let (env, tEnv) ← timed computeEnv
   let (ws, tLoad) ← timed (loadWs env dir)
-  let (results, tFetch) ← timed (ws.runBuild (collect ws) fetchCfg)
+  let (results, tFetch) ← timed (collectAll ws)
   let mut failures : Array (Array (Bool × String)) := #[]
   let mut modules : Array RawModule := #[]
   for r in results do

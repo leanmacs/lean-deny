@@ -1,0 +1,3 @@
+run = "direct"
+args = ["graph", "--workspace", "../lib-unreached-module", "--format", "text", "--level", "module"]
+exit = 0

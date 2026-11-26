@@ -429,3 +429,40 @@ They are not printed by the CLI or asserted in tests.
   `Lean.Data.Json`.
 - **The large-workspace measurement** used a copy of the toolchain's
   sources, not editor-project (see above).
+
+## Addendum, 2026-11-26: phase 1 (`editor-project-parity` / `phase-1-load-unreached-library-modules`)
+
+The record above stays as written. This phase narrows two of phase 3's
+statements: that library membership comes from the `modules` facets only,
+and that `collect` is a single walk of the facets and executable roots.
+
+- **Modules no root reaches are loaded when imported.** A library declared
+  with `roots` has, in its `modules` facet, the roots and the modules of that
+  library they import, and nothing else. A module that no facet lists, but
+  that a workspace module imports and that Lake resolves to a workspace
+  library whose file exists, is now fetched (its `input` facet, as for every
+  other module) and owned by the library `ws.findModule?` returns. Its own
+  imports are followed the same way, round after round, until no new module
+  appears (`LakeApi.collectAll`). editor-project's `Editor.Test.Shell`,
+  which only other packages' tests import, was the case that failed the
+  load at `4df216a8`.
+- **The owner is deterministic.** `Workspace.findModule?` takes the first
+  package, in workspace order, whose `Package.findModule?` matches, and
+  that is the last `lean_lib` of the package whose roots or globs make the
+  name buildable. It is pure, so the same workspace gives the same owner on
+  every run. It is the function Lake's `Module.recFetchInput` uses to fill
+  each import's `module?`, so the owner is the library `resolved?` already
+  names, and the one Lake's own `modules` facet (`recCollectLocalModules`)
+  credits a module it reaches by import to.
+- **One owner, not all.** A module found this way has exactly one owner,
+  even if several libraries' globs would claim it. The `modules`-facet path
+  still gives every listing library as an owner; only an import-found module
+  is limited to Lake's pick. That is the library Lake builds it as, so a
+  policy over libraries sees what Lake does.
+- **A resolved import with no file stays an error.** The loader skips an
+  import whose resolved file does not exist, so the graph builder still
+  fails the load with the import's file and line ("no such module file
+  exists"), as before.
+- **Each round is a separate `runBuild`** with `noBuild := true`; nothing is
+  built. On editor-project's `packages/` one extra round fetches
+  `Editor.Test.Shell`, whose imports add no new module.

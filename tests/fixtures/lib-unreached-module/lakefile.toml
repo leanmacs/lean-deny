@@ -1,0 +1,14 @@
+# `dep`'s library `Dep` has the root `Dep` only, which imports nothing of
+# `Dep`, so its `modules` facet lists `Dep` alone. `Use`, in this package,
+# imports `Dep.Extra`, which imports `Dep.Deep`: both are `Dep`'s modules that
+# no root reaches, found by import (`Dep.Deep` only in a second round). The
+# shape of editor-project's `Editor.Test.Shell`. Never built.
+name = "lib-unreached-module"
+
+[[require]]
+name = "dep"
+path = "dep"
+
+[[lean_lib]]
+name = "Use"
+roots = ["Use"]

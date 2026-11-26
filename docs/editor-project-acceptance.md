@@ -67,7 +67,9 @@ harmless.)
 Lake compiling `lean/lakefile.lean`. Later loads of the same copy take about
 0.6 s.
 
-**lean-deny cannot load `packages/` at `4df216a8`.** It exits 2 with
+**lean-deny now loads `packages/` at `4df216a8` unmodified.** Before
+roadmap `editor-project-parity` phase 1
+(`phase-1-load-unreached-library-modules`) it exited 2 with
 
 ```
 lean-deny: error: <work>/pristine/packages/compile/CompileTest/Support/Compile.lean:36: import of Editor.Test.Shell: Lake resolves it to library Editor of package editor-core, but no such module file exists
@@ -77,11 +79,14 @@ The file exists. `lean_lib Editor` has `roots := #[Editor, Editor.Core]`,
 and Lake's `modules` facet for a library with roots holds the roots and the
 modules of that library they import. No root reaches `Editor.Test.Shell`:
 only the tests of `shell`, `version-control`, `compile-api` and `compile`
-import it (15 import lines). So lean-deny never lists the module, and the
-graph builder reports a missing file. That is a lean-deny loader gap (task
-`load-unreached-library-modules`).
+import it (15 import lines). So lean-deny never listed the module, and the
+graph builder reported a missing file. That loader gap is fixed: a module no
+`modules` facet lists, but that a workspace module imports and Lake resolves
+to a workspace library with an existing file, is now loaded and owned by
+that library, so `Editor.Test.Shell` is a module of `editor-core/lib/Editor`
+(282 modules).
 
-It is also an editor-project finding: core rule 2 ("every `Editor.…` module
+It is still an editor-project finding: core rule 2 ("every `Editor.…` module
 the build reaches is in `Editor.Core`'s closure") is broken at `4df216a8`.
 The deleted script would not have caught it either: its roots were the
 core's test executables and the two generated roots, not the packages'
@@ -673,7 +678,6 @@ on `main`.
 | Patterns (`Editor.*.Model`, `Editor.*Contract`, `Editor.*.Cases`, `Editor.*.Real`, `Editor.*.Kit`, `<P>Test`, `<P>Test.Linked`, `*.EditorPackage`) are enumerated, and the enumerations fail open: a new match lands in `api`. | `glob-selector` |
 | "Every package but the core" is enumerated: a new implementation package declares no keyword and is outside `set:packages` until listed. | `workspace-selector` |
 | `Editor.Internal…` and `Editor.*.Kit` have no module yet, so a selector naming them is an error; they are left out, and a first module there falls into `api`. | `reserved-namespace-selector` |
-| lean-deny cannot load a workspace where a module of a `roots` library that no root reaches is imported by another package (`Editor.Test.Shell` at `4df216a8`). | `load-unreached-library-modules` |
 | Core rule 4 sees only direct imports of `Lean`/`Lake`, as the script did (not a regression). | `external-transitive-reach` |
 | Paths outside the workspace directory (the core's, `../lean`) print absolute. | `relative-paths-outside-root` |
 | (Out of scope here.) editor-project's lint-plugins check: every target loads a given plugin. | `target-config-rules` |
@@ -687,8 +691,7 @@ This is input for editor-project's task `lean-structure-rules-tool`:
   place is fine; it is only this repository's acceptance run that must use a
   copy.
 - The baseline needs `Editor.Test.Shell` imported by `Editor.Core` (which is
-  also what editor-project's own core rule 2 asks for), or lean-deny's task
-  `load-unreached-library-modules`.
+  also what editor-project's own core rule 2 asks for).
 - Keep the enumerations in the policy in sync with the tree until the
   `glob-selector`, `derived-selectors` and `workspace-selector` tasks land.
 - Build lean-deny with editor-project's toolchain (they are equal now), so

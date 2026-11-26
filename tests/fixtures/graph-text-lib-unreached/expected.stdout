@@ -1,0 +1,23 @@
+nodes (3):
+  dep/lib/Dep: 3 modules
+    Dep
+    Dep.Deep
+    Dep.Extra
+  lib-unreached-module/lib/Use: 1 module
+    Use
+  external/Init: 1 module
+    Init
+
+edges (3):
+  dep/lib/Dep -> external/Init (6 imports)
+    dep/Dep.lean: Dep: import Init (implicit)
+    dep/Dep.lean: Dep: meta import Init (implicit)
+    dep/Dep/Deep.lean: Dep.Deep: import Init (implicit)
+    dep/Dep/Deep.lean: Dep.Deep: meta import Init (implicit)
+    dep/Dep/Extra.lean: Dep.Extra: import Init (implicit)
+    dep/Dep/Extra.lean: Dep.Extra: meta import Init (implicit)
+  lib-unreached-module/lib/Use -> dep/lib/Dep (1 import)
+    Use.lean:1: Use: import Dep.Extra
+  lib-unreached-module/lib/Use -> external/Init (2 imports)
+    Use.lean: Use: import Init (implicit)
+    Use.lean: Use: meta import Init (implicit)

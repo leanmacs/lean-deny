@@ -91,8 +91,7 @@ missing() {
 }
 
 # Every Editor module a build reaches must be in Editor.Core's closure
-# (editor-project's core rule 2). At 4df216a8 Editor.Test.Shell is not, and
-# lean-deny cannot load the workspace then (the task named in the doc). The
+# (editor-project's core rule 2). At 4df216a8 Editor.Test.Shell is not. The
 # baseline adds the import that rule prescribes, as editor-project's fix would.
 core=$work/pristine/lean/Editor/Core.lean
 if [ ! -f "$core" ]; then

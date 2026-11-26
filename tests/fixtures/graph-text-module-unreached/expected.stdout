@@ -1,0 +1,24 @@
+nodes (5):
+  Dep (dep/Dep.lean): dep/lib/Dep
+  Dep.Deep (dep/Dep/Deep.lean): dep/lib/Dep
+  Dep.Extra (dep/Dep/Extra.lean): dep/lib/Dep
+  Use (Use.lean): lib-unreached-module/lib/Use
+  Init: external
+
+edges (6):
+  Dep -> Init (2 imports)
+    dep/Dep.lean: Dep: import Init (implicit)
+    dep/Dep.lean: Dep: meta import Init (implicit)
+  Dep.Deep -> Init (2 imports)
+    dep/Dep/Deep.lean: Dep.Deep: import Init (implicit)
+    dep/Dep/Deep.lean: Dep.Deep: meta import Init (implicit)
+  Dep.Extra -> Dep.Deep (1 import)
+    dep/Dep/Extra.lean:1: Dep.Extra: import Dep.Deep
+  Dep.Extra -> Init (2 imports)
+    dep/Dep/Extra.lean: Dep.Extra: import Init (implicit)
+    dep/Dep/Extra.lean: Dep.Extra: meta import Init (implicit)
+  Use -> Dep.Extra (1 import)
+    Use.lean:1: Use: import Dep.Extra
+  Use -> Init (2 imports)
+    Use.lean: Use: import Init (implicit)
+    Use.lean: Use: meta import Init (implicit)
