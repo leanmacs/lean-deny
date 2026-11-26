@@ -39,7 +39,8 @@ def HeaderParser.new : IO HeaderParser := do
 private def importOf (stx : Syntax) : Option (Name × ImportKind) :=
   match stx with
   | `(Module.import| $[public%$pubTk?]? $[meta%$metaTk?]? import $[all%$allTk?]? $mod) =>
-    some (mod.getId, { isPublic := pubTk?.isSome, isMeta := metaTk?.isSome, isAll := allTk?.isSome })
+    some
+      (mod.getId, { isPublic := pubTk?.isSome, isMeta := metaTk?.isSome, isAll := allTk?.isSome })
   | _ => none
 
 /-- The explicit `import` directives of the source `text` of `fileName`, in
@@ -59,15 +60,16 @@ def HeaderParser.parse (p : HeaderParser) (fileName : String) (text : String) :
   if let some (pos, _, err) := st.allErrors[0]? then
     let pos := ictx.fileMap.toPosition pos
     throw s!"{fileName}:{pos.line}:{pos.column}: {err}"
-  if st.stxStack.isEmpty then throw s!"{fileName}: no header syntax"
+  if st.stxStack.isEmpty then
+    throw s!"{fileName}: no header syntax"
   let stx : Syntax := st.stxStack.back
   -- `Module.header`: optional `module`, optional `prelude`, the imports.
   let dirs := stx[2].getArgs
   dirs.mapM fun d => do
-    let some (module, kind) := importOf d
-      | throw s!"{fileName}: unexpected import syntax {d}"
-    let some pos := d.getPos?
-      | throw s!"{fileName}: an import of {module} has no position"
-    return { module, kind, line := (ictx.fileMap.toPosition pos).line }
+      let some (module, kind) := importOf d
+        | throw s!"{fileName}: unexpected import syntax {d}"
+      let some pos := d.getPos?
+        | throw s!"{fileName}: an import of {module} has no position"
+      return { module, kind, line := (ictx.fileMap.toPosition pos).line }
 
 end LeanDeny.Graph

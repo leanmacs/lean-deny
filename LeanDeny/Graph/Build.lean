@@ -50,14 +50,19 @@ private def pairUp (m : RawModule) (hdr : Array HeaderImport) :
       if h : 1 < imps.size then
         if isImplicitInit imps[0] false && isImplicitInit imps[1] true then
           pure (true, imps.extract 2 imps.size)
-        else throw msg
-      else throw msg
-    else if imps.size == hdr.size then pure (false, imps)
-    else throw msg
+        else
+          throw msg
+      else
+        throw msg
+    else if imps.size == hdr.size then
+      pure (false, imps)
+    else
+      throw msg
   let pairs := explicit.zip hdr
   for (r, h) in pairs do
-    unless r.module == h.module && r.isMeta == h.kind.isMeta &&
-        r.importAll == h.kind.isAll && r.isExported == (h.kind.isPublic || !m.isModule) do
+    unless
+      r.module == h.module && r.isMeta == h.kind.isMeta && r.importAll == h.kind.isAll &&
+        r.isExported == (h.kind.isPublic || !m.isModule) do
       throw msg
   return (hasInit, pairs)
 
@@ -88,11 +93,14 @@ def build (snap : Snapshot) (headers : Std.HashMap Name (Array HeaderImport)) :
       | throw s!"internal error: {m.file}: no header was parsed"
     let (hasInit, pairs) ← pairUp m hdr
     paired := paired.insert n (hasInit, pairs)
-    if hasInit && !merged.contains `Init then externals := externals.insert `Init
+    if hasInit && !merged.contains `Init then
+      externals := externals.insert `Init
     for (r, h) in pairs do
-      if merged.contains r.module then continue
+      if merged.contains r.module then
+        continue
       if let some (pkg, lib) := r.resolved? then
-        throw s!"{m.file}:{h.line}: import of {r.module}: Lake resolves it to library \
+        throw
+            s!"{m.file}:{h.line}: import of {r.module}: Lake resolves it to library \
           {lib.toString (escape := false)} of package {pkg.toString (escape := false)}, \
           but no such module file exists"
       externals := externals.insert r.module
@@ -100,14 +108,15 @@ def build (snap : Snapshot) (headers : Std.HashMap Name (Array HeaderImport)) :
   names := names.qsort (fun a b => a.cmp b == .lt)
   let index : Std.HashMap Name NodeId :=
     names.foldl (init := {}) fun (acc : Std.HashMap Name NodeId) n => acc.insert n acc.size
-  let nodes : Array Node := names.map fun n =>
-    match merged[n]? with
-    | some g =>
-      let owners := g.owners.qsort Owner.lt
-      { name := n, origin := .workspace owners, file? := some g.first.file
-        isModule := g.first.isModule
-        isPrelude := !(paired[n]?.map (·.1) |>.getD true) }
-    | none => { name := n, origin := .external, file? := none }
+  let nodes : Array Node :=
+    names.map fun n =>
+      match merged[n]? with
+      | some g =>
+        let owners := g.owners.qsort Owner.lt
+        { name := n, origin := .workspace owners, file? := some g.first.file
+          isModule := g.first.isModule
+          isPrelude := !(paired[n]?.map (·.1) |>.getD true) }
+      | none => { name := n, origin := .external, file? := none }
   -- 5. Edges, by source node, then source order.
   let mut edges : Array Edge := #[]
   let mut out : Array (Array Nat) := Array.replicate nodes.size #[]
@@ -119,12 +128,17 @@ def build (snap : Snapshot) (headers : Std.HashMap Name (Array HeaderImport)) :
     let mut es : Array Edge := #[]
     if hasInit then
       let dst := index[`Init]!
-      es := es.push { src, dst, kind := {}, isExported := true, file, line? := none, implicit := true }
-      es := es.push { src, dst, kind := { isMeta := true }, isExported := true, file, line? := none
-                      implicit := true }
+      es :=
+        es.push { src, dst, kind := {}, isExported := true, file, line? := none, implicit := true }
+      es :=
+        es.push
+          { src, dst, kind := { isMeta := true }, isExported := true, file, line? := none
+            implicit := true }
     for (r, h) in pairs do
-      es := es.push { src, dst := index[r.module]!, kind := h.kind, isExported := r.isExported
-                      file, line? := some h.line, implicit := false }
+      es :=
+        es.push
+          { src, dst := index[r.module]!, kind := h.kind, isExported := r.isExported
+            file, line? := some h.line, implicit := false }
     -- 6. Adjacency, in edge order.
     for e in es do
       out := out.modify e.src (·.push edges.size)

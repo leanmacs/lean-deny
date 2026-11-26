@@ -20,7 +20,8 @@ def report (suite : String) (fs : Array String) : IO Bool := do
     IO.println s!"ok   {suite}"
     return true
   IO.eprintln s!"FAIL {suite}"
-  for f in fs do IO.eprintln s!"  {f}"
+  for f in fs do
+    IO.eprintln s!"  {f}"
   return false
 
 def main (args : List String) : IO UInt32 := do

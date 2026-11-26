@@ -19,9 +19,11 @@ def runGraph (opts : GraphOpts) : IO Outcome := do
   let fail (msgs : Array String) : IO Outcome := do
     msgs.forM printError
     return .error
-  if let .error msgs ← checkWorkspaceDir opts.workspace then return ← fail msgs
+  if let .error msgs← checkWorkspaceDir opts.workspace then
+    return ← fail msgs
   match ← loadGraph opts.workspace with
-  | .error msgs => fail msgs
+  | .error msgs =>
+    fail msgs
   | .ok g =>
     IO.print (Graph.render g (Graph.collapse g opts.level) opts.format)
     return .holds

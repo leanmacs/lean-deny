@@ -21,14 +21,19 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
     msgs.forM printError
     return .error
   let ws := opts.workspace
-  if let .error msgs ← checkWorkspaceDir ws then return ← fail msgs
+  if let .error msgs← checkWorkspaceDir ws then
+    return ← fail msgs
   let policyPath := opts.config?.getD (defaultPolicyPath ws)
-  let _policy ← match ← loadPolicy policyPath with
-    | .ok p => pure p
-    | .error msgs => return ← fail msgs
+  let _policy ←
+    match ← loadPolicy policyPath with
+    | .ok p =>
+      pure p
+    | .error msgs =>
+      return ← fail msgs
   -- Load the graph for real, so a workspace that cannot be loaded fails now.
   -- No rule kinds exist yet, so the graph is not used.
-  if let .error msgs ← loadGraph ws then return ← fail msgs
+  if let .error msgs← loadGraph ws then
+    return ← fail msgs
   IO.println "lean-deny: ok (0 rules)"
   return .holds
 

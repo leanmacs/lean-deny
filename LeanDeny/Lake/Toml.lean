@@ -50,7 +50,8 @@ def parse (fileName : String) (input : String) :
     IO (Except (Array String) (Array (String × Value))) := do
   let ictx := Parser.mkInputContext input fileName
   match ← (Lake.Toml.loadToml ictx).toBaseIO with
-  | .ok t => return .ok (t.items.map fun (k, v) => (keyString k, ofLake v))
+  | .ok t =>
+    return .ok (t.items.map fun (k, v) => (keyString k, ofLake v))
   | .error log =>
     let mut msgs := #[]
     for m in log.toList do

@@ -33,28 +33,31 @@ returns `none` after reaching everything.
 Sources are not marked reached up front: a source is reached only when an
 edge leads to it, so a path always has at least one edge. -/
 private def bfs (g : Graph) (srcs : Array NodeId) (follow : Edge → Bool)
-    (isTarget? : Option (NodeId → Bool)) :
-    Option NodeId × Array (Option (Nat × Nat)) := Id.run do
-  let n := g.nodes.size
-  -- Per node: the edge that first reached it and its distance from a source.
-  let mut reached : Array (Option (Nat × Nat)) := Array.replicate n none
-  let mut layer := (srcs.filter (· < n)).qsort (· < ·) |>.toList.eraseDups.toArray
-  let mut depth := 0
-  while !layer.isEmpty do
-    let mut next := #[]
-    for u in layer do
-      for ei in g.out[u]?.getD #[] do
-        let some e := g.edges[ei]? | continue
-        unless follow e do continue
-        let v := e.dst
-        if reached[v]!.isSome then continue
-        reached := reached.set! v (some (ei, depth + 1))
-        if let some isTarget := isTarget? then
-          if isTarget v then return (some v, reached)
-        next := next.push v
-    layer := next
-    depth := depth + 1
-  return (none, reached)
+    (isTarget? : Option (NodeId → Bool)) : Option NodeId × Array (Option (Nat × Nat)) :=
+  Id.run do
+    let n := g.nodes.size
+    -- Per node: the edge that first reached it and its distance from a source.
+    let mut reached : Array (Option (Nat × Nat)) := Array.replicate n none
+    let mut layer := (srcs.filter (· < n)).qsort (· < ·) |>.toList.eraseDups.toArray
+    let mut depth := 0
+    while !layer.isEmpty do
+      let mut next := #[]
+      for u in layer do
+        for ei in g.out[u]?.getD #[] do
+          let some e := g.edges[ei]? | continue
+          unless follow e do
+            continue
+          let v := e.dst
+          if reached[v]!.isSome then
+            continue
+          reached := reached.set! v (some (ei, depth + 1))
+          if let some isTarget := isTarget? then
+            if isTarget v then
+              return (some v, reached)
+          next := next.push v
+      layer := next
+      depth := depth + 1
+    return (none, reached)
 
 /-- A shortest import chain from any of `srcs` to a node satisfying
 `isTarget`, walking only edges that satisfy `follow`: its edges, in order,
@@ -66,29 +69,32 @@ the witness among equally short chains is fixed: the one whose source comes
 first by `NodeId`, then whose imports come first in source order. A source
 that is also a target is found only through an edge into it. -/
 def Graph.shortestPath? (g : Graph) (srcs : Array NodeId) (isTarget : NodeId → Bool)
-    (follow : Edge → Bool := fun _ => true) : Option (Array Edge) := Id.run do
-  let (some t, reached) := bfs g srcs follow (some isTarget) | return none
-  -- Walk back exactly the target's distance: a source reached later is
-  -- still where a chain from its own expansion starts.
-  let mut path : Array Edge := #[]
-  let mut cur := t
-  let mut steps := (reached[t]!.map (·.2)).getD 0
-  while steps > 0 do
-    let some (ei, _) := reached[cur]! | break
-    let e := g.edges[ei]!
-    path := path.push e
-    cur := e.src
-    steps := steps - 1
-  return some path.reverse
+    (follow : Edge → Bool := fun _ => true) : Option (Array Edge) :=
+  Id.run do
+    let (some t, reached) := bfs g srcs follow (some isTarget) | return none
+    -- Walk back exactly the target's distance: a source reached later is
+    -- still where a chain from its own expansion starts.
+    let mut path : Array Edge := #[]
+    let mut cur := t
+    let mut steps := (reached[t]!.map (·.2)).getD 0
+    while steps > 0 do
+      let some (ei, _) := reached[cur]! | break
+      let e := g.edges[ei]!
+      path := path.push e
+      cur := e.src
+      steps := steps - 1
+    return some path.reverse
 
 /-- Every node reachable from `srcs` through at least one edge satisfying
 `follow`, sorted by `NodeId`. -/
-def Graph.reachable (g : Graph) (srcs : Array NodeId)
-    (follow : Edge → Bool := fun _ => true) : Array NodeId := Id.run do
-  let (_, reached) := bfs g srcs follow none
-  let mut out := #[]
-  for i in [0:reached.size] do
-    if reached[i]!.isSome then out := out.push i
-  return out
+def Graph.reachable (g : Graph) (srcs : Array NodeId) (follow : Edge → Bool := fun _ => true) :
+    Array NodeId :=
+  Id.run do
+    let (_, reached) := bfs g srcs follow none
+    let mut out := #[]
+    for i in [0:reached.size] do
+      if reached[i]!.isSome then
+        out := out.push i
+    return out
 
 end LeanDeny.Graph

@@ -43,7 +43,8 @@ def Level.toString : Level → String
   | .lib => "lib"
   | .package => "package"
 
-instance : ToString Level := ⟨Level.toString⟩
+instance : ToString Level :=
+  ⟨Level.toString⟩
 
 /-- The level a command line names (`module`, `lib` or `package`). -/
 def Level.parse? : String → Option Level
@@ -70,7 +71,8 @@ def ViewKind.toString : ViewKind → String
   | .exe => "exe"
   | .package => "package"
 
-instance : ToString ViewKind := ⟨ViewKind.toString⟩
+instance : ToString ViewKind :=
+  ⟨ViewKind.toString⟩
 
 /-- One node of a view: a module, a target, a package, or an external
 group. -/
@@ -99,7 +101,8 @@ structure ViewEdge where
   deriving BEq, Repr, Inhabited
 
 /-- The number of imports behind the edge. -/
-def ViewEdge.count (e : ViewEdge) : Nat := e.imports.size
+def ViewEdge.count (e : ViewEdge) : Nat :=
+  e.imports.size
 
 /-- The graph grouped at one level. -/
 structure View where
@@ -109,7 +112,8 @@ structure View where
   deriving Repr, Inhabited
 
 /-- A package or target name as users write it in `lakefile.toml`. -/
-def plainName (n : Name) : String := n.toString (escape := false)
+def plainName (n : Name) : String :=
+  n.toString (escape := false)
 
 /-- The lib-level id of target `t` of kind `k` in package `pkg`:
 `<pkg>/lib/<lib>` or `<pkg>/exe/<exe>`. -/
@@ -140,12 +144,11 @@ private def groupsOf (lvl : Level) (n : Node) : Array Group :=
     let (id, root) := externalGroup n.name
     #[{ id, kind := .external, name := root, package? := none }]
   | .lib, .workspace os => os.map fun o => targetGroup o.pkg o.kind o.target
-  | .package, .workspace os =>
-    (os[0]?.map fun o => #[packageGroup o.pkg]).getD #[]
+  | .package, .workspace os => (os[0]?.map fun o => #[packageGroup o.pkg]).getD #[]
 where
   targetGroup (pkg : Name) (k : TargetKind) (t : Name) : Group :=
-    { id := targetId pkg k t, kind := if k == .lib then .lib else .exe,
-      name := plainName t, package? := some pkg }
+    { id := targetId pkg k t, kind := if k == .lib then .lib else .exe, name := plainName t,
+      package? := some pkg }
   packageGroup (pkg : Name) : Group :=
     { id := plainName pkg, kind := .package, name := plainName pkg, package? := some pkg }
 
@@ -153,60 +156,67 @@ where
 package (package level) of the workspace. -/
 private def declaredGroups (g : Graph) : Level → Array Group
   | .module => #[]
-  | .lib => g.packages.flatMap fun p =>
-    p.libs.map (fun l => groupsOf.targetGroup p.name .lib l.name) ++
-    p.exes.map (fun x => groupsOf.targetGroup p.name .exe x.name)
+  | .lib =>
+    g.packages.flatMap fun p =>
+      p.libs.map (fun l => groupsOf.targetGroup p.name .lib l.name) ++
+        p.exes.map (fun x => groupsOf.targetGroup p.name .exe x.name)
   | .package => g.packages.map fun p => groupsOf.packageGroup p.name
 
 /-- Group the graph `g` at level `lvl`. -/
-def collapse (g : Graph) (lvl : Level) : View := Id.run do
-  -- Collect the groups, each once, with each graph node's groups by id.
-  let mut groups : Std.HashMap String Group := {}
-  for gr in declaredGroups g lvl do
-    groups := groups.insertIfNew gr.id gr
-  let mut nodeGroups : Array (Array String) := #[]
-  for n in g.nodes do
-    let gs := groupsOf lvl n
-    for gr in gs do groups := groups.insertIfNew gr.id gr
-    nodeGroups := nodeGroups.push (gs.map (·.id) |>.toList.eraseDups.toArray)
-  -- Workspace groups first, then external ones, each by id (ids are unique).
-  let key (gr : Group) : Bool × String := (gr.kind == .external, gr.id)
-  let sorted := groups.toArray.map (·.2) |>.qsort fun a b =>
-    let (ea, ia) := key a
-    let (eb, ib) := key b
-    (!ea && eb) || (ea == eb && ia < ib)
-  let mut pos : Std.HashMap String Nat := {}
-  for h : i in [0:sorted.size] do
-    pos := pos.insert sorted[i].id i
-  let posOf (n : NodeId) : Array Nat :=
-    (nodeGroups[n]?.getD #[]).filterMap (pos[·]?)
-  -- Members.
-  let mut members : Array (Array NodeId) := Array.replicate sorted.size #[]
-  for h : n in [0:g.nodes.size] do
-    for p in posOf n do
-      members := members.modify p (·.push n)
-  let nameStr (n : NodeId) : String := (g.nodes[n]?.map (·.name.toString)).getD ""
-  let nodes := sorted.zipIdx.map fun (gr, i) =>
-    { id := gr.id, kind := gr.kind, name := gr.name, package? := gr.package?
-      members := members[i]!.qsort fun a b => nameStr a < nameStr b : ViewNode }
-  -- Edges: each import joins every group of its importer to every group of
-  -- what it imports.
-  let mut agg : Std.HashMap (Nat × Nat) (Array Nat) := {}
-  for h : i in [0:g.edges.size] do
-    let e := g.edges[i]
-    for s in posOf e.src do
-      for d in posOf e.dst do
-        if lvl != .module && s == d then continue
-        agg := agg.alter (s, d) fun
-          | none => some #[i]
-          | some is => some (is.push i)
-  let witnessLt (a b : Nat) : Bool :=
-    let na := (g.edges[a]?.map (nameStr ·.src)).getD ""
-    let nb := (g.edges[b]?.map (nameStr ·.src)).getD ""
-    na < nb || (na == nb && a < b)
-  let edges := agg.toArray
-    |>.qsort (fun ((s₁, d₁), _) ((s₂, d₂), _) => s₁ < s₂ || (s₁ == s₂ && d₁ < d₂))
-    |>.map fun ((s, d), is) => { src := s, dst := d, imports := is.qsort witnessLt }
-  return { level := lvl, nodes, edges }
+def collapse (g : Graph) (lvl : Level) : View :=
+  Id.run do
+    -- Collect the groups, each once, with each graph node's groups by id.
+    let mut groups : Std.HashMap String Group := {}
+    for gr in declaredGroups g lvl do
+      groups := groups.insertIfNew gr.id gr
+    let mut nodeGroups : Array (Array String) := #[]
+    for n in g.nodes do
+      let gs := groupsOf lvl n
+      for gr in gs do
+        groups := groups.insertIfNew gr.id gr
+      nodeGroups := nodeGroups.push (gs.map (·.id) |>.toList.eraseDups.toArray)
+    -- Workspace groups first, then external ones, each by id (ids are unique).
+    let key (gr : Group) : Bool × String := (gr.kind == .external, gr.id)
+    let sorted :=
+      groups.toArray.map (·.2) |>.qsort fun a b =>
+        let (ea, ia) := key a
+        let (eb, ib) := key b
+        (!ea && eb) || (ea == eb && ia < ib)
+    let mut pos : Std.HashMap String Nat := {}
+    for h : i in [0:sorted.size] do
+      pos := pos.insert sorted[i].id i
+    let posOf (n : NodeId) : Array Nat := (nodeGroups[n]?.getD #[]).filterMap (pos[·]?)
+    -- Members.
+    let mut members : Array (Array NodeId) := Array.replicate sorted.size #[]
+    for h : n in [0:g.nodes.size] do
+      for p in posOf n do
+        members := members.modify p (·.push n)
+    let nameStr (n : NodeId) : String := (g.nodes[n]?.map (·.name.toString)).getD ""
+    let nodes :=
+      sorted.zipIdx.map fun (gr, i) =>
+        { id := gr.id, kind := gr.kind, name := gr.name, package? := gr.package?
+          members := members[i]!.qsort fun a b => nameStr a < nameStr b : ViewNode }
+    -- Edges: each import joins every group of its importer to every group of
+    -- what it imports.
+    let mut agg : Std.HashMap (Nat × Nat) (Array Nat) := {}
+    for h : i in [0:g.edges.size] do
+      let e := g.edges[i]
+      for s in posOf e.src do
+        for d in posOf e.dst do
+          if lvl != .module && s == d then
+            continue
+          agg :=
+            agg.alter (s, d) fun
+              | none => some #[i]
+              | some is => some (is.push i)
+    let witnessLt (a b : Nat) : Bool :=
+      let na := (g.edges[a]?.map (nameStr ·.src)).getD ""
+      let nb := (g.edges[b]?.map (nameStr ·.src)).getD ""
+      na < nb || (na == nb && a < b)
+    let edges :=
+      agg.toArray |>.qsort
+          (fun ((s₁, d₁), _) ((s₂, d₂), _) => s₁ < s₂ || (s₁ == s₂ && d₁ < d₂)) |>.map
+        fun ((s, d), is) => { src := s, dst := d, imports := is.qsort witnessLt }
+    return { level := lvl, nodes, edges }
 
 end LeanDeny.Graph

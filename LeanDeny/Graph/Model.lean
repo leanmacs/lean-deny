@@ -23,7 +23,8 @@ open Lean System
 namespace LeanDeny.Graph
 
 /-- A node's index into `Graph.nodes`. -/
-abbrev NodeId := Nat
+abbrev NodeId :=
+  Nat
 
 /-- The kind of Lake target that lists a module. -/
 inductive TargetKind where
@@ -32,7 +33,9 @@ inductive TargetKind where
   deriving BEq, Repr, Ord, Inhabited, Hashable
 
 instance : ToString TargetKind where
-  toString | .lib => "lib" | .exe => "exe"
+  toString
+    | .lib => "lib"
+    | .exe => "exe"
 
 /-- One Lake target listing a module: a `lean_lib` whose `modules` include
 it, or a `lean_exe` whose root it is. -/
@@ -49,7 +52,8 @@ def Owner.lt (a b : Owner) : Bool :=
   match compare a.kind b.kind with
   | .lt => true
   | .gt => false
-  | .eq => match a.target.cmp b.target with
+  | .eq =>
+    match a.target.cmp b.target with
     | .lt => true
     | .gt => false
     | .eq => a.pkg.cmp b.pkg == .lt
@@ -153,7 +157,8 @@ root itself); a path outside the root stays as it is. -/
 def Graph.relPath (g : Graph) (path : FilePath) : String :=
   let p := path.toString
   let r := g.root.toString
-  if p == r then "." else
+  if p == r then "."
+  else
     match p.dropPrefix? (r ++ "/") with
     | some rest => rest.toString
     | none => p

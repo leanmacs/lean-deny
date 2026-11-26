@@ -27,13 +27,18 @@ def loadPolicy (path : FilePath) : IO (Except (Array String) Policy) := do
     return .error #[s!"no policy file '{path}'"]
   if ← path.isDir then
     return .error #[s!"policy file '{path}' is a directory"]
-  let input ← try IO.FS.readFile path catch e =>
-    return .error #[s!"cannot read policy file '{path}': {e}"]
+  let input ←
+    try
+      IO.FS.readFile path
+    catch e =>
+      return .error #[s!"cannot read policy file '{path}': {e}"]
   match ← Toml.parse path.toString input with
-  | .error msgs => return .error msgs
+  | .error msgs =>
+    return .error msgs
   | .ok entries =>
-    if entries.isEmpty then return .ok {}
-    return .error <| entries.map fun (k, _) =>
-      s!"{path}: unknown key '{k}' (this version supports no rules yet)"
+    if entries.isEmpty then
+      return .ok {}
+    return .error <|
+        entries.map fun (k, _) => s!"{path}: unknown key '{k}' (this version supports no rules yet)"
 
 end LeanDeny

@@ -45,7 +45,7 @@ structure UsageError where
 
 /-- The `--help` text. -/
 def usage : String :=
-s!"lean-deny {version}: dependency policy checks for Lean 4 / Lake workspaces
+  s!"lean-deny {version}: dependency policy checks for Lean 4 / Lake workspaces
 
 Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
@@ -80,8 +80,11 @@ Exit codes:
   2  the command line, the policy or the workspace is bad
 "
 
-private def isHelp (a : String) : Bool := a == "-h" || a == "--help"
-private def isVersion (a : String) : Bool := a == "-V" || a == "--version"
+private def isHelp (a : String) : Bool :=
+  a == "-h" || a == "--help"
+
+private def isVersion (a : String) : Bool :=
+  a == "-V" || a == "--version"
 
 /-- Split `--name=value` into the name and the value. -/
 private def splitEq (a : String) : String × Option String :=
@@ -91,7 +94,8 @@ private def splitEq (a : String) : String × Option String :=
 
 /-- One option of a command: its name (`--workspace`) and how its value
 updates the command's options. -/
-private abbrev OptSpec (σ : Type) := String × (σ → String → Except UsageError σ)
+private abbrev OptSpec (σ : Type) :=
+  String × (σ → String → Except UsageError σ)
 
 /-- Parse a command's arguments: `--name value` or `--name=value` for each
 option in `specs`, each at most once, no positional arguments. `none` means
@@ -100,47 +104,65 @@ private partial def parseOpts {σ : Type} (cmd : String) (specs : List (OptSpec 
     (seen : List String) (st : σ) : List String → Except UsageError (Option σ)
   | [] => .ok (some st)
   | a :: rest => do
-    if isHelp a then return none
+    if isHelp a then
+      return none
     let (name, inline?) := splitEq a
-    let some (_, set) := specs.find? (·.1 == name) | do
-      if a.startsWith "-" then throw ⟨s!"unknown option '{name}' for '{cmd}'"⟩
-      throw ⟨s!"unexpected argument '{a}'"⟩
-    let (val, rest) ← match inline?, rest with
-      | some v, rest => pure (v, rest)
-      | none, v :: rest => if v.startsWith "-" then pure ("", v :: rest) else pure (v, rest)
-      | none, [] => pure ("", [])
-    if val.isEmpty then throw ⟨s!"option '{name}' requires a value"⟩
-    if seen.contains name then throw ⟨s!"option '{name}' given more than once"⟩
+    let some (_, set) := specs.find? (·.1 == name) |
+      do
+        if a.startsWith "-" then
+          throw ⟨s!"unknown option '{name}' for '{cmd}'"⟩
+        throw ⟨s!"unexpected argument '{a}'"⟩
+    let (val, rest) ←
+      match inline?, rest with
+      | some v, rest =>
+        pure (v, rest)
+      | none, v :: rest =>
+        if v.startsWith "-" then
+          pure ("", v :: rest)
+        else
+          pure (v, rest)
+      | none, [] =>
+        pure ("", [])
+    if val.isEmpty then
+      throw ⟨s!"option '{name}' requires a value"⟩
+    if seen.contains name then
+      throw ⟨s!"option '{name}' given more than once"⟩
     parseOpts cmd specs (name :: seen) (← set st val) rest
 
 /-- `check`'s options. -/
-private def checkSpecs : List (OptSpec CheckOpts) := [
-  ("--workspace", fun o v => .ok { o with workspace := v }),
-  ("--config", fun o v => .ok { o with config? := some v })
-]
+private def checkSpecs : List (OptSpec CheckOpts) :=
+  [("--workspace", fun o v => .ok { o with workspace := v }),
+    ("--config", fun o v => .ok { o with config? := some v })]
 
 /-- Parse the arguments after `check`. -/
 private def parseCheck (args : List String) : Except UsageError Command := do
   match ← parseOpts "check" checkSpecs [] {} args with
-  | none => return .help
-  | some o => return .check o
+  | none =>
+    return .help
+  | some o =>
+    return .check o
 
 /-- `graph`'s options. -/
-private def graphSpecs : List (OptSpec GraphOpts) := [
-  ("--workspace", fun o v => .ok { o with workspace := v }),
-  ("--format", fun o v => match Graph.Format.parse? v with
-    | some f => .ok { o with format := f }
-    | none => .error ⟨s!"invalid value '{v}' for option '--format' (expected text, json or dot)"⟩),
-  ("--level", fun o v => match Graph.Level.parse? v with
-    | some l => .ok { o with level := l }
-    | none => .error ⟨s!"invalid value '{v}' for option '--level' (expected module, lib or package)"⟩)
-]
+private def graphSpecs : List (OptSpec GraphOpts) :=
+  [("--workspace", fun o v => .ok { o with workspace := v }),
+    ("--format", fun o v =>
+      match Graph.Format.parse? v with
+      | some f => .ok { o with format := f }
+      | none =>
+        .error ⟨s!"invalid value '{v}' for option '--format' (expected text, json or dot)"⟩),
+    ("--level", fun o v =>
+      match Graph.Level.parse? v with
+      | some l => .ok { o with level := l }
+      | none =>
+        .error ⟨s!"invalid value '{v}' for option '--level' (expected module, lib or package)"⟩)]
 
 /-- Parse the arguments after `graph`. -/
 private def parseGraph (args : List String) : Except UsageError Command := do
   match ← parseOpts "graph" graphSpecs [] {} args with
-  | none => return .help
-  | some o => return .graph o
+  | none =>
+    return .help
+  | some o =>
+    return .graph o
 
 /-- Parse lean-deny's command line (without the program name). -/
 def parseArgs : List String → Except UsageError Command
@@ -150,9 +172,12 @@ def parseArgs : List String → Except UsageError Command
       match rest with
       | [] => .ok (if isHelp a then .help else .version)
       | b :: _ => .error ⟨s!"unexpected argument '{b}'"⟩
-    else if a == "check" then parseCheck rest
-    else if a == "graph" then parseGraph rest
-    else if a.startsWith "-" then .error ⟨s!"unknown option '{(splitEq a).1}'"⟩
-    else .error ⟨s!"unknown command '{a}'"⟩
+    else
+      if a == "check" then parseCheck rest
+      else
+        if a == "graph" then parseGraph rest
+        else
+          if a.startsWith "-" then .error ⟨s!"unknown option '{(splitEq a).1}'"⟩
+          else .error ⟨s!"unknown command '{a}'"⟩
 
 end LeanDeny
