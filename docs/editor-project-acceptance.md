@@ -288,9 +288,15 @@ The whole confirmation, in order:
    fixtures.
 4. `git status --porcelain` in lean-deny's repository prints nothing.
 
-If editor-project's tree drifts so that a listed file or a named module is
-gone, a run shows exit 2 with lean-deny's located error. Then update the
-edit table in the script, or the enumerations in the policy, and the
+If editor-project's tree drifts, a run still ends with the check that
+nothing under editor-project changed and the verdict, `acceptance: some
+expectation failed`, and exits 1. A file the script edits that is gone (one
+in the edit table, or `lean/Editor/Core.lean` for the baseline fix) prints
+`MISMATCH: <file> is not in editor-project any more; update the edit table
+in acceptance.sh` (or `the baseline fix`), and that edit is skipped. A module
+the policy names that is gone makes each check print lean-deny's located
+error and `exit 2`, then `MISMATCH: expected exit 0` (or `1`). Then update
+the edit table in the script, or the enumerations in the policy, and the
 revision at the top of this page.
 
 The edits:

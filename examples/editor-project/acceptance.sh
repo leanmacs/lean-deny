@@ -81,12 +81,23 @@ set -e
 sed "s|$work|<work>|g" "$work/load.err"
 echo "exit $code"
 
+# A file the script edits that editor-project no longer has is a MISMATCH
+# (`$1`, in the copy; `$2`, what to update), not an abort under `set -e`, so
+# that the run still reaches the check that nothing under the source changed,
+# and the verdict.
+missing() {
+  echo "MISMATCH: $1 is not in editor-project any more; update $2 in acceptance.sh"
+  failed=1
+}
+
 # Every Editor module a build reaches must be in Editor.Core's closure
 # (editor-project's core rule 2). At 4df216a8 Editor.Test.Shell is not, and
 # lean-deny cannot load the workspace then (the task named in the doc). The
 # baseline adds the import that rule prescribes, as editor-project's fix would.
 core=$work/pristine/lean/Editor/Core.lean
-if ! grep -qx 'import Editor.Test.Shell' "$core"; then
+if [ ! -f "$core" ]; then
+  missing lean/Editor/Core.lean "the baseline fix"
+elif ! grep -qx 'import Editor.Test.Shell' "$core"; then
   echo "== baseline: Editor.Core imports Editor.Test.Shell"
   awk '{ print } $0 == "import Editor.Test.Restore" { print "import Editor.Test.Shell" }' "$core" > "$core.new"
   mv "$core.new" "$core"
@@ -107,6 +118,10 @@ while IFS='|' read -r id ws file imported expect_exit expect_rules expect_summar
   rm -rf "$work/edit"
   cp -R "$work/pristine" "$work/edit"
   target=$work/edit/$file
+  if [ ! -f "$target" ]; then
+    missing "$file" "the edit table"
+    continue
+  fi
   { printf 'import %s\n' "$imported"; cat "$target"; } > "$target.new"
   mv "$target.new" "$target"
   if [ "$ws" = lean ]; then config=$core_policy; else config=$policy; fi
