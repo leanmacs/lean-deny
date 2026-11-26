@@ -1,0 +1,4 @@
+# `--format text` is the default text report; the policy is deny-direct-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../deny-direct-bites/lean-deny.toml", "--format", "text"]
+exit = 1

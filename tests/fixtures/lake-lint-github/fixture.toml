@@ -1,0 +1,4 @@
+# `lake lint -- --format github` passes --format github to the lint driver; paths are relative to the package.
+run = "lake"
+args = ["lint", "--", "--format", "github"]
+exit = 1

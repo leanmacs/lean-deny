@@ -1,0 +1,2 @@
+::error title=lean-deny%3A error::workspace 'does-not-exist' does not exist
+lean-deny: 1 error

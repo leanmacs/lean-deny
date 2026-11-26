@@ -1,0 +1,4 @@
+# --format json on exit 2: located errors[] on stdout, the diagnostics on stderr; the policy is deny-resolve-errors' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../deny-resolve-errors/lean-deny.toml", "--format", "json"]
+exit = 2

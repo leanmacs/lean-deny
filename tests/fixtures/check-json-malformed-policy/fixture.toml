@@ -1,0 +1,4 @@
+# --format json for a TOML syntax error, before the policy loads (rules is null); the policy is malformed-policy's (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../malformed-policy/lean-deny.toml", "--format", "json"]
+exit = 2

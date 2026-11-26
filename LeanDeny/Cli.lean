@@ -1,6 +1,7 @@
 import LeanDeny.Graph.Render
 import LeanDeny.Graph.View
 import LeanDeny.Policy.Selector
+import LeanDeny.Report
 import LeanDeny.Version
 
 /-!
@@ -21,6 +22,8 @@ structure CheckOpts where
   /-- The policy file; `none` means `<workspace>/lean-deny.toml`. An explicit
   path is relative to the working directory. -/
   config? : Option FilePath := none
+  /-- How to print the report. -/
+  format : CheckFormat := .text
   deriving BEq, Repr, Inhabited
 
 /-- Options of `lean-deny graph`. -/
@@ -63,6 +66,7 @@ def usage : String :=
 
 Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
+                  [--format text|json|github]
   lean-deny graph [--workspace <dir>] [--format text|json|dot]
                   [--level module|lib|package]
   lean-deny explain [--workspace <dir>] [--config <file>] <selector>
@@ -76,6 +80,8 @@ Commands:
 Options for check:
   --workspace <dir>   The Lake workspace to check (default: .)
   --config <file>     The policy file (default: <dir>/lean-deny.toml)
+  --format <fmt>      text, json or github (default: text); the exit
+                      code is the same in every format
 
 Options for graph:
   --workspace <dir>   The Lake workspace to read (default: .)
@@ -171,7 +177,12 @@ private partial def parseOpts {σ : Type} (cmd : String) (specs : List (OptSpec 
 /-- `check`'s options. -/
 private def checkSpecs : List (OptSpec CheckOpts) :=
   [("--workspace", fun o v => .ok { o with workspace := v }),
-    ("--config", fun o v => .ok { o with config? := some v })]
+    ("--config", fun o v => .ok { o with config? := some v }),
+    ("--format", fun o v =>
+      match CheckFormat.parse? v with
+      | some f => .ok { o with format := f }
+      | none =>
+        .error ⟨s!"invalid value '{v}' for option '--format' (expected text, json or github)"⟩)]
 
 /-- Parse the arguments after `check`. -/
 private def parseCheck (args : List String) : Except UsageError Command := do

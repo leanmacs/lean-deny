@@ -1,0 +1,14 @@
+{"violations": [],
+ "summary": "lean-deny: 1 error",
+ "schemaVersion": 1,
+ "rules": null,
+ "policy": "../malformed-policy/lean-deny.toml",
+ "outcome": "error",
+ "ok": false,
+ "errors":
+ [{"message":
+   "unexpected '='; expected 'false', 'true', array, date-time, float, inline-table, integer or string",
+   "line": 3,
+   "file": "../malformed-policy/lean-deny.toml",
+   "column": 7}],
+ "brokenRules": 0}

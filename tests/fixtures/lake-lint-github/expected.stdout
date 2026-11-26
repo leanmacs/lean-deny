@@ -1,0 +1,2 @@
+::error file=LintBites.lean,line=1,title=lean-deny%3A deny rule 1::deny rule 1 (lean-deny.toml:2:0): the root module imports nothing below it%0A  LintBites.lean:1: LintBites imports LintBites.Inner
+lean-deny: 1 violation in 1 of 1 rule

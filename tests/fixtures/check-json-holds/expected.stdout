@@ -1,0 +1,9 @@
+{"violations": [],
+ "summary": "lean-deny: ok (3 rules)",
+ "schemaVersion": 1,
+ "rules": 3,
+ "policy": "../deny-holds/lean-deny.toml",
+ "outcome": "holds",
+ "ok": true,
+ "errors": [],
+ "brokenRules": 0}

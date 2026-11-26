@@ -1,0 +1,5 @@
+::error file=../layer-bad-ws/App.lean,line=3,title=lean-deny%3A layers::layers (../layers-bites/lean-deny.toml:7:0): app (implementation) may not import plugin (implementation)%0A  ../layer-bad-ws/App.lean:3: App imports Plugin
+::error file=../layer-bad-ws/App.lean,line=4,title=lean-deny%3A layers::layers (../layers-bites/lean-deny.toml:7:0): app (implementation) may not import typo (implementation)%0A  ../layer-bad-ws/App.lean:4: App imports Typo
+::error file=../layer-bad-ws/editor/Editor.lean,line=2,title=lean-deny%3A layers::layers (../layers-bites/lean-deny.toml:7:0): editor (core) may not import plugin (implementation)%0A  ../layer-bad-ws/editor/Editor.lean:2: Editor imports Plugin
+::error file=../layer-bad-ws/iface/Iface.lean,line=2,title=lean-deny%3A layers::layers (../layers-bites/lean-deny.toml:7:0): iface (interface) may not import typo (implementation)%0A  ../layer-bad-ws/iface/Iface.lean:2: Iface imports Typo
+lean-deny: 4 violations in 1 of 1 rule

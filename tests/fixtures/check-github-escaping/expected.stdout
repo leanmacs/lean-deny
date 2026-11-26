@@ -1,0 +1,2 @@
+::error file=../graph-ws/App.lean,line=2,title=lean-deny%3A deny rule 1::deny rule 1 (lean-deny.toml:2:0): 100%25 of the core is off limits: ask first%0Asee docs/layers.md%0A  ../graph-ws/App.lean:2: App imports Core.Api
+lean-deny: 1 violation in 1 of 1 rule

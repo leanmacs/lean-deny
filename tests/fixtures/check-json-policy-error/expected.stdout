@@ -1,0 +1,29 @@
+{"violations": [],
+ "summary": "lean-deny: 4 errors",
+ "schemaVersion": 1,
+ "rules": 5,
+ "policy": "../deny-resolve-errors/lean-deny.toml",
+ "outcome": "error",
+ "ok": false,
+ "errors":
+ [{"message":
+   "selector 'mod:Core.Apii' in deny rule 1 ('from') matches no module: no workspace module is or is under 'Core.Apii'",
+   "line": 4,
+   "file": "../deny-resolve-errors/lean-deny.toml",
+   "column": 7},
+  {"message":
+   "deny rule 2: 'from' and 'to' share modules: Core.Types (take them out of one side with a set's 'except')",
+   "line": 8,
+   "file": "../deny-resolve-errors/lean-deny.toml",
+   "column": 0},
+  {"message":
+   "selector 'external:Lean' in deny rule 3 ('from') matches only modules outside the workspace, which import nothing in the graph",
+   "line": 14,
+   "file": "../deny-resolve-errors/lean-deny.toml",
+   "column": 7},
+  {"message":
+   "selector 'lib:Nope' in deny rule 4 ('wrappers') matches no module: no package has a lean_lib named 'Nope'",
+   "line": 21,
+   "file": "../deny-resolve-errors/lean-deny.toml",
+   "column": 11}],
+ "brokenRules": 0}

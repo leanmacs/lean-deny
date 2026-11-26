@@ -12,8 +12,9 @@ namespace LeanDenyTest.Cli
 abbrev Expect :=
   Except String Command
 
-def check (ws : System.FilePath := ".") (config? : Option System.FilePath := none) : Expect :=
-  .ok (.check { workspace := ws, config? })
+def check (ws : System.FilePath := ".") (config? : Option System.FilePath := none)
+    (format : CheckFormat := .text) : Expect :=
+  .ok (.check { workspace := ws, config?, format })
 
 def graph (ws : System.FilePath := ".") (format : LeanDeny.Graph.Format := .text)
     (level : LeanDeny.Graph.Level := .module) : Expect :=
@@ -75,8 +76,21 @@ def graphCases : Array (List String × Expect) :=
     (["graph", "--level", "--format", "json"], .error "option '--level' requires a value"),
     (["graph", "--config", "p.toml"], .error "unknown option '--config' for 'graph'"),
     (["graph", "--frob"], .error "unknown option '--frob' for 'graph'"),
-    (["graph", "x"], .error "unexpected argument 'x'"),
-    (["check", "--format", "json"], .error "unknown option '--format' for 'check'")]
+    (["graph", "x"], .error "unexpected argument 'x'")]
+
+/-- `check --format`'s cases. -/
+def checkFormatCases : Array (List String × Expect) :=
+  let bad (v : String) : Expect :=
+    .error s!"invalid value '{v}' for option '--format' (expected text, json or github)"
+  #[(["check", "--format", "json"], check "." none .json),
+    (["check", "--format=github"], check "." none .github), (["check", "--format", "text"], check),
+    (["check", "--workspace", "w", "--config", "c", "--format", "github"],
+      check "w" (some "c") .github),
+    (["check", "--format", "json", "-h"], .ok .help), (["check", "--format", "xml"], bad "xml"),
+    (["check", "--format=JSON"], bad "JSON"), (["check", "--format", "dot"], bad "dot"),
+    (["check", "--format"], .error "option '--format' requires a value"),
+    (["check", "--format", "json", "--format", "text"],
+      .error "option '--format' given more than once")]
 
 def cases : Array (List String × Expect) :=
   #[([], .error "no command given"), (["-h"], .ok .help), (["--help"], .ok .help),
@@ -116,7 +130,7 @@ def renderExpect : Expect → String
 def failures : Array String :=
   Id.run do
     let mut fs := #[]
-    for (args, want) in cases ++ graphCases ++ explainCases do
+    for (args, want) in cases ++ graphCases ++ checkFormatCases ++ explainCases do
       let got := parseArgs args
       let same :=
         match got, want with

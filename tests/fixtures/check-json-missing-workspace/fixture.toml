@@ -1,0 +1,4 @@
+# --format json for an unlocated error: a workspace that does not exist.
+run = "direct"
+args = ["check", "--workspace", "does-not-exist", "--format", "json"]
+exit = 2

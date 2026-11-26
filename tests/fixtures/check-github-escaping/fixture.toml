@@ -1,0 +1,4 @@
+# --format github escapes %, newlines and (in properties) colons.
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "lean-deny.toml", "--format", "github"]
+exit = 1

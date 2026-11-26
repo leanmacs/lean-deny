@@ -1,0 +1,4 @@
+# --format github when every rule holds: the ok line alone; the policy is deny-holds' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../deny-holds/lean-deny.toml", "--format", "github"]
+exit = 0

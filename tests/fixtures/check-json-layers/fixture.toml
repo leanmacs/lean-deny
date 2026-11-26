@@ -1,0 +1,4 @@
+# --format json of [layers] violations without a reason; the policy is layers-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../layer-bad-ws", "--config", "../layers-bites/lean-deny.toml", "--format", "json"]
+exit = 1

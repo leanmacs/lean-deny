@@ -1,0 +1,2 @@
+lean-deny: error: invalid value 'xml' for option '--format' (expected text, json or github)
+Run 'lean-deny --help' for usage.

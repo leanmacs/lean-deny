@@ -1,0 +1,4 @@
+::error file=../tier-ws/leaky/Leaky.lean,line=2,title=lean-deny%3A deny rule 1::deny rule 1 (../allow-only-bites/lean-deny.toml:5:0): no library imports a test double%0A  ../tier-ws/leaky/Leaky.lean:2: Leaky imports CoreTest.Fake
+::error file=../tier-ws/Feat/Util.lean,line=1,title=lean-deny%3A allow-only rule 1::allow-only rule 1 (../allow-only-bites/lean-deny.toml:10:0): the feature imports the core's API alone%0A  ../tier-ws/Feat/Util.lean:1: Feat.Util imports Std.Data.HashMap
+::error file=../tier-ws/FeatTest.lean,line=2,title=lean-deny%3A allow-only rule 1::allow-only rule 1 (../allow-only-bites/lean-deny.toml:10:0): the feature imports the core's API alone%0A  ../tier-ws/FeatTest.lean:2: FeatTest imports CoreTest.Fake
+lean-deny: 3 violations in 2 of 2 rules

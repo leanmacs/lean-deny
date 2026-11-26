@@ -1,0 +1,5 @@
+# A deny rule that bites, so `lake lint` exits 1 with lean-deny's report.
+[[deny]]
+from = "mod:LintBites!"
+to = "mod:LintBites.Inner!"
+reason = "the root module imports nothing below it"

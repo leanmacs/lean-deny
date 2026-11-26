@@ -1,0 +1,5 @@
+# A reason with characters GitHub's workflow commands escape: %, a newline and a colon.
+[[deny]]
+from = "mod:App!"
+to = "pkg:core"
+reason = "100% of the core is off limits: ask first\nsee docs/layers.md"

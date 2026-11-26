@@ -1,0 +1,11 @@
+# Direct and transitive deny rules over graph-ws, for --format json and github.
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+reason = "the app imports nothing of the core"
+
+[[deny]]
+from = "mod:Main!"
+to = ["keyword:kernel"]
+transitive = true
+reason = "the executable reaches no kernel module"

@@ -1,0 +1,4 @@
+# --format github of a direct and a transitive deny violation over graph-ws (the policy is check-json-deny's, copied).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "lean-deny.toml", "--format", "github"]
+exit = 1

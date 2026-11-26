@@ -156,7 +156,10 @@ private def nodeJson (g : Graph) (v : View) (n : ViewNode) : Json :=
   | .lib => Json.mkObj <| base ++ [pkg, modules]
   | .package => Json.mkObj <| base ++ [modules]
 
-private def importJson (g : Graph) (e : Edge) : Json :=
+/-- One import as graph JSON's Import object (`docs/graph-json.md`,
+"Import"). `check --format json` prints its chains with it too
+(`docs/check-json.md`). -/
+def importJson (g : Graph) (e : Edge) : Json :=
   Json.mkObj
     [("importer", jStr (nodeName g e.src).toString), ("imported", jStr (nodeName g e.dst).toString),
       ("file", jStr (g.relPath e.file)), ("line", jOpt (e.line?.map jNat)),

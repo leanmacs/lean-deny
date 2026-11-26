@@ -1,0 +1,13 @@
+{"violations": [],
+ "summary": "lean-deny: 1 error",
+ "schemaVersion": 1,
+ "rules": null,
+ "policy": "does-not-exist/lean-deny.toml",
+ "outcome": "error",
+ "ok": false,
+ "errors":
+ [{"message": "workspace 'does-not-exist' does not exist",
+   "line": null,
+   "file": null,
+   "column": null}],
+ "brokenRules": 0}

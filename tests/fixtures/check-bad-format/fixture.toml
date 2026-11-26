@@ -1,0 +1,4 @@
+# A --format value check does not know is a usage error: text on stderr, nothing on stdout.
+run = "direct"
+args = ["check", "--format", "xml"]
+exit = 2

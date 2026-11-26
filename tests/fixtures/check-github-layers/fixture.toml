@@ -1,0 +1,4 @@
+# --format github of [layers] violations; the policy is layers-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../layer-bad-ws", "--config", "../layers-bites/lean-deny.toml", "--format", "github"]
+exit = 1

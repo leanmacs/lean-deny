@@ -1,0 +1,4 @@
+# --format json of a direct and a transitive deny violation over graph-ws (the worked example of docs/check-json.md).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "lean-deny.toml", "--format", "json"]
+exit = 1

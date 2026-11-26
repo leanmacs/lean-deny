@@ -2,6 +2,7 @@ lean-deny 0.1.0: dependency policy checks for Lean 4 / Lake workspaces
 
 Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
+                  [--format text|json|github]
   lean-deny graph [--workspace <dir>] [--format text|json|dot]
                   [--level module|lib|package]
   lean-deny explain [--workspace <dir>] [--config <file>] <selector>
@@ -15,6 +16,8 @@ Commands:
 Options for check:
   --workspace <dir>   The Lake workspace to check (default: .)
   --config <file>     The policy file (default: <dir>/lean-deny.toml)
+  --format <fmt>      text, json or github (default: text); the exit
+                      code is the same in every format
 
 Options for graph:
   --workspace <dir>   The Lake workspace to read (default: .)

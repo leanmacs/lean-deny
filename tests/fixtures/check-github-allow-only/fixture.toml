@@ -1,0 +1,4 @@
+# --format github of deny and allow-only violations; the policy is allow-only-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../tier-ws", "--config", "../allow-only-bites/lean-deny.toml", "--format", "github"]
+exit = 1

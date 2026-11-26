@@ -1,0 +1,3 @@
+::error file=../graph-ws/App.lean,line=2,title=lean-deny%3A deny rule 1::deny rule 1 (lean-deny.toml:2:0): the app imports nothing of the core%0A  ../graph-ws/App.lean:2: App imports Core.Api
+::error file=../graph-ws/Main.lean,line=4,title=lean-deny%3A deny rule 2::deny rule 2 (lean-deny.toml:7:0): the executable reaches no kernel module%0A  ../graph-ws/Main.lean:4: Main imports App%0A  ../graph-ws/App.lean:2: App imports Core.Api
+lean-deny: 2 violations in 2 of 2 rules

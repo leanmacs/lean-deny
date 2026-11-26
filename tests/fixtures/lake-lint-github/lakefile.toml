@@ -1,0 +1,12 @@
+# lean-deny as this package's lint driver, run as `lake lint -- --format github`.
+name = "lake-lint-github"
+lintDriver = "«lean-deny»/«lean-deny»"
+lintDriverArgs = ["check"]
+
+[[require]]
+name = "lean-deny"
+path = "../../.."
+
+[[lean_lib]]
+name = "LintBites"
+globs = ["LintBites.*"]  # LintBites.lean and everything under LintBites/

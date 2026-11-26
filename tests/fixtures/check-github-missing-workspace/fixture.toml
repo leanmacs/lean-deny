@@ -1,0 +1,4 @@
+# --format github for an unlocated error: an annotation with a title and no file.
+run = "direct"
+args = ["check", "--workspace", "does-not-exist", "--format", "github"]
+exit = 2
