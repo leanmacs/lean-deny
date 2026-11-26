@@ -12,4 +12,5 @@ import LeanDeny.Graph.Header
 import LeanDeny.Graph.Build
 import LeanDeny.Graph.Query
 import LeanDeny.Graph.View
+import LeanDeny.Graph.Render
 import LeanDeny.Graph
