@@ -155,6 +155,20 @@ def cases : Array (String × Array M × String × Array String) :=
         trule "\"mod:A!\"" "[\"mod:W!\", \"mod:T!\"]" "wrappers = \"mod:W!\"\n",
       #[s!"p.toml:4:11: selector 'mod:W!' in deny rule 1 ('wrappers') excuses nothing: {inTo}",
         s!"p.toml:10:11: selector 'mod:W!' in deny rule 2 ('wrappers') excuses nothing: {inTo}"]),
+    ("transitive: a wrapper in to that reaches no other to module excuses nothing",
+      #[m `A #[`W], m `W, m `T],
+      trule "\"mod:A!\"" "[\"mod:W!\", \"mod:T!\"]" "wrappers = \"mod:W!\"\n",
+      #[s!"p.toml:5:11: selector 'mod:W!' in deny rule 1 ('wrappers') excuses nothing: {inTo}"]),
+    -- `mod:W` matches W, in `to`, and W.Ok, outside it, which B reaches.
+    ("transitive: reaching a wrapper in to is still a violation",
+      #[m `A #[`W, `B], m `W #[`T], m `B #[`W.Ok], m `W.Ok #[`T], m `T],
+      trule "\"mod:A!\"" "[\"mod:W!\", \"mod:T!\"]" "wrappers = \"mod:W\"\n",
+      #[header 1, "  A.lean:1: A imports W", "lean-deny: 1 violation in 1 of 1 rule"]),
+    ("transitive: a selector partly in to, its other modules unused, excuses nothing",
+      #[m `A #[`W], m `W #[`T], m `W.Ok #[`T], m `T],
+      trule "\"mod:A!\"" "[\"mod:W!\", \"mod:T!\"]" "wrappers = \"mod:W\"\n",
+      #[s!"p.toml:5:11: selector 'mod:W' in deny rule 1 ('wrappers') excuses nothing: \
+          {transitive}"]),
     -- External and implicit targets.
     ("direct: an external target", #[m `A #[`Lean.Elab.Command]],
       rule "\"mod:A!\"" "\"external:Lean.Elab\"",
