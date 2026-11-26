@@ -1,7 +1,7 @@
 import LeanDeny.Cli
 import LeanDeny.Exit
-import LeanDeny.Policy
 import LeanDeny.Load
+import LeanDeny.Policy
 
 /-!
 # `lean-deny check`

@@ -1,6 +1,6 @@
-import LeanDeny.Version
-import LeanDeny.Graph.View
 import LeanDeny.Graph.Render
+import LeanDeny.Graph.View
+import LeanDeny.Version
 
 /-!
 # Command line

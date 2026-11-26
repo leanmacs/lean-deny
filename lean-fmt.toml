@@ -4,3 +4,11 @@
 # bytes are pinned by their expected outputs, so neither format nor check
 # may read or rewrite them.
 exclude = ["tests/**"]
+
+[lint]
+# FMT004 (redundant import) on LeanDeny.lean: it is the `LeanDeny` lib's root
+# module, whose job is to import every module of the library by name, and the
+# lib builds exactly what it reaches. Keeping only the imports FMT004 leaves
+# would make the library's contents depend on what LeanDeny.Check happens to
+# import, so a later refactor there could silently drop a module.
+per-file-ignores = { "LeanDeny.lean" = ["FMT004"] }

@@ -1,11 +1,11 @@
 import LeanDenyTest.Cli
+import LeanDenyTest.Fixtures
 import LeanDenyTest.Graph
+import LeanDenyTest.Harness
 import LeanDenyTest.Header
 import LeanDenyTest.Query
-import LeanDenyTest.View
 import LeanDenyTest.Render
-import LeanDenyTest.Fixtures
-import LeanDenyTest.Harness
+import LeanDenyTest.View
 
 /-!
 `lake test` driver. Runs the CLI parser tests, the graph checks, the fixture

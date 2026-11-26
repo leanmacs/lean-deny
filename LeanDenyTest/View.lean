@@ -1,5 +1,5 @@
-import LeanDenyTest.Query
 import LeanDenyTest.Graph
+import LeanDenyTest.Query
 
 /-!
 Tests of `LeanDeny.Graph.collapse` on a hand-written graph: shared modules

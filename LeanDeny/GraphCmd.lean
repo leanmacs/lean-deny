@@ -1,8 +1,8 @@
 import LeanDeny.Cli
 import LeanDeny.Exit
-import LeanDeny.Load
-import LeanDeny.Graph.View
 import LeanDeny.Graph.Render
+import LeanDeny.Graph.View
+import LeanDeny.Load
 
 /-!
 # `lean-deny graph`

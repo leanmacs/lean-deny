@@ -1,5 +1,5 @@
-import Lean.Parser.Module
 import Lean.Elab.ParseImportsFast
+import Lean.Parser.Module
 import LeanDeny.Graph.Raw
 
 /-!
