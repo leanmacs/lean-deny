@@ -1,0 +1,14 @@
+# doc-modules tables with shape mistakes, each reported at its line (exit 2,
+# before Lake runs).
+[[doc-modules]]
+file = "/abs.md"
+section = ""
+modules = "mod:Doc.A"
+reason = 1
+
+[[doc-modules]]
+file = ""
+section = 3
+prefix = ""
+modules = []
+reason = "  "

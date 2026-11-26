@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:5:0: doc-modules rule 1: 'modules' matches Doc, which does not start with the prefix 'Doc.', so the section cannot list it

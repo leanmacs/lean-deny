@@ -1,0 +1,2 @@
+# doc-modules must be an array of tables (exit 2, before Lake runs).
+doc-modules = 1

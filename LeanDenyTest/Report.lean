@@ -87,8 +87,9 @@ def ctx : ReportCtx :=
 
 /-- The hand-made results: the transitive deny violation `A > Y > Z`, a
 violation on an implicit import, one without a position, one of `[layers]`,
-one of a target-config rule, one of a require-backed rule; and the policy
-they are checked against. -/
+one of a target-config rule, one of a require-backed rule, a doc-modules
+missing module and a doc-modules extra name; and the policy they are
+checked against. -/
 structure Fixture where
   g : Graph
   p : Policy
@@ -98,6 +99,8 @@ structure Fixture where
   layersV : Violation
   targetV : Violation
   requireV : Violation
+  docMissingV : Violation
+  docExtraV : Violation
 
 def fixture : IO (Except String Fixture) := do
   let ms := #[Deny.m `A #[`X, `Y], Deny.m `X, Deny.m `Y #[`Z], Deny.m `Z]
@@ -106,7 +109,7 @@ def fixture : IO (Except String Fixture) := do
     LeanDenyTest.Policy.load
         (Deny.trule "\"mod:A!\"" "\"mod:Z!\"") | return .error "policy does not load"
   let .ok sets := resolveSets g p | return .error "sets do not resolve"
-  let .ok vs := checkRules g p sets | return .error "rules give errors"
+  let .ok vs := checkRules g p sets #[] | return .error "rules give errors"
   let some implicitE :=
     g.edges.find? fun e =>
       e.implicit && nodeName g e.src == "A" | return .error "no implicit import of A"
@@ -130,7 +133,23 @@ def fixture : IO (Except String Fixture) := do
             require? :=
               some
                 { pkg := `p, imported := `q, configFile := "/ws/lakefile.toml",
-                  requires := #[`r] } } }
+                  requires := #[`r] } }
+        docMissingV :=
+          { rule := ⟨.docModules, 1⟩, pos? := v0.pos?, reason? := some "why"
+            detail? := some "Z is not listed in section 'Mods' of docs/m.md", chain := #[]
+            module? := g.nodes.findIdx? (·.name == `Z)
+            doc? :=
+              some
+                { kind := .missing, name := "Z", file := "/ws/docs/m.md", heading := "Mods"
+                  line := 3 } }
+        docExtraV :=
+          { rule := ⟨.docModules, 1⟩, pos? := v0.pos?, reason? := some "why"
+            detail? := some "section 'Mods' of docs/m.md lists Gone, which 'modules' does not match"
+            chain := #[]
+            doc? :=
+              some
+                { kind := .extra, name := "Gone", file := "/ws/docs/m.md", heading := "Mods"
+                  line := 7 } } }
 
 def githubFailures (f : Fixture) : Array String :=
   let gh (vs : Array Violation) := renderGithub ctx (.checked f.g f.p vs)
@@ -180,6 +199,21 @@ def githubFailures (f : Fixture) : Array String :=
             f.g f.p.path).toList)
       "require-backed rule 1 (p.toml:1:0): why: A (package p) imports package q, which p does not \
           require directly\n  A.lean:2: A imports Y\n  lakefile.toml: p requires r, my-lib, s" ++
+    expect "github: doc-modules missing, on the Markdown file at the heading" (gh #[f.docMissingV])
+      "::error file=docs/m.md,line=3,title=lean-deny%3A doc-modules rule 1::doc-modules rule 1 \
+          (p.toml:1:0): why: Z is not listed in section 'Mods' of docs/m.md%0A  Z.lean: Z%0A  \
+          docs/m.md:3: section 'Mods'\nlean-deny: 1 violation in 1 of 1 rule\n" ++
+    expect "github: doc-modules extra, on the Markdown file at the name's line" (gh #[f.docExtraV])
+      "::error file=docs/m.md,line=7,title=lean-deny%3A doc-modules rule 1::doc-modules rule 1 \
+          (p.toml:1:0): why: section 'Mods' of docs/m.md lists Gone, which 'modules' does not \
+          match%0A  docs/m.md:7: Gone\nlean-deny: 1 violation in 1 of 1 rule\n" ++
+    expect "text: doc-modules missing" ("\n".intercalate (f.docMissingV.render f.g f.p.path).toList)
+      "doc-modules rule 1 (p.toml:1:0): why: Z is not listed in section 'Mods' of docs/m.md\n  \
+          Z.lean: Z\n  docs/m.md:3: section 'Mods'" ++
+    expect "text: doc-modules extra" ("\n".intercalate (f.docExtraV.render f.g f.p.path).toList)
+      "doc-modules rule 1 (p.toml:1:0): why: section 'Mods' of docs/m.md lists Gone, which \
+          'modules' does not match\n  docs/m.md:7: Gone" ++
+    expect "label of a doc-modules rule" (RuleRef.mk .docModules 2).label "doc-modules rule 2" ++
     expect "github: holds" (gh #[]) "lean-deny: ok (1 rule)\n" ++
     expect "github: failed" (renderGithub ctx (.failed (some 2) #["p.toml:4:7: bad", "lake: boom"]))
       "::error file=p.toml,line=4,col=8,title=lean-deny%3A error::bad\n::error \
@@ -197,7 +231,9 @@ def jsonFailures (f : Fixture) : Array String :=
   Id.run do
     let results : Array (String × CheckResult × Bool × String × Json) :=
       #[("holds", .checked f.g f.p #[], true, "holds", toJson (1 : Nat)),
-        ("violation", .checked f.g f.p (f.vs ++ #[f.implicitV, f.layersV, f.targetV, f.requireV]),
+        ("violation",
+          .checked f.g f.p
+            (f.vs ++ #[f.implicitV, f.layersV, f.targetV, f.requireV, f.docMissingV, f.docExtraV]),
           false, "violation", toJson (1 : Nat)),
         ("failed", .failed none #["p.toml:4:7: bad", "lake: boom"], false, "error", .null)]
     let mut fs := #[]
@@ -225,7 +261,25 @@ def jsonFailures (f : Fixture) : Array String :=
             path.foldl (fun x k => (x.getObjVal? k).toOption.getD .null) v
           let step0 (v : Json) : Json := (((field v ["chain"]).getArrVal? 0).toOption).getD .null
           fs :=
-            fs ++ check "violation: five violations" (vs.size == 5) ++
+            fs ++ check "violation: seven violations" (vs.size == 7) ++
+              check "violation: a doc-modules violation's doc, missing, with its module"
+                (field vs[5]! ["doc"] ==
+                    Json.mkObj
+                      [("kind", Json.str "missing"), ("name", Json.str "Z"),
+                        ("file", Json.str "docs/m.md"), ("section", Json.str "Mods"),
+                        ("line", toJson (3 : Nat))] &&
+                  field vs[5]! ["module", "name"] == Json.str "Z" &&
+                  field vs[5]! ["chain"] == Json.arr #[] &&
+                  field vs[5]! ["rule", "kind"] == Json.str "doc-modules") ++
+              check "violation: a doc-modules violation's doc, extra, with no module"
+                (field vs[6]! ["doc"] ==
+                    Json.mkObj
+                      [("kind", Json.str "extra"), ("name", Json.str "Gone"),
+                        ("file", Json.str "docs/m.md"), ("section", Json.str "Mods"),
+                        ("line", toJson (7 : Nat))] &&
+                  field vs[6]! ["module"] == .null) ++
+              check "violation: another kind's doc is null"
+                (field vs[0]! ["doc"] == .null && field vs[4]! ["doc"] == .null) ++
               check "violation: a deny violation's target is null"
                 (field vs[0]! ["target"] == .null) ++
               check "violation: a deny or target-config violation's require is null"

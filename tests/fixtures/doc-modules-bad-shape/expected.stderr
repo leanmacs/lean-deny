@@ -1,0 +1,9 @@
+lean-deny: error: lean-deny.toml:3:0: doc-modules rule 1 has no 'prefix'
+lean-deny: error: lean-deny.toml:4:7: doc-modules rule 1: 'file' must be relative to the workspace directory
+lean-deny: error: lean-deny.toml:5:10: doc-modules rule 1: 'section' is empty
+lean-deny: error: lean-deny.toml:7:9: doc-modules rule 1: 'reason' must be a string, found an integer
+lean-deny: error: lean-deny.toml:10:7: doc-modules rule 2: 'file' must not be empty
+lean-deny: error: lean-deny.toml:11:10: doc-modules rule 2: 'section' must be a string, found an integer
+lean-deny: error: lean-deny.toml:12:9: doc-modules rule 2: 'prefix' is empty
+lean-deny: error: lean-deny.toml:13:10: doc-modules rule 2: 'modules' is empty
+lean-deny: error: lean-deny.toml:14:9: doc-modules rule 2: 'reason' is empty

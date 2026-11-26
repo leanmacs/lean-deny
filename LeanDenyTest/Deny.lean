@@ -42,7 +42,7 @@ def outcome (ms : Array M) (src : String) (packages : Array PackageInfo := #[])
     | .error es =>
       return es.map ("sets: " ++ ·)
     | .ok sets =>
-      match checkRules g p sets with
+      match checkRules g p sets #[] with
       | .error es =>
         return es
       | .ok vs =>

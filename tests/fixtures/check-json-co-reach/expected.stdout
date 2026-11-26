@@ -13,6 +13,7 @@
    "missing": [{"name": "Main", "file": "Main.lean"}],
    "message":
    "every root that uses the core's types is the executable: AppTest reaches Core.Types but not Main",
+   "doc": null,
    "detail": "AppTest reaches Core.Types but not Main",
    "chain":
    [{"public": false,
@@ -58,6 +59,7 @@
     {"name": "Core.Macros", "file": "core/Core/Macros.lean"}],
    "message":
    "every core module links the macros and the base: Core.Impl is in 'if-reaches' but does not reach Base and Core.Macros",
+   "doc": null,
    "detail":
    "Core.Impl is in 'if-reaches' but does not reach Base and Core.Macros",
    "chain": []}],

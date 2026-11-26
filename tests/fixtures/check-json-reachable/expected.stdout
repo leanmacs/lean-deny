@@ -13,6 +13,7 @@
    "missing": [],
    "message":
    "the app's root holds the whole package: AppTest is outside the import closure of App",
+   "doc": null,
    "detail": "AppTest is outside the import closure of App",
    "chain": []},
   {"target": null,
@@ -29,6 +30,7 @@
    "missing": [],
    "message":
    "the app's root holds the whole package: Main is outside the import closure of App",
+   "doc": null,
    "detail": "Main is outside the import closure of App",
    "chain": []},
   {"target": null,
@@ -45,6 +47,7 @@
    "missing": [],
    "message":
    "the implementation holds the whole core: Core.Api is outside the import closure of Core.Impl",
+   "doc": null,
    "detail": "Core.Api is outside the import closure of Core.Impl",
    "chain": []},
   {"target": null,
@@ -61,6 +64,7 @@
    "missing": [],
    "message":
    "the implementation holds the whole core: Core.Macros is outside the import closure of Core.Impl",
+   "doc": null,
    "detail": "Core.Macros is outside the import closure of Core.Impl",
    "chain": []}],
  "summary": "lean-deny: 4 violations in 2 of 2 rules",

@@ -1,0 +1,3 @@
+doc-modules rule 1 (lean-deny.toml:5:0): the module map names every module: section 'Extra' of docs/modules.md lists Doc.Gone, which 'modules' does not match
+  docs/modules.md:23: Doc.Gone
+lean-deny: 1 violation in 1 of 1 rule

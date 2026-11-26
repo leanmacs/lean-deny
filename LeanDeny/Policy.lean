@@ -4,7 +4,7 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows nine top-level keys:
+`lean-deny.toml`. This version knows ten top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
@@ -27,6 +27,10 @@ import LeanDeny.Policy.Selector
   `reason`: every import from a module of a matched package into another
   workspace package is backed by a direct `require`
   (`LeanDeny.Rules.RequireBacked` evaluates them);
+- `[[doc-modules]]`: rules on a Markdown file, each with `file`, `section`,
+  `prefix`, `modules` and `reason`: the backticked module names starting
+  with `prefix` in the file's section `section` are exactly the workspace
+  modules `modules` matches (`LeanDeny.Rules.DocModules` evaluates them);
 - `[[root]]`: declared roots, each a `module` and its file's `path`
   relative to the workspace directory: a module no Lake target declares,
   read from its file into the graph (`LeanDeny.Graph.LakeApi`). Roots are
@@ -108,10 +112,11 @@ inductive RuleKind where
   | coReach
   | targetConfig
   | requireBacked
+  | docModules
   deriving BEq, Repr, Inhabited, DecidableEq
 
 /-- As the policy writes it: "deny", "allow-only", "layers", "reachable",
-"co-reach", "target-config", "require-backed". -/
+"co-reach", "target-config", "require-backed", "doc-modules". -/
 def RuleKind.toString : RuleKind → String
   | .deny => "deny"
   | .allowOnly => "allow-only"
@@ -120,6 +125,7 @@ def RuleKind.toString : RuleKind → String
   | .coReach => "co-reach"
   | .targetConfig => "target-config"
   | .requireBacked => "require-backed"
+  | .docModules => "doc-modules"
 
 instance : ToString RuleKind :=
   ⟨RuleKind.toString⟩
@@ -132,7 +138,8 @@ structure RuleRef where
   deriving BEq, Repr, Inhabited
 
 /-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
-"co-reach rule 1", "target-config rule 1", "require-backed rule 1". -/
+"co-reach rule 1", "target-config rule 1", "require-backed rule 1",
+"doc-modules rule 1". -/
 def RuleRef.label (r : RuleRef) : String :=
   match r.kind with
   | .deny => s!"deny rule {r.index}"
@@ -142,6 +149,7 @@ def RuleRef.label (r : RuleRef) : String :=
   | .coReach => s!"co-reach rule {r.index}"
   | .targetConfig => s!"target-config rule {r.index}"
   | .requireBacked => s!"require-backed rule {r.index}"
+  | .docModules => s!"doc-modules rule {r.index}"
 
 /-- One `[[deny]]` table: no module of `sources` may import a module of
 `targets`, directly or (with `transitive`) through others, unless the
@@ -332,6 +340,38 @@ def RequireBackedRule.ref (r : RequireBackedRule) : RuleRef :=
 def RequireBackedRule.label (r : RequireBackedRule) : String :=
   r.ref.label
 
+/-- One `[[doc-modules]]` table: the backticked module names starting with
+`pfx` in section `heading` of Markdown file `file` are exactly the workspace
+modules `modules` matches. (`section` and `prefix` are Lean keywords, hence
+the field names.) -/
+structure DocModulesRule where
+  /-- 1-based, in source order among the `doc-modules` tables; a table with
+  errors keeps its number. -/
+  index : Nat
+  /-- The table's position: its `[[doc-modules]]` header (column 0), or the
+  `{` of an inline table. -/
+  pos? : Option Toml.Pos
+  /-- `file`: relative to the workspace directory, not empty in a valid
+  policy. -/
+  file : String := ""
+  /-- `section`: an ATX heading's text, not blank in a valid policy. -/
+  heading : String := ""
+  /-- `prefix`: not empty in a valid policy. -/
+  pfx : String := ""
+  /-- `modules`: non-empty in a valid policy. -/
+  modules : Array SelectorRef := #[]
+  /-- `reason`: not blank in a valid policy. -/
+  reason : String := ""
+  deriving BEq, Repr, Inhabited
+
+/-- The rule's reference: `doc-modules` and its index. -/
+def DocModulesRule.ref (r : DocModulesRule) : RuleRef :=
+  ⟨.docModules, r.index⟩
+
+/-- "doc-modules rule 1". -/
+def DocModulesRule.label (r : DocModulesRule) : String :=
+  r.ref.label
+
 /-- One entry of `[layers]`'s `classify`: the packages `select` matches are
 in `layer`. -/
 structure LayerClass where
@@ -433,6 +473,8 @@ structure Policy where
   targetConfig : Array TargetConfigRule := #[]
   /-- The `[[require-backed]]` rules, in source order. -/
   requireBacked : Array RequireBackedRule := #[]
+  /-- The `[[doc-modules]]` rules, in source order. -/
+  docModules : Array DocModulesRule := #[]
   /-- The `[[root]]` tables, in source order. Not rules. -/
   roots : Array RootDef := #[]
   deriving Repr, Inhabited
@@ -440,7 +482,7 @@ structure Policy where
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
   #["sets", "deny", "allow-only", "layers", "reachable", "co-reach", "target-config",
-    "require-backed", "root"]
+    "require-backed", "doc-modules", "root"]
 
 /-- The number of rules of every kind; `[layers]` is one rule. Declared roots
 are not rules. -/
@@ -448,7 +490,8 @@ def Policy.ruleCount (p : Policy) : Nat :=
   p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0) + p.reachable.size +
     p.coReach.size +
     p.targetConfig.size +
-    p.requireBacked.size
+    p.requireBacked.size +
+    p.docModules.size
 
 /-- `<path>:<line>:<column>`, or `<path>` with no position. -/
 def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
@@ -510,6 +553,10 @@ def TargetConfigRule.refs (r : TargetConfigRule) : Array SelectorRef :=
 /-- A require-backed rule's selectors, `packages`, in source order. -/
 def RequireBackedRule.refs (r : RequireBackedRule) : Array SelectorRef :=
   r.packages
+
+/-- A doc-modules rule's selectors, `modules`, in source order. -/
+def DocModulesRule.refs (r : DocModulesRule) : Array SelectorRef :=
+  r.modules
 
 /-- The set a selector names, if any: `set:n`, also inside `imports:`
 (`Selector.setName?`). -/
@@ -623,7 +670,7 @@ private def parseReason (e : Errors) (label : String) (x : Toml.LValue) : Errors
   | _ => (e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}", none)
 
 /-- A top-level array-of-tables key (`deny`, `allow-only`, `reachable`,
-`co-reach`, `target-config`, `require-backed`, `root`): each table parsed by `parse` with its 1-based index and the tables parsed before
+`co-reach`, `target-config`, `require-backed`, `doc-modules`, `root`): each table parsed by `parse` with its 1-based index and the tables parsed before
 it. -/
 private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LValue)
     (parse : Errors → Nat → Array α → Toml.LValue → Errors × α) : Errors × Array α :=
@@ -832,6 +879,60 @@ private def parseRequireBacked (e : Errors) (index : Nat) (v : Toml.LValue) :
         e :=
           e.add x.pos? <|
             s!"{label}: unknown key '{k}' (expected {", ".intercalate requireBackedKeys.toList})"
+    return (e, r)
+
+/-- The keys of a doc-modules table, in the order messages list them. -/
+private def docModulesKeys : Array String :=
+  #["file", "section", "prefix", "modules", "reason"]
+
+/-- Entry `index` (1-based) of the `doc-modules` array, as `parseDeny`. -/
+private def parseDocModules (e : Errors) (index : Nat) (v : Toml.LValue) :
+    Errors × DocModulesRule :=
+  Id.run do
+    let label := s!"doc-modules rule {index}"
+    let base : DocModulesRule := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in docModulesKeys do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k, x with
+      | "file", .string xpos? s =>
+        if s.isEmpty then
+          e := e.add xpos? s!"{label}: 'file' must not be empty"
+        else if (FilePath.mk s).isAbsolute || s.startsWith "/" then
+          e := e.add xpos? s!"{label}: 'file' must be relative to the workspace directory"
+        else
+          r := { r with file := s }
+      | "section", .string xpos? s =>
+        if s.trimAscii.toString.isEmpty then
+          e := e.add xpos? s!"{label}: 'section' is empty"
+        else
+          r := { r with heading := s }
+      | "prefix", .string xpos? s =>
+        if s.isEmpty then
+          e := e.add xpos? s!"{label}: 'prefix' is empty"
+        else
+          r := { r with pfx := s }
+      | "file", _ | "section", _ | "prefix", _ =>
+        e := e.add x.pos? s!"{label}: '{k}' must be a string, found {x.kindName}"
+      | "modules", _ =>
+        let (e', refs?) := parseRuleSelectors e label (.rule "doc-modules" index k) k false x
+        e := e'
+        if let some refs := refs? then
+          r := { r with modules := refs }
+      | "reason", _ =>
+        let (e', reason?) := parseReason e label x
+        e := e'
+        if let some reason := reason? then
+          r := { r with reason }
+      | _, _ =>
+        e :=
+          e.add x.pos? <|
+            s!"{label}: unknown key '{k}' (expected {", ".intercalate docModulesKeys.toList})"
     return (e, r)
 
 /-- The keys of a target-config table, in the order messages list them. -/
@@ -1178,7 +1279,7 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
 /-- Check that every `set:` in a rule names a set. `refs` holds each rule's
 selectors (`DenyRule.refs`, `AllowOnlyRule.refs`, `LayersRule.refs`,
 `ReachableRule.refs`, `CoReachRule.refs`, `TargetConfigRule.refs`,
-`RequireBackedRule.refs`), in rule order. -/
+`RequireBackedRule.refs`, `DocModulesRule.refs`), in rule order. -/
 private def checkRuleRefs (e : Errors) (sets : Array SetDef) (refs : Array (Array SelectorRef)) :
     Errors :=
   Id.run do
@@ -1207,6 +1308,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut coReach := #[]
     let mut targetConfig := #[]
     let mut requireBacked := #[]
+    let mut docModules := #[]
     let mut roots := #[]
     for (k, v) in entries do
       if k == "sets" then
@@ -1246,6 +1348,10 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         let (e', rs) := parseRuleArray e "require-backed" v fun e i _ x => parseRequireBacked e i x
         e := e'
         requireBacked := requireBacked ++ rs
+      else if k == "doc-modules" then
+        let (e', rs) := parseRuleArray e "doc-modules" v fun e i _ x => parseDocModules e i x
+        e := e'
+        docModules := docModules ++ rs
       else if k == "root" then
         let (e', rs) := parseRuleArray e "root" v parseRoot
         e := e'
@@ -1258,12 +1364,13 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         reachable.map (·.refs) ++
         coReach.map (·.refs) ++
         targetConfig.map (·.refs) ++
-        requireBacked.map (·.refs)
+        requireBacked.map (·.refs) ++
+        docModules.map (·.refs)
     let errs := checkRuleRefs e' sets refs
     if errs.msgs.isEmpty then
       return .ok
           { path, sets, order, deny, allowOnly, layers?, reachable, coReach, targetConfig,
-            requireBacked, roots }
+            requireBacked, docModules, roots }
     return .error errs.msgs
 
 /-- Only the `[[root]]` tables of the parsed TOML document at `path`; every

@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:2:14: 'doc-modules' must be an array of tables, such as [[doc-modules]]

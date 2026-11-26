@@ -1,0 +1,1 @@
+-- A module the doc-modules fixtures list.

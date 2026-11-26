@@ -17,6 +17,7 @@
    "missing": [],
    "message":
    "a set may drop any implementation package and still build: App (package require-ws) imports package iface, which require-ws does not require directly",
+   "doc": null,
    "detail":
    "App (package require-ws) imports package iface, which require-ws does not require directly",
    "chain":

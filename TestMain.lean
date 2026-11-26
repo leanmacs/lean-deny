@@ -2,6 +2,8 @@ import LeanDenyTest.AllowOnly
 import LeanDenyTest.Cli
 import LeanDenyTest.CoReach
 import LeanDenyTest.Deny
+import LeanDenyTest.DocModules
+import LeanDenyTest.DocSection
 import LeanDenyTest.Fixtures
 import LeanDenyTest.Graph
 import LeanDenyTest.Harness
@@ -21,7 +23,8 @@ import LeanDenyTest.View
 /-!
 `lake test` driver. Runs the CLI parser tests, the selector, policy and
 resolution tests, the deny, allow-only, layers, reachable, co-reach,
-target-config and require-backed rule tests, the graph checks, the check report's renderings, the fixture runner's own checks and every
+target-config, require-backed and doc-modules rule tests (with the
+Markdown reading doc-modules rules use), the graph checks, the check report's renderings, the fixture runner's own checks and every
 fixture under `tests/fixtures/`. `lake test -- <name>…` runs only the named
 fixtures. The working directory is the package root (as `lake test` sets it).
 -/
@@ -55,6 +58,8 @@ def main (args : List String) : IO UInt32 := do
     ok := (← report "co-reach" (← CoReach.run)) && ok
     ok := (← report "target-config" (← TargetConfig.run)) && ok
     ok := (← report "require-backed" (← RequireBacked.run)) && ok
+    ok := (← report "doc-section" DocSection.run) && ok
+    ok := (← report "doc-modules" (← DocModules.run)) && ok
     ok := (← report "render" (← Render.run root)) && ok
     ok := (← report "report" (← Report.run root)) && ok
     ok := (← report "graph" (← Graph.run root)) && ok

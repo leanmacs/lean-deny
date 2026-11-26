@@ -1,0 +1,10 @@
+# A doc-modules rule naming a file doc-ws does not have (exit 2).
+[sets]
+doc-mods = { select = ["mod:Doc"], except = ["mod:Doc!"] }
+
+[[doc-modules]]
+file = "docs/missing.md"
+section = "The modules"
+prefix = "Doc."
+modules = "set:doc-mods"
+reason = "the module map names every module"

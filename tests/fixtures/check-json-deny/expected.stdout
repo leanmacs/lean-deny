@@ -12,6 +12,7 @@
    "module": null,
    "missing": [],
    "message": "the app imports nothing of the core",
+   "doc": null,
    "detail": null,
    "chain":
    [{"public": false,
@@ -36,6 +37,7 @@
    "module": null,
    "missing": [],
    "message": "the executable reaches no kernel module",
+   "doc": null,
    "detail": null,
    "chain":
    [{"public": false,

@@ -12,6 +12,7 @@
    "module": null,
    "missing": [],
    "message": "no library imports a test double",
+   "doc": null,
    "detail": null,
    "chain":
    [{"public": false,
@@ -36,6 +37,7 @@
    "module": null,
    "missing": [],
    "message": "the feature imports the core's API alone",
+   "doc": null,
    "detail": null,
    "chain":
    [{"public": false,
@@ -60,6 +62,7 @@
    "module": null,
    "missing": [],
    "message": "the feature imports the core's API alone",
+   "doc": null,
    "detail": null,
    "chain":
    [{"public": false,

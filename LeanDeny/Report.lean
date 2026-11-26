@@ -226,6 +226,18 @@ private def requireJson (g : Graph) : Option RequireGap → Json
         ("file", Json.str (g.relPath r.configFile)),
         ("requires", Json.arr (r.requires.map (Json.str ∘ plainName)))]
 
+/-- A doc-modules violation's name: whether it is missing or extra, the
+name, the Markdown file (relative to the workspace root when under it,
+otherwise as is), the section and the line (the heading's for a missing
+name, the first listing's for an extra one); `null` for the other kinds. -/
+private def docJson (g : Graph) : Option DocGap → Json
+  | none => .null
+  | some d =>
+    Json.mkObj
+      [("kind", Json.str (toString d.kind)), ("name", Json.str d.name),
+        ("file", Json.str (g.relPath d.file)), ("section", Json.str d.heading),
+        ("line", toJson d.line)]
+
 private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
   Json.mkObj
     [("rule",
@@ -237,7 +249,8 @@ private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
       ("message", Json.str v.message), ("detail", jOptStr v.detail?),
       ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?),
       ("missing", Json.arr (v.missing.map (moduleJson g ∘ some))),
-      ("target", targetJson g v.target?), ("require", requireJson g v.require?)]
+      ("target", targetJson g v.target?), ("require", requireJson g v.require?),
+      ("doc", docJson g v.doc?)]
 
 private def diagnosticJson (d : Diagnostic) : Json :=
   Json.mkObj
@@ -265,7 +278,10 @@ violation, on the import that starts its chain (when the chain is empty, as
 for a reachable rule or a co-reach rule whose root is itself in
 `if-reaches`, on the file of the violation's module, with no line; for a
 target-config rule, on the target's package lakefile, with no line; a
-require-backed violation's chain is its one unbacked import), or per error; then the summary line.
+require-backed violation's chain is its one unbacked import; a doc-modules
+violation, on its Markdown file at the section's heading for a missing
+module or at the name's first listing for an extra name), or per error;
+then the summary line.
 Ends in one newline. -/
 def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
   let rel (f : System.FilePath) : String := githubFile ctx.cwd f.toString
@@ -275,15 +291,20 @@ def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
       vs.map fun (v : Violation) =>
         let e? := v.chain[0]?
         let file? :=
-          match e? with
-          | some e => some e.file
-          | none =>
+          match v.doc?, e? with
+          | some d, _ => some d.file
+          | none, some e => some e.file
+          | none, none =>
             match v.target? with
             | some t => some t.configFile
             | none => v.module? >>= fun m => g.nodes[m]? >>= (·.file?)
+        let line? :=
+          match v.doc? with
+          | some d => some d.line
+          | none => e? >>= (·.line?)
         let props :=
           (file?.map fun f => ("file", rel f)).toList ++
-            ((e? >>= (·.line?)).map fun l => ("line", toString l)).toList ++
+            (line?.map fun l => ("line", toString l)).toList ++
             [("title", s!"lean-deny: {v.label}")]
         githubCommand "error" props ("\n".intercalate (v.render g p.path rel).toList)
     | .failed _ es =>

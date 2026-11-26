@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:5:0: doc-modules rule 1: no heading 'Nope' in 'docs/modules.md'

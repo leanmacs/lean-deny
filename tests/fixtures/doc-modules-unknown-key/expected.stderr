@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:8:10: doc-modules rule 1: unknown key 'heading' (expected file, section, prefix, modules, reason)

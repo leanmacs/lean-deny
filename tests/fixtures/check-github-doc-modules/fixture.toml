@@ -1,0 +1,4 @@
+# --format github of doc-modules violations: line annotations on the Markdown file, at the section's heading (missing) and at the name's line (extra); the policy is doc-modules-both's (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../doc-ws", "--config", "../doc-modules-both/lean-deny.toml", "--format", "github"]
+exit = 1

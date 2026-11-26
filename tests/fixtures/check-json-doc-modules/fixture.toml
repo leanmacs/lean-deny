@@ -1,0 +1,4 @@
+# --format json of doc-modules violations, a missing module and an extra name, with `module` and `doc`; the policy is doc-modules-both's (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../doc-ws", "--config", "../doc-modules-both/lean-deny.toml", "--format", "json"]
+exit = 1

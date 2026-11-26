@@ -1,0 +1,10 @@
+# A doc-modules rule naming a heading docs/modules.md has twice (exit 2).
+[sets]
+doc-mods = { select = ["mod:Doc"], except = ["mod:Doc!"] }
+
+[[doc-modules]]
+file = "docs/modules.md"
+section = "Twice"
+prefix = "Doc."
+modules = "set:doc-mods"
+reason = "the module map names every module"

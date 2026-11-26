@@ -1,0 +1,8 @@
+# A doc-modules table with a key it does not know (exit 2, before Lake runs).
+[[doc-modules]]
+file = "docs/modules.md"
+section = "Exact"
+prefix = "Doc."
+modules = "mod:Doc.A"
+reason = "the module map names every module"
+heading = "Exact"

@@ -1,0 +1,10 @@
+# A doc-modules rule over doc-ws with a missing module (Doc.B) and an extra name (Doc.Gone): missing first.
+[sets]
+doc-mods = { select = ["mod:Doc"], except = ["mod:Doc!"] }
+
+[[doc-modules]]
+file = "docs/modules.md"
+section = "Both"
+prefix = "Doc."
+modules = "set:doc-mods"
+reason = "the module map names every module"

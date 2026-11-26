@@ -43,6 +43,34 @@ structure RequireGap where
   requires : Array Name
   deriving BEq, Repr, Inhabited
 
+/-- Which side of a doc-modules comparison a violation is on: a module the
+section does not list, or a listed name the selector does not match. -/
+inductive DocGapKind where
+  | missing
+  | extra
+  deriving BEq, Repr, Inhabited
+
+/-- "missing" or "extra". -/
+def DocGapKind.toString : DocGapKind → String
+  | .missing => "missing"
+  | .extra => "extra"
+
+instance : ToString DocGapKind :=
+  ⟨DocGapKind.toString⟩
+
+/-- What a doc-modules violation is about: module name `name` is missing
+from, or extra in, section `heading` of Markdown file `file` (absolute:
+the workspace root joined with the rule's `file`); `line` is the heading's
+line for a missing name, the name's first listing line for an extra one.
+(`section` is a Lean keyword, hence the field name.) -/
+structure DocGap where
+  kind : DocGapKind
+  name : String
+  file : System.FilePath
+  heading : String
+  line : Nat
+  deriving BEq, Repr, Inhabited
+
 /-- One violation of any rule kind: the rule, its table position, its
 reason, what the violation is, and the chain of imports that breaks it. -/
 structure Violation where
@@ -51,7 +79,8 @@ structure Violation where
   /-- The rule's table. -/
   pos? : Option Toml.Pos
   /-- The rule's `reason` as written: always set for deny, allow-only,
-  reachable, co-reach, target-config and require-backed, optional for
+  reachable, co-reach, target-config, require-backed and doc-modules,
+  optional for
   `[layers]`. -/
   reason? : Option String
   /-- What this violation is, beyond the reason: for `[layers]`,
@@ -59,17 +88,20 @@ structure Violation where
   reachable rule, "M is outside the import closure of R"; for a co-reach
   rule, "R reaches T but not M"; for a target-config rule, "lean_lib p/L
   does not load P"; for a require-backed rule, "M (package a) imports
-  package b, which a does not require directly". -/
+  package b, which a does not require directly"; for a doc-modules rule,
+  "M is not listed in section 'S' of f" or "section 'S' of f lists N,
+  which 'modules' does not match". -/
   detail? : Option String := none
-  /-- At least one edge for every kind but reachable and target-config,
-  whose chain is empty, and co-reach, whose chain is the witness from its root to the
+  /-- At least one edge for every kind but reachable, target-config and
+  doc-modules, whose chain is empty, and co-reach, whose chain is the witness from its root to the
   `if-reaches` module it reaches (empty when the root is itself one);
   exactly one for a direct deny rule, an allow-only rule, `[layers]` and a
   require-backed rule;
   consecutive (`chain[i].dst = chain[i+1].src`). -/
   chain : Array Edge
-  /-- The module a reachable rule does not reach, or the root a co-reach
-  rule is broken for; `none` for the other kinds. -/
+  /-- The module a reachable rule does not reach, the root a co-reach rule
+  is broken for, or the module a doc-modules section does not list; `none`
+  for the other kinds (and for a doc-modules extra name). -/
   module? : Option NodeId := none
   /-- The `must-reach` modules a co-reach rule's root does not reach, in
   `displayOrder`; empty for the other kinds. -/
@@ -80,11 +112,14 @@ structure Violation where
   /-- The unbacked package dependency a require-backed rule reports; `none`
   for the other kinds. -/
   require? : Option RequireGap := none
+  /-- The missing or extra name a doc-modules rule reports; `none` for the
+  other kinds. -/
+  doc? : Option DocGap := none
   deriving BEq, Repr, Inhabited
 
 /-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
-"co-reach rule 1", "target-config rule 1", "require-backed rule 1": names
-the rule. -/
+"co-reach rule 1", "target-config rule 1", "require-backed rule 1",
+"doc-modules rule 1": names the rule. -/
 def Violation.label (v : Violation) : String :=
   v.rule.label
 
@@ -152,7 +187,10 @@ rule's root that is itself in `if-reaches`), that module's line
 line, `<lakefile>: lean_lib <name>`, indented two spaces; for a
 require-backed rule, after its chain, the importing package's requires,
 `<lakefile>: <package> requires <r1, r2>` (or `requires nothing`), indented
-two spaces. `policyPath` is
+two spaces; for a doc-modules rule, after the missing module's line, the
+section's place, `<file>:<line>: section '<section>'`, or, for an extra
+name, the name's place, `<file>:<line>: <name>`, indented two spaces.
+`policyPath` is
 the policy's; `path` writes each file (as in `chainLine`). -/
 def Violation.render (g : Graph) (policyPath : String) (v : Violation)
     (path : System.FilePath → String := g.relPath) : Array String :=
@@ -165,6 +203,11 @@ def Violation.render (g : Graph) (policyPath : String) (v : Violation)
       #[] ++
     (v.require?.map fun r =>
           #[s!"  {path r.configFile}: {plainName r.pkg} {requiresText r.requires}"]).getD
+      #[] ++
+    (v.doc?.map fun d =>
+          match d.kind with
+          | .missing => #[s!"  {path d.file}:{d.line}: section '{d.heading}'"]
+          | .extra => #[s!"  {path d.file}:{d.line}: {d.name}"]).getD
       #[]
 
 end LeanDeny

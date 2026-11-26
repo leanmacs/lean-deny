@@ -1,0 +1,4 @@
+doc-modules rule 1 (lean-deny.toml:5:0): the module map names every module: Doc.B is not listed in section 'Missing' of docs/modules.md
+  Doc/B.lean: Doc.B
+  docs/modules.md:16: section 'Missing'
+lean-deny: 1 violation in 1 of 1 rule

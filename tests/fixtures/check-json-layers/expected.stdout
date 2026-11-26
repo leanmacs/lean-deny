@@ -12,6 +12,7 @@
    "module": null,
    "missing": [],
    "message": "app (implementation) may not import plugin (implementation)",
+   "doc": null,
    "detail": "app (implementation) may not import plugin (implementation)",
    "chain":
    [{"public": false,
@@ -36,6 +37,7 @@
    "module": null,
    "missing": [],
    "message": "app (implementation) may not import typo (implementation)",
+   "doc": null,
    "detail": "app (implementation) may not import typo (implementation)",
    "chain":
    [{"public": false,
@@ -60,6 +62,7 @@
    "module": null,
    "missing": [],
    "message": "editor (core) may not import plugin (implementation)",
+   "doc": null,
    "detail": "editor (core) may not import plugin (implementation)",
    "chain":
    [{"public": false,
@@ -84,6 +87,7 @@
    "module": null,
    "missing": [],
    "message": "iface (interface) may not import typo (implementation)",
+   "doc": null,
    "detail": "iface (interface) may not import typo (implementation)",
    "chain":
    [{"public": false,

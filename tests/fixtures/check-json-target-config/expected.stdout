@@ -18,6 +18,7 @@
    "missing": [],
    "message":
    "a target that loads no plugin is never linted: lean_lib pkgb/PkgBExtra does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
+   "doc": null,
    "detail":
    "lean_lib pkgb/PkgBExtra does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
    "chain": []},
@@ -40,6 +41,7 @@
    "missing": [],
    "message":
    "a target that loads no plugin is never linted: lean_exe pkgb/pkgb-tool does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
+   "doc": null,
    "detail":
    "lean_exe pkgb/pkgb-tool does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
    "chain": []},
@@ -62,6 +64,7 @@
    "missing": [],
    "message":
    "the user library loads the linters: lean_lib user/User does not load lint/lintShared",
+   "doc": null,
    "detail": "lean_lib user/User does not load lint/lintShared",
    "chain": []}],
  "summary": "lean-deny: 3 violations in 2 of 2 rules",

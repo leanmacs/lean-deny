@@ -1,0 +1,3 @@
+::error file=../doc-ws/docs/modules.md,line=30,title=lean-deny%3A doc-modules rule 1::doc-modules rule 1 (../doc-modules-both/lean-deny.toml:5:0): the module map names every module: Doc.B is not listed in section 'Both' of docs/modules.md%0A  ../doc-ws/Doc/B.lean: Doc.B%0A  ../doc-ws/docs/modules.md:30: section 'Both'
+::error file=../doc-ws/docs/modules.md,line=33,title=lean-deny%3A doc-modules rule 1::doc-modules rule 1 (../doc-modules-both/lean-deny.toml:5:0): the module map names every module: section 'Both' of docs/modules.md lists Doc.Gone, which 'modules' does not match%0A  ../doc-ws/docs/modules.md:33: Doc.Gone
+lean-deny: 2 violations in 1 of 1 rule

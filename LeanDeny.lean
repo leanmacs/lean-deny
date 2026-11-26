@@ -1,5 +1,6 @@
 import LeanDeny.Check
 import LeanDeny.Cli
+import LeanDeny.DocSection
 import LeanDeny.Exit
 import LeanDeny.Explain
 import LeanDeny.Graph
@@ -22,6 +23,7 @@ import LeanDeny.Rules.AllowOnly
 import LeanDeny.Rules.CoReach
 import LeanDeny.Rules.Common
 import LeanDeny.Rules.Deny
+import LeanDeny.Rules.DocModules
 import LeanDeny.Rules.Layers
 import LeanDeny.Rules.Reachable
 import LeanDeny.Rules.RequireBacked

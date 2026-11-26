@@ -1,0 +1,8 @@
+# The doc-modules fixtures' workspace (tests/fixtures/doc-modules-*): Doc
+# imports Doc.A and Doc.B, and docs/modules.md lists them in one section per
+# case. Never built.
+name = "doc-ws"
+
+[[lean_lib]]
+name = "Doc"
+globs = ["Doc.*"]  # Doc.lean, Doc/A.lean and Doc/B.lean

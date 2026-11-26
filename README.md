@@ -13,7 +13,7 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]` and `[[require-backed]]` rules of
+> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]`, `[[require-backed]]` and `[[doc-modules]]` rules of
 > `lean-deny.toml`, checks that every selector matches, and exits 1 with
 > the violations when a rule is broken. Any other top-level key is an
 > error, never silently ignored. `lean-deny explain` lists the modules a
@@ -62,6 +62,7 @@ imports.
 | `co-reach` | Every root in R whose import closure holds a module of A also holds every module of B. | none |
 | `target-config` | Every `lean_lib` and `lean_exe` of a set of packages loads a given Lake plugin, or has a module whose import closure holds a module of A. | none |
 | `require-backed` | Every import from a module of a package in A into another workspace package is backed by a direct `require` of that package in the importer's lakefile. | none |
+| `doc-modules` | The backticked module names with a prefix in a Markdown section are exactly the modules of A. | none |
 
 ### Selectors
 
@@ -831,6 +832,114 @@ Each of these is an error (exit 2), reported at the policy's
 
 When the policy has any error, no violation is reported.
 
+### doc-modules
+
+A `[[doc-modules]]` rule says a Markdown section names exactly a set of
+modules: the backticked module names starting with `prefix` in section
+`section` of `file` are the workspace modules `modules` matches, no more and
+no fewer.
+
+```toml
+[sets]
+doc-mods = { select = ["mod:Doc"], except = ["mod:Doc!"] }
+
+[[doc-modules]]
+file = "docs/modules.md"
+section = "The modules"
+prefix = "Doc."
+modules = "set:doc-mods"
+reason = "the module map names every module"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `file` | yes | a non-empty path relative to the workspace directory: the Markdown file |
+| `section` | yes | a non-blank string: the text of the section's heading, matched exactly (trimmed) |
+| `prefix` | yes | a non-empty string: a backticked name is listed only when it starts with it (write `Doc.`, with the dot; a plain string prefix) |
+| `modules` | yes | a selector or a non-empty array of selectors (their union), any form: the modules the section must list |
+| `reason` | yes | a non-blank string, printed with every violation |
+
+Rules are numbered `doc-modules rule 1`, `doc-modules rule 2`, … in the
+order they are written, apart from the other kinds' numbers. Both
+`[[doc-modules]]` tables and an inline `doc-modules = [{ … }, …]` work.
+"Every module but the root" is written with a `[sets]` entry's `except`, as
+above.
+
+**Why:** a design document's module map goes stale silently when a module
+is added, renamed or removed. This rule keeps such a list honest without
+lean-deny knowing anything about the document beyond the heading.
+
+**What is read** (a small subset of Markdown):
+
+- **Headings:** ATX headings only (`#` to `######`, at most 3 spaces of
+  indent, then a space or the end of the line; an optional closing run of
+  `#` is dropped). Setext headings (text underlined with `=` or `-`) are
+  not recognised. The heading must appear exactly once.
+- **The section** is the lines after the heading, up to the next heading of
+  the same or a higher level, or the end of the file. Deeper subsections
+  are included.
+- **Fenced code blocks** (` ``` ` or `~~~`) are skipped: a heading or a name
+  inside one does not count.
+- **Code spans** are found within one line, as CommonMark delimits them (a
+  run of backticks closed by a run of the same length); a span never
+  crosses a line, which is enough for table cells and list items.
+- **A name** is a span holding one or more `.`-separated components of
+  ASCII letters, digits, `_` and `'`, not starting with a digit. Paths
+  (`Doc/A.lean`, `lean/Doc/`) and other text are not names. `«»`-escaped
+  names are not recognised.
+- **Listed** names are the names that start with `prefix`; others (such as
+  `Nat.succ` with prefix `Doc.`) are ignored.
+
+**The modules** are the workspace modules and declared roots `modules`
+matches; a module outside the workspace in a mixed match is ignored.
+
+**What is checked:** the listed names and the modules' names are compared
+as sets; order and counts in the document are never checked, so a name
+listed twice is one name. Each module the section does not list is one
+violation, naming the module, the file and the section; then each listed
+name that is not one of the modules is one violation, naming the name, the
+file and the section. Violations come after the other kinds': missing
+modules sorted by library, then extra names in order of first appearance.
+From `tests/fixtures/doc-modules-missing`:
+
+```
+doc-modules rule 1 (lean-deny.toml:5:0): the module map names every module: Doc.B is not listed in section 'Missing' of docs/modules.md
+  Doc/B.lean: Doc.B
+  docs/modules.md:16: section 'Missing'
+lean-deny: 1 violation in 1 of 1 rule
+```
+
+An extra name's block ends in the line listing it,
+`  docs/modules.md:23: Doc.Gone`. In `--format json` the violation's `doc`
+holds whether the name is missing or extra, the name, the file, the section
+and the line ([docs/check-json.md](docs/check-json.md)); in `--format
+github` it is annotated on the Markdown file, at the section's heading
+(missing) or the name's line (extra).
+
+The file is read after the workspace's graph loads. Each of these is an
+error (exit 2), reported at the policy's `file:line:column`:
+
+- a malformed rule: `doc-modules` not an array of tables, a missing `file`,
+  `section`, `prefix`, `modules` or `reason`, an empty `file`, `prefix` or
+  selector array, a blank `section` or `reason`, an absolute `file`, an
+  unknown key (`doc-modules rule 1: unknown key 'heading' (expected file,
+  section, prefix, modules, reason)`), a value of the wrong kind, or a
+  malformed selector;
+- a `set:` that names no set;
+- a selector that matches no module, or only modules outside the workspace;
+- a matched module whose name does not start with `prefix`, which the
+  section could never list: `doc-modules rule 1: 'modules' matches Doc,
+  which does not start with the prefix 'Doc.', so the section cannot list
+  it` (with ` (and K more)` after the name when others do too);
+- a missing or unreadable file: `doc-modules rule 1: no file
+  'docs/missing.md' in the workspace (looking for heading 'The modules')`;
+- a heading not in the file, `doc-modules rule 1: no heading 'Nope' in
+  'docs/modules.md'`, or appearing more than once, `doc-modules rule 1:
+  heading 'Twice' appears 2 times in 'docs/modules.md' (lines 35 and 37)`.
+
+A rule's selector errors and its file's error are both reported. When the
+policy has any error, no violation is reported.
+
 ## A policy, sketched
 
 ```toml
@@ -946,7 +1055,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach", "target-config" and "require-backed"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
+| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach", "target-config", "require-backed" and "doc-modules"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a selector that names a set (`set:x`, `imports:set:x`), and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
@@ -956,8 +1065,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config` or `require-backed` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a require-backed table with an unknown key or a missing `packages` or `reason`, a require-backed selector that matches only modules in no package (outside the workspace, or declared roots), a require-backed rule that splits a package, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config`, `require-backed` or `doc-modules` violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a require-backed table with an unknown key or a missing `packages` or `reason`, a require-backed selector that matches only modules in no package (outside the workspace, or declared roots), a require-backed rule that splits a package, a doc-modules table with an unknown key or a missing or malformed `file`, `section`, `prefix`, `modules` or `reason`, a doc-modules selector that matches only external modules, a doc-modules rule whose `modules` matches a module without its prefix, a doc-modules file that is missing or unreadable, or whose heading is missing or appears twice, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With
@@ -972,7 +1081,9 @@ rule, its reason and the whole chain in the message, so it shows on the
 pull request's diff: a `deny`, `allow-only`, `layers`, `co-reach` or
 `require-backed` violation on its import, a `reachable` violation (and a
 `co-reach` one with an empty chain) on its module's file, a `target-config`
-violation on its package's lakefile; a policy error is annotated on `lean-deny.toml`. Paths
+violation on its package's lakefile, a `doc-modules` violation on its
+Markdown file, at the section's heading (a missing module) or the name's
+line (an extra name); a policy error is annotated on `lean-deny.toml`. Paths
 are relative to the working directory, so run it from the repository root.
 With lean-deny as the lint driver:
 
@@ -1055,9 +1166,10 @@ views on a hand-written graph (`view`); of what selectors and sets match
 on a hand-written graph (`resolve`); of `deny` rules on hand-written
 graphs, from the policy's text to what `check` prints (`deny`), and of
 `allow-only` rules, `[layers]`, `[[reachable]]`, `[[co-reach]]`,
-`[[target-config]]` and `[[require-backed]]` rules the same way
-(`allow-only`, `layers`, `reachable`, `co-reach`, `target-config`,
-`require-backed`); of the
+`[[target-config]]`, `[[require-backed]]` and `[[doc-modules]]` rules the
+same way (`allow-only`, `layers`, `reachable`, `co-reach`, `target-config`,
+`require-backed`, `doc-modules`); of the Markdown section reading behind
+`[[doc-modules]]` on strings (`doc-section`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 of the check report's JSON and GitHub renderings, including the golden
@@ -1096,7 +1208,8 @@ broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
 for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces;
 `reachable-*` for `reachable` and `co-reach-*` for `co-reach`, over
 `graph-ws`; `target-config-*` for `target-config`, over `target-ws`;
-`require-backed-*` for `require-backed`, over `require-ws`);
+`require-backed-*` for `require-backed`, over `require-ws`; `doc-modules-*`
+for `doc-modules`, over `doc-ws`);
 `check-json-*` and `check-github-*` for `--format json` and `github` (over
 the same workspaces), and `lake-lint-github` for
 `lake lint -- --format github`. The `editor-acceptance-*` fixtures run a

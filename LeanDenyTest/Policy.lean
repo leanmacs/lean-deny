@@ -79,13 +79,20 @@ def renderRequireBacked (r : RequireBackedRule) : String :=
   s!"require-backed#{r.index}@{renderPos r.pos?} packages[{refs r.packages}] \
     reason={repr r.reason}"
 
+/-- A doc-modules rule as `doc-modules#1@pos file="…" section="…"
+prefix="…" modules[…] reason="…"`. -/
+def renderDocModules (r : DocModulesRule) : String :=
+  let refs (rs : Array SelectorRef) := ", ".intercalate (rs.map renderRef).toList
+  s!"doc-modules#{r.index}@{renderPos r.pos?} file={repr r.file} section={repr r.heading} \
+    prefix={repr r.pfx} modules[{refs r.modules}] reason={repr r.reason}"
+
 /-- A declared root as `root#1@pos Module=path`. -/
 def renderRoot (r : RootDef) : String :=
   s!"root#{r.index}@{renderPos r.pos?} {r.module}={r.path}"
 
 /-- Every set, then the order by name, then every deny rule, then every
 allow-only rule, then `[layers]`, then every require-backed rule, then
-every declared root. -/
+every doc-modules rule, then every declared root. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
   (p.sets.map renderSet |>.push
       s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
@@ -93,6 +100,7 @@ def renderPolicy (p : LeanDeny.Policy) : Array String :=
     p.allowOnly.map renderAllowOnly ++
     (p.layers?.map fun r => #[renderLayers r]).getD #[] ++
     p.requireBacked.map renderRequireBacked ++
+    p.docModules.map renderDocModules ++
     p.roots.map renderRoot
 
 /-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
@@ -130,11 +138,11 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
       .error
         #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, require-backed, root)"]),
+            co-reach, target-config, require-backed, doc-modules, root)"]),
     ("foo = 1", "foo = 1\n",
       .error
         #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, require-backed, root)"]),
+            co-reach, target-config, require-backed, doc-modules, root)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -209,7 +217,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external, set or imports)",
           "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, require-backed, root)",
+            co-reach, target-config, require-backed, doc-modules, root)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/
@@ -797,10 +805,82 @@ def requireBackedCases : Array (String × String × Except (Array String) (Array
         #["p.toml:2:11: selector 'set:nope' in require-backed rule 1 ('packages') names an \
             unknown set (the policy defines no sets)"])]
 
+/-- A doc-modules table with the given lines after its header. -/
+def docTable (lines : String) : String :=
+  s!"[[doc-modules]]\n{lines}"
+
+/-- A doc-modules table's lines: `file`, `section`, `prefix`, `modules` and
+`reason`, each valid. -/
+def docLines : String :=
+  "file = \"docs/m.md\"\nsection = \"Mods\"\nprefix = \"A.\"\nmodules = \"mod:A\"\n\
+    reason = \"r\"\n"
+
+/-- `[[doc-modules]]`: the two forms of `modules`, and every load-time
+error. -/
+def docModulesCases : Array (String × String × Except (Array String) (Array String)) :=
+  #[("doc-modules, one selector", docTable docLines,
+      .ok
+        #["order: ",
+          "doc-modules#1@1:0 file=\"docs/m.md\" section=\"Mods\" prefix=\"A.\" \
+            modules[mod:A@5:10 doc-modules1.modules] reason=\"r\""]),
+    ("doc-modules, an array of selectors",
+      docTable
+        "file = \"m.md\"\nsection = \"S\"\nprefix = \"A.\"\n\
+        modules = [\"mod:A\", \"pkg:a\"]\nreason = \"r\"\n",
+      .ok
+        #["order: ",
+          "doc-modules#1@1:0 file=\"m.md\" section=\"S\" prefix=\"A.\" \
+            modules[mod:A@5:11 doc-modules1.modules, pkg:a@5:20 doc-modules1.modules] \
+            reason=\"r\""]),
+    ("doc-modules, every key missing", "[[doc-modules]]\n",
+      .error
+        #["p.toml:1:0: doc-modules rule 1 has no 'file'",
+          "p.toml:1:0: doc-modules rule 1 has no 'section'",
+          "p.toml:1:0: doc-modules rule 1 has no 'prefix'",
+          "p.toml:1:0: doc-modules rule 1 has no 'modules'",
+          "p.toml:1:0: doc-modules rule 1 has no 'reason'"]),
+    ("doc-modules, empty values",
+      docTable "file = \"\"\nsection = \"  \"\nprefix = \"\"\nmodules = []\nreason = \"\"\n",
+      .error
+        #["p.toml:2:7: doc-modules rule 1: 'file' must not be empty",
+          "p.toml:3:10: doc-modules rule 1: 'section' is empty",
+          "p.toml:4:9: doc-modules rule 1: 'prefix' is empty",
+          "p.toml:5:10: doc-modules rule 1: 'modules' is empty",
+          "p.toml:6:9: doc-modules rule 1: 'reason' is empty"]),
+    ("doc-modules, wrong types",
+      docTable "file = 1\nsection = true\nprefix = []\nmodules = 2\nreason = 3\n",
+      .error
+        #["p.toml:2:7: doc-modules rule 1: 'file' must be a string, found an integer",
+          "p.toml:3:10: doc-modules rule 1: 'section' must be a string, found a boolean",
+          "p.toml:4:9: doc-modules rule 1: 'prefix' must be a string, found an array",
+          "p.toml:5:10: doc-modules rule 1: 'modules' must be a selector or an array of \
+            selectors, found an integer",
+          "p.toml:6:9: doc-modules rule 1: 'reason' must be a string, found an integer"]),
+    ("doc-modules, an absolute file",
+      docTable
+        "file = \"/docs/m.md\"\nsection = \"S\"\nprefix = \"A.\"\nmodules = \"mod:A\"\n\
+        reason = \"r\"\n",
+      .error
+        #["p.toml:2:7: doc-modules rule 1: 'file' must be relative to the workspace directory"]),
+    ("doc-modules, an unknown key", docTable (docLines ++ "heading = \"S\"\n"),
+      .error
+        #["p.toml:7:10: doc-modules rule 1: unknown key 'heading' (expected file, section, \
+            prefix, modules, reason)"]),
+    ("doc-modules, not an array", "doc-modules = 1\n",
+      .error #["p.toml:1:14: 'doc-modules' must be an array of tables, such as [[doc-modules]]"]),
+    ("doc-modules, an unknown set",
+      docTable
+        "file = \"m.md\"\nsection = \"S\"\nprefix = \"A.\"\nmodules = \"set:nope\"\n\
+        reason = \"r\"\n",
+      .error
+        #["p.toml:5:10: selector 'set:nope' in doc-modules rule 1 ('modules') names an unknown \
+            set (the policy defines no sets)"])]
+
 def run : IO (Array String) := do
   let mut fs := renderingFailures ++ (← sketchFailures) ++ (← rootsOnlyFailures)
   for (name, src, want) in
-    cases ++ denyCases ++ allowOnlyCases ++ layersCases ++ requireBackedCases ++ rootCases do
+    cases ++ denyCases ++ allowOnlyCases ++ layersCases ++ requireBackedCases ++ docModulesCases ++
+      rootCases do
     let got := (← load src).map renderPolicy
     let same :=
       match got, want with

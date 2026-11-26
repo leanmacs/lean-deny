@@ -1,0 +1,5 @@
+# The doc-modules fixtures' workspace (tests/fixtures/doc-modules-*): its own
+# policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0
