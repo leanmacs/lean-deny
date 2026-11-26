@@ -18,7 +18,8 @@ build hold it.
 > the violations when a rule is broken. Any other top-level key is an
 > error, never silently ignored. `lean-deny explain` lists the modules a
 > selector matches, and `lean-deny graph` prints the graph it loads, as
-> text, JSON or DOT. The plan lives in the rdm project `lean-deny` (roadmaps `foundation` and
+> text, JSON or DOT. `check` prints its report as text, JSON or GitHub
+> annotations. The plan lives in the rdm project `lean-deny` (roadmaps `foundation` and
 > `policy-rules`).
 
 [cargo-deny]: https://github.com/EmbarkStudios/cargo-deny
@@ -466,8 +467,8 @@ allow = [
 ]
 ```
 
-A broken rule is reported like this (see "deny" above; a `--format` option
-is planned):
+A broken rule is reported like this (see "deny" above; `--format json` and
+`--format github` are under "In CI"):
 
 ```
 deny rule 1 (lean-deny.toml:8:0): a package may depend on the core, and the core on no package
@@ -524,11 +525,10 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only" and "layers"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
+| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only" and "layers"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--format text`, `--level module`. Does not read the policy. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read only for a `set:` selector, and then only that set and the sets it refers to are resolved. |
-| `lean-deny check --format text\|json\|github` | planned | `github` prints annotations for pull requests. |
 
 ### Exit codes
 
@@ -537,6 +537,44 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
 | 1 | At least one rule is broken (a `deny`, `allow-only` or `layers` violation). The violations and a summary go to stdout. |
 | 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing. No violation is reported then. The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
+
+`--format` changes only what `check` prints, never its exit code; a usage
+error, a bad `--format` included, is always text on stderr. With
+`--format json` stdout holds a JSON document for exit 2 too, and the
+diagnostics still go to stderr.
+
+### In CI
+
+`check --format github` prints each violation as a GitHub Actions error
+annotation on the import that starts its chain (file and line), with the
+rule, its reason and the whole chain in the message, so it shows on the
+pull request's diff; a policy error is annotated on `lean-deny.toml`. Paths
+are relative to the working directory, so run it from the repository root.
+With lean-deny as the lint driver:
+
+```yaml
+# .github/workflows/lean-deny.yml
+name: lean-deny
+on: [push, pull_request]
+jobs:
+  lean-deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Check the dependency policy
+        run: lake lint -- --format github
+```
+
+`lake lint` builds lean-deny with the workspace's toolchain and exits with
+its code: 1 fails the step on a violation, 2 on a bad policy or workspace.
+Without `lintDriver`, run `lake exe lean-deny check --format github`.
+`--format json` (schema in [`docs/check-json.md`](docs/check-json.md))
+suits other CI systems and tools: stdout is one JSON document for every
+outcome, exit 2 included.
 
 ### Seeing the graph
 
@@ -586,6 +624,8 @@ graphs, from the policy's text to what `check` prints (`deny`), and of
 `allow-only` rules and `[layers]` the same way (`allow-only`, `layers`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
+of the check report's JSON and GitHub renderings, including the golden
+`tests/fixtures/check-json-deny/expected.stdout` (`report`);
 exact checks of the graph loaded for `tests/fixtures/spike-ws` and
 `tests/fixtures/graph-ws` (`graph`); the fixture runner's own checks
 (`harness`); and every fixture under `tests/fixtures/`. `lake test -- <name>...` runs only the named fixtures.
@@ -617,7 +657,10 @@ runs with the fixture directory as its working directory.
 Each rule kind is tested by fixtures where the rule holds and where it is
 broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
 `allow-only-*` for `allow-only`, over the `tier-ws` workspace; `layers-*`
-for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces). After `lake build --wfail && lake test`,
+for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces);
+`check-json-*` and `check-github-*` for `--format json` and `github` (over
+the same workspaces), and `lake-lint-github` for
+`lake lint -- --format github`. After `lake build --wfail && lake test`,
 `git status --porcelain` must print nothing; CI checks that too.
 
 The sources are formatted and linted with
