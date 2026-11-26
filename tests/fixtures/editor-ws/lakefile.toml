@@ -11,3 +11,7 @@ path = "compile"
 [[require]]
 name = "shell"
 path = "shell"
+
+[[require]]
+name = "shipped-themes"
+path = "shipped-themes"

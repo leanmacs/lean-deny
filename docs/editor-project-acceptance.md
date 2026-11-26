@@ -699,24 +699,41 @@ it part of `lake test`:
   `Editor` with roots `Editor` and `Editor.Core`, `FilesApi`, `FilesApiTest`
   and `ModelTests`, and the executable `model-test` rooted at `ModelTest`),
   two interface packages (`shell-api`, `compile-api`, the second importing
-  the first) and two implementation packages (`shell`, `compile`, the
-  latter with its tests, linked test and linked test's root). Every rule of
-  the policy holds over it.
+  the first) and three implementation packages (`shell`, `compile`, the
+  latter with its tests, linked test and linked test's root, and
+  `shipped-themes`, whose entry module imports its library root, as
+  editor-project's does). `root/EditorSetRoot.lean` and
+  `root/EditorSetFixtures.lean` are checked-in stand-ins for the generated
+  roots (no Lake build runs in a fixture), with the same shape: `import
+  Editor`, `import Editor.Main` (or `Editor.Test.Fixture.Main`), then the
+  three entry modules `Compile.EditorPackage`, `Shell.EditorPackage` and
+  `ShippedThemes.EditorPackage`. Every rule of the policy holds over it.
 - `tests/fixtures/editor-broken-ws` is the same workspace plus one breaking
-  import per rule, appended after the existing ones, and a second for
+  import per rule, appended after the existing ones, a second for
   allow-only rule 4: the linked root imports `Editor.Window.Real`, which the
-  policy's `except` takes out of the root's extras.
+  policy's `except` takes out of the root's extras, and a second for deny
+  rule 4, mirroring `host-shipped-themes`: the fixtures host root
+  `Editor.Test.Fixture.Main` imports `ShippedThemes.EditorPackage`, an entry
+  module only the stand-in roots name.
 - `tests/fixtures/editor-acceptance-holds` runs the policy cut down to these
-  modules (the same set names, rules, order and reasons) over `editor-ws`:
-  `lean-deny: ok (9 rules)`.
+  modules (the same set names, rules, order and reasons, and the two roots
+  declared with `[[root]]`) over `editor-ws`: `lean-deny: ok (9 rules)`. Its
+  host sets are derived as the example policy's are: `set:entry-modules` is
+  the three entry modules, `set:host-roots` is `Editor`, `Editor.Main` and
+  `Editor.Test.Fixture.Main`, and `set:feature-modules` adds
+  `Compile.Compiled`, `Shell.Compiled` and `ShippedThemes`.
 - `tests/fixtures/editor-acceptance-bites` runs the same policy over
-  `editor-broken-ws`: `lean-deny: 16 violations in 9 of 9 rules`. Deny rule
-  1 bites four times (`Editor.Core` through `Editor.Main`, `Editor.Main`,
-  `ModelTest` through `ModelTest.Bound`, `ModelTest.Bound`), deny rule 2
-  twice, allow-only rule 4 twice (`Editor.Ffi.Text`, `Editor.Window.Real`),
-  `layers` three times (compile → shell, editor-core → compile,
+  `editor-broken-ws`: `lean-deny: 19 violations in 9 of 9 rules`. Deny rule
+  1 bites five times (`Editor.Core` through `Editor.Main`, `Editor.Main`,
+  `Editor.Test.Fixture.Main`, `ModelTest` through `ModelTest.Bound`,
+  `ModelTest.Bound`), deny rule 2 twice, deny rule 4 twice (`Editor.Main`,
+  `Editor.Test.Fixture.Main`), allow-only rule 4 twice (`Editor.Ffi.Text`,
+  `Editor.Window.Real`), `layers` four times (compile → shell,
+  editor-core → compile, editor-core → shipped-themes,
   editor-core → compile-api), and every other rule once. Without the
-  `except`, the `Editor.Window.Real` violation is not reported.
+  `except`, the `Editor.Window.Real` violation is not reported; with a
+  hand-written entry-module list lacking `ShippedThemes.EditorPackage`, deny
+  rule 4 misses `Editor.Test.Fixture.Main`.
 
 The fixtures are a model of editor-project's structure, not a copy of it:
 each `.lean` file holds only `import` lines (two hold none), with

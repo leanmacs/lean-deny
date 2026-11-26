@@ -1,10 +1,11 @@
 # The acceptance policy (examples/editor-project/lean-deny.toml) cut down to
 # the miniature editor-project in ../editor-ws: the same sets, rules, order
-# and reasons, over its few modules. docs/editor-project-acceptance.md,
-# "The fixtures".
+# and reasons, over its few modules, with the host sets derived from the
+# declared roots (checked-in stand-ins in ../editor-ws/root/).
+# docs/editor-project-acceptance.md, "The fixtures".
 
 [sets]
-packages = { select = ["keyword:editor-interface", "pkg:compile", "pkg:shell"] }
+packages = { select = ["keyword:editor-interface", "pkg:compile", "pkg:shell", "pkg:shipped-themes"] }
 toolchain = ["external:Init", "external:Std", "external:Lean", "external:Lake"]
 linked-kit = ["mod:Editor.Test.Linked"]
 doubles = { select = ["mod:Editor.Test", "mod:Editor.Text.Model", "mod:FilesApiTest"], except = ["set:linked-kit"] }
@@ -21,9 +22,13 @@ library-may = ["set:api", "set:packages", "set:toolchain"]
 test-may = ["set:library-may", "set:doubles"]
 linked-may = ["set:test-may", "set:linked-kit"]
 linked-root-may = ["set:linked-may", "set:linked-root-extra"]
-host-roots = ["mod:Editor!", "mod:Editor.Main!", "mod:Editor.Test.Fixture.Main!"]
-entry-modules = ["mod:Compile.EditorPackage!", "mod:Shell.EditorPackage!"]
-feature-modules = ["set:entry-modules", "mod:Compile.Compiled!", "mod:Shell.Compiled!"]
+# The generated roots' direct imports: the host's roots (the core's) and the entry modules.
+root-imports = ["imports:mod:EditorSetRoot!", "imports:mod:EditorSetFixtures!"]
+entry-modules = { select = ["set:root-imports"], except = ["mod:Editor"] }
+host-roots = { select = ["set:root-imports"], except = ["set:entry-modules"] }
+# The feature modules: the entry modules and every module they import directly.
+feature-modules = ["set:entry-modules", "imports:set:entry-modules"]
+
 # Core imports, rule 1 (standing form): the core imports no package.
 [[deny]]
 from = "pkg:editor-core"
@@ -83,3 +88,13 @@ default = "implementation"
 allow = [["interface", "core"], ["implementation", "core"], ["implementation", "interface"], ["interface", "interface"]]
 same-package = "allow"
 reason = "three layers (layer imports check)"
+
+# The two roots the package-set build generates, which no Lake target declares.
+# Here each is a checked-in stand-in in the workspace's root/ (no Lake build runs).
+[[root]]
+module = "EditorSetRoot"
+path = "root/EditorSetRoot.lean"
+
+[[root]]
+module = "EditorSetFixtures"
+path = "root/EditorSetFixtures.lean"
