@@ -138,6 +138,8 @@ package-library-double|packages|packages/compile/Compile.lean|Editor.Text.Model|
 package-test|packages|packages/compile/CompileTest/Compile.lean|Editor.Test.Linked.Rig|1|allow-only rule 2|lean-deny: 1 violation in 1 of 9 rules
 package-linked|packages|packages/compile/CompileTest/Linked/Compile.lean|Editor.Headless|1|allow-only rule 3|lean-deny: 1 violation in 1 of 9 rules
 package-linked-root|packages|packages/compile/CompileTest/Linked.lean|Editor.Ffi.Text|1|allow-only rule 4|lean-deny: 1 violation in 1 of 9 rules
+package-linked-root-window|packages|packages/compile/CompileTest/Linked.lean|Editor.Window.Real|1|allow-only rule 4|lean-deny: 1 violation in 1 of 9 rules
+package-linked-root-window-check|packages|packages/compile/CompileTest/Linked.lean|Editor.WindowCheck.Real|1|allow-only rule 4|lean-deny: 1 violation in 1 of 9 rules
 layers|packages|packages/compile/Compile.lean|Shell|1|layers|lean-deny: 1 violation in 1 of 9 rules
 control-test-double|packages|packages/compile/CompileTest/Compile.lean|Editor.Text.Model|0||lean-deny: ok (9 rules)
 control-test-fake|packages|packages/compile/CompileTest/Compile.lean|Editor.Job.Fake|0||lean-deny: ok (9 rules)

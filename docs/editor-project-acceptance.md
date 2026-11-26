@@ -314,6 +314,8 @@ The edits:
 | package-test | package: a test may import the doubles, not the linked kit | `packages/compile/CompileTest/Compile.lean` | `Editor.Test.Linked.Rig` | 1 | allow-only rule 2 |
 | package-linked | package: a linked-test module gets the linked kit, not the root's extras | `packages/compile/CompileTest/Linked/Compile.lean` | `Editor.Headless` | 1 | allow-only rule 3 |
 | package-linked-root | package: even the linked root may not import a raw binding | `packages/compile/CompileTest/Linked.lean` | `Editor.Ffi.Text` | 1 | allow-only rule 4 |
+| package-linked-root-window | package: the linked root may not import the window binding, excepted from its extras | `packages/compile/CompileTest/Linked.lean` | `Editor.Window.Real` | 1 | allow-only rule 4 |
+| package-linked-root-window-check | the same, for the window check's binding | `packages/compile/CompileTest/Linked.lean` | `Editor.WindowCheck.Real` | 1 | allow-only rule 4 |
 | layers | layers: no package imports an implementation package | `packages/compile/Compile.lean` | `Shell` | 1 | `layers` |
 | control-test-double | control: a test may import a double | `packages/compile/CompileTest/Compile.lean` | `Editor.Text.Model` | 0 | none |
 | control-test-fake | control: a test may import a fake | `packages/compile/CompileTest/Compile.lean` | `Editor.Job.Fake` | 0 | none |
@@ -327,7 +329,10 @@ rule 1 bites as well. The controls show the tiers are precise, not just
 strict: `Editor.Text.Model` imported by `Compile.lean`, a library, bites
 allow-only rule 1 (`package-library-double`), and imported by a test it
 holds (`control-test-double`); and the linked root may import a real binding
-(`control-linked-root-real`) though not a raw one (`package-linked-root`).
+(`control-linked-root-real`) though not a raw one (`package-linked-root`),
+nor the two real bindings its extras except (`package-linked-root-window`,
+`package-linked-root-window-check`). With that `except` removed from the
+policy, both of those edits hold, so it is the `except` that bites.
 
 The output of one real run follows, as the script printed it, block by
 block. The work directory is written `<work>`; core paths print absolute
@@ -544,6 +549,30 @@ lean-deny: 1 violation in 1 of 9 rules
 exit 1
 ```
 
+### package-linked-root-window: packages/compile/CompileTest/Linked.lean imports Editor.Window.Real
+
+The linked test's root imports the window binding, a real binding its extras except.
+
+```
+== package-linked-root-window: packages/compile/CompileTest/Linked.lean imports Editor.Window.Real
+allow-only rule 4 (examples/editor-project/lean-deny.toml:193:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+  compile/CompileTest/Linked.lean:1: CompileTest.Linked imports Editor.Window.Real
+lean-deny: 1 violation in 1 of 9 rules
+exit 1
+```
+
+### package-linked-root-window-check: packages/compile/CompileTest/Linked.lean imports Editor.WindowCheck.Real
+
+The same, for the window check's binding.
+
+```
+== package-linked-root-window-check: packages/compile/CompileTest/Linked.lean imports Editor.WindowCheck.Real
+allow-only rule 4 (examples/editor-project/lean-deny.toml:193:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+  compile/CompileTest/Linked.lean:1: CompileTest.Linked imports Editor.WindowCheck.Real
+lean-deny: 1 violation in 1 of 9 rules
+exit 1
+```
+
 ### layers: packages/compile/Compile.lean imports Shell
 
 An implementation package imports another implementation package.
@@ -607,16 +636,20 @@ it part of `lake test`:
   latter with its tests, linked test and linked test's root). Every rule of
   the policy holds over it.
 - `tests/fixtures/editor-broken-ws` is the same workspace plus one breaking
-  import per rule, appended after the existing ones.
+  import per rule, appended after the existing ones, and a second for
+  allow-only rule 4: the linked root imports `Editor.Window.Real`, which the
+  policy's `except` takes out of the root's extras.
 - `tests/fixtures/editor-acceptance-holds` runs the policy cut down to these
   modules (the same set names, rules, order and reasons) over `editor-ws`:
   `lean-deny: ok (9 rules)`.
 - `tests/fixtures/editor-acceptance-bites` runs the same policy over
-  `editor-broken-ws`: `lean-deny: 15 violations in 9 of 9 rules`. Deny rule
+  `editor-broken-ws`: `lean-deny: 16 violations in 9 of 9 rules`. Deny rule
   1 bites four times (`Editor.Core` through `Editor.Main`, `Editor.Main`,
   `ModelTest` through `ModelTest.Bound`, `ModelTest.Bound`), deny rule 2
-  twice, `layers` three times (compile → shell, editor-core → compile,
-  editor-core → compile-api), and every other rule once.
+  twice, allow-only rule 4 twice (`Editor.Ffi.Text`, `Editor.Window.Real`),
+  `layers` three times (compile → shell, editor-core → compile,
+  editor-core → compile-api), and every other rule once. Without the
+  `except`, the `Editor.Window.Real` violation is not reported.
 
 The fixtures are a model of editor-project's structure, not a copy of it:
 each `.lean` file holds only `import` lines (two hold none), with

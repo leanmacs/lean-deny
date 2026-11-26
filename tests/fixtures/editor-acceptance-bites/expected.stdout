@@ -28,10 +28,12 @@ allow-only rule 3 (../editor-acceptance-holds/lean-deny.toml:66:0): a package's 
   compile/CompileTest/Linked/Run.lean:4: CompileTest.Linked.Run imports Editor.Headless
 allow-only rule 4 (../editor-acceptance-holds/lean-deny.toml:71:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
   compile/CompileTest/Linked.lean:5: CompileTest.Linked imports Editor.Ffi.Text
+allow-only rule 4 (../editor-acceptance-holds/lean-deny.toml:71:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+  compile/CompileTest/Linked.lean:6: CompileTest.Linked imports Editor.Window.Real
 layers (../editor-acceptance-holds/lean-deny.toml:77:0): three layers (layer imports check): compile (implementation) may not import shell (implementation)
   compile/Compile.lean:5: Compile imports Shell
 layers (../editor-acceptance-holds/lean-deny.toml:77:0): three layers (layer imports check): editor-core (core) may not import compile (implementation)
   lean/Editor/Main.lean:2: Editor.Main imports Compile.Compiled
 layers (../editor-acceptance-holds/lean-deny.toml:77:0): three layers (layer imports check): editor-core (core) may not import compile-api (interface)
   lean/ModelTest/Bound.lean:2: ModelTest.Bound imports CompileApi
-lean-deny: 15 violations in 9 of 9 rules
+lean-deny: 16 violations in 9 of 9 rules
