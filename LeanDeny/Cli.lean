@@ -1,5 +1,6 @@
 import LeanDeny.Graph.Render
 import LeanDeny.Graph.View
+import LeanDeny.Policy.Selector
 import LeanDeny.Version
 
 /-!
@@ -30,12 +31,25 @@ structure GraphOpts where
   level : Graph.Level := .module
   deriving BEq, Repr, Inhabited
 
+/-- Options of `lean-deny explain`. -/
+structure ExplainOpts where
+  /-- The Lake workspace to read. -/
+  workspace : FilePath := "."
+  /-- The policy file, read only for a `set:` selector; `none` means
+  `<workspace>/lean-deny.toml`. -/
+  config? : Option FilePath := none
+  /-- The selector as written. -/
+  text : String
+  selector : Selector
+  deriving BEq, Repr, Inhabited
+
 /-- What the command line asks for. -/
 inductive Command where
   | help
   | version
   | check (opts : CheckOpts)
   | graph (opts : GraphOpts)
+  | explain (opts : ExplainOpts)
   deriving BEq, Repr, Inhabited
 
 /-- A bad command line. -/
@@ -51,11 +65,13 @@ Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
   lean-deny graph [--workspace <dir>] [--format text|json|dot]
                   [--level module|lib|package]
+  lean-deny explain [--workspace <dir>] [--config <file>] <selector>
   lean-deny --help | --version
 
 Commands:
   check    Check the workspace's module graph against its policy
   graph    Print the workspace's module graph
+  explain  List the modules a selector matches, one per line
 
 Options for check:
   --workspace <dir>   The Lake workspace to check (default: .)
@@ -66,18 +82,35 @@ Options for graph:
   --format <fmt>      text, json or dot (default: text)
   --level <level>     module, lib or package (default: module)
 
+Options for explain:
+  --workspace <dir>   The Lake workspace to read (default: .)
+  --config <file>     The policy file, read only for a set: selector
+                      (default: <dir>/lean-deny.toml)
+
+Selectors:
+  pkg:<name>          every module of a package
+  lib:<lib>           every module of a lean_lib (lib:<pkg>/<lib> if
+                      several packages have one by that name)
+  mod:<Prefix>        that module and every module under it
+  mod:<Module>!       that module alone
+  keyword:<kw>        every module of every package with that keyword
+  external:<Prefix>   modules from outside the workspace that it imports
+  set:<name>          a set from the policy's [sets] table
+
 Loading the workspace elaborates its and its dependencies' lakefile.lean
-files, so check and graph run their code, as lake does (lakefile.toml is
-not run). Do not point them at a workspace you would not run `lake build` in.
+files, so check, graph and explain run their code, as lake does
+(lakefile.toml is not run). Do not point them at a workspace you would not
+run `lake build` in.
 
 Global options:
   -h, --help          Print this help
   -V, --version       Print the version
 
 Exit codes:
-  0  every rule holds (check), or the graph was printed (graph)
+  0  every rule holds (check), or the graph or the matches were printed
   1  at least one rule is broken
-  2  the command line, the policy or the workspace is bad
+  2  the command line, the policy or the workspace is bad, or a selector
+     matches nothing
 "
 
 private def isHelp (a : String) : Bool :=
@@ -98,10 +131,12 @@ private abbrev OptSpec (σ : Type) :=
   String × (σ → String → Except UsageError σ)
 
 /-- Parse a command's arguments: `--name value` or `--name=value` for each
-option in `specs`, each at most once, no positional arguments. `none` means
-`--help`/`-h` was given. -/
+option in `specs`, each at most once. A non-option argument goes to
+`positional?`; with none, it is an error. `none` means `--help`/`-h` was
+given. -/
 private partial def parseOpts {σ : Type} (cmd : String) (specs : List (OptSpec σ))
-    (seen : List String) (st : σ) : List String → Except UsageError (Option σ)
+    (positional? : Option (σ → String → Except UsageError σ)) (seen : List String) (st : σ) :
+    List String → Except UsageError (Option σ)
   | [] => .ok (some st)
   | a :: rest => do
     if isHelp a then
@@ -111,7 +146,11 @@ private partial def parseOpts {σ : Type} (cmd : String) (specs : List (OptSpec 
       do
         if a.startsWith "-" then
           throw ⟨s!"unknown option '{name}' for '{cmd}'"⟩
-        throw ⟨s!"unexpected argument '{a}'"⟩
+        match positional? with
+        | some add =>
+          parseOpts cmd specs positional? seen (← add st a) rest
+        | none =>
+          throw ⟨s!"unexpected argument '{a}'"⟩
     let (val, rest) ←
       match inline?, rest with
       | some v, rest =>
@@ -127,7 +166,7 @@ private partial def parseOpts {σ : Type} (cmd : String) (specs : List (OptSpec 
       throw ⟨s!"option '{name}' requires a value"⟩
     if seen.contains name then
       throw ⟨s!"option '{name}' given more than once"⟩
-    parseOpts cmd specs (name :: seen) (← set st val) rest
+    parseOpts cmd specs positional? (name :: seen) (← set st val) rest
 
 /-- `check`'s options. -/
 private def checkSpecs : List (OptSpec CheckOpts) :=
@@ -136,7 +175,7 @@ private def checkSpecs : List (OptSpec CheckOpts) :=
 
 /-- Parse the arguments after `check`. -/
 private def parseCheck (args : List String) : Except UsageError Command := do
-  match ← parseOpts "check" checkSpecs [] {} args with
+  match ← parseOpts "check" checkSpecs none [] {} args with
   | none =>
     return .help
   | some o =>
@@ -158,11 +197,42 @@ private def graphSpecs : List (OptSpec GraphOpts) :=
 
 /-- Parse the arguments after `graph`. -/
 private def parseGraph (args : List String) : Except UsageError Command := do
-  match ← parseOpts "graph" graphSpecs [] {} args with
+  match ← parseOpts "graph" graphSpecs none [] {} args with
   | none =>
     return .help
   | some o =>
     return .graph o
+
+/-- `explain`'s options while parsing: the selector is positional, so it
+may be missing. -/
+private structure ExplainBuilder where
+  workspace : FilePath := "."
+  config? : Option FilePath := none
+  /-- The selector as written, and parsed. -/
+  selector? : Option (String × Selector) := none
+
+/-- `explain`'s options. -/
+private def explainSpecs : List (OptSpec ExplainBuilder) :=
+  [("--workspace", fun o v => .ok { o with workspace := v }),
+    ("--config", fun o v => .ok { o with config? := some v })]
+
+/-- `explain`'s one positional argument: the selector. -/
+private def explainSelector (o : ExplainBuilder) (a : String) : Except UsageError ExplainBuilder :=
+  if o.selector?.isSome then .error ⟨s!"unexpected argument '{a}'"⟩
+  else
+    match Selector.parse a with
+    | .ok sel => .ok { o with selector? := some (a, sel) }
+    | .error reason => .error ⟨s!"invalid selector '{a}': {reason}"⟩
+
+/-- Parse the arguments after `explain`. -/
+private def parseExplain (args : List String) : Except UsageError Command := do
+  match ← parseOpts "explain" explainSpecs (some explainSelector) [] {} args with
+  | none =>
+    return .help
+  | some o =>
+    let some (text, selector) :=
+      o.selector? | throw ⟨"explain needs a selector, such as 'mod:Editor.Api'"⟩
+    return .explain { workspace := o.workspace, config? := o.config?, text, selector }
 
 /-- Parse lean-deny's command line (without the program name). -/
 def parseArgs : List String → Except UsageError Command
@@ -177,7 +247,9 @@ def parseArgs : List String → Except UsageError Command
       else
         if a == "graph" then parseGraph rest
         else
-          if a.startsWith "-" then .error ⟨s!"unknown option '{(splitEq a).1}'"⟩
-          else .error ⟨s!"unknown command '{a}'"⟩
+          if a == "explain" then parseExplain rest
+          else
+            if a.startsWith "-" then .error ⟨s!"unknown option '{(splitEq a).1}'"⟩
+            else .error ⟨s!"unknown command '{a}'"⟩
 
 end LeanDeny

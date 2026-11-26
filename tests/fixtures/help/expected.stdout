@@ -4,11 +4,13 @@ Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
   lean-deny graph [--workspace <dir>] [--format text|json|dot]
                   [--level module|lib|package]
+  lean-deny explain [--workspace <dir>] [--config <file>] <selector>
   lean-deny --help | --version
 
 Commands:
   check    Check the workspace's module graph against its policy
   graph    Print the workspace's module graph
+  explain  List the modules a selector matches, one per line
 
 Options for check:
   --workspace <dir>   The Lake workspace to check (default: .)
@@ -19,15 +21,32 @@ Options for graph:
   --format <fmt>      text, json or dot (default: text)
   --level <level>     module, lib or package (default: module)
 
+Options for explain:
+  --workspace <dir>   The Lake workspace to read (default: .)
+  --config <file>     The policy file, read only for a set: selector
+                      (default: <dir>/lean-deny.toml)
+
+Selectors:
+  pkg:<name>          every module of a package
+  lib:<lib>           every module of a lean_lib (lib:<pkg>/<lib> if
+                      several packages have one by that name)
+  mod:<Prefix>        that module and every module under it
+  mod:<Module>!       that module alone
+  keyword:<kw>        every module of every package with that keyword
+  external:<Prefix>   modules from outside the workspace that it imports
+  set:<name>          a set from the policy's [sets] table
+
 Loading the workspace elaborates its and its dependencies' lakefile.lean
-files, so check and graph run their code, as lake does (lakefile.toml is
-not run). Do not point them at a workspace you would not run `lake build` in.
+files, so check, graph and explain run their code, as lake does
+(lakefile.toml is not run). Do not point them at a workspace you would not
+run `lake build` in.
 
 Global options:
   -h, --help          Print this help
   -V, --version       Print the version
 
 Exit codes:
-  0  every rule holds (check), or the graph was printed (graph)
+  0  every rule holds (check), or the graph or the matches were printed
   1  at least one rule is broken
-  2  the command line, the policy or the workspace is bad
+  2  the command line, the policy or the workspace is bad, or a selector
+     matches nothing

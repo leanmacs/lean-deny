@@ -1,6 +1,7 @@
 import LeanDeny.Check
 import LeanDeny.Cli
 import LeanDeny.Exit
+import LeanDeny.Explain
 import LeanDeny.Graph
 import LeanDeny.Graph.Build
 import LeanDeny.Graph.Header

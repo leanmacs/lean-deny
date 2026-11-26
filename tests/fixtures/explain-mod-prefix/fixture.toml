@@ -1,0 +1,4 @@
+# mod: compares by name component: AppTest is not under App.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "mod:App"]
+exit = 0

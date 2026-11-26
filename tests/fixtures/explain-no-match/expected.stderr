@@ -1,0 +1,1 @@
+lean-deny: error: selector 'mod:Nope' matches no module: no workspace module is or is under 'Nope'

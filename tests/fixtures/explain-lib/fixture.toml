@@ -1,0 +1,4 @@
+# lib: counts App.Shared, which App and AppTest both list.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "lib:AppTest"]
+exit = 0

@@ -23,6 +23,8 @@ def run (args : List String) : IO Outcome := do
     runCheck opts
   | .ok (.graph opts) =>
     runGraph opts
+  | .ok (.explain opts) =>
+    runExplain opts
 
 def main (args : List String) : IO UInt32 := do
   -- Any uncaught exception exits 2: Lean's default (1) would read as a

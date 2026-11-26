@@ -19,6 +19,34 @@ def graph (ws : System.FilePath := ".") (format : LeanDeny.Graph.Format := .text
     (level : LeanDeny.Graph.Level := .module) : Expect :=
   .ok (.graph { workspace := ws, format, level })
 
+def explain (text : String) (ws : System.FilePath := ".")
+    (config? : Option System.FilePath := none) : Expect :=
+  match Selector.parse text with
+  | .ok selector => .ok (.explain { workspace := ws, config?, text, selector })
+  | .error e => .error s!"bad test case: {e}"
+
+/-- `explain`'s cases. -/
+def explainCases : Array (List String × Expect) :=
+  #[(["explain", "mod:A"], explain "mod:A"), (["explain", "mod:A!"], explain "mod:A!"),
+    (["explain", "--workspace", "w", "mod:A"], explain "mod:A" "w"),
+    (["explain", "mod:A", "--workspace", "w"], explain "mod:A" "w"),
+    (["explain", "--workspace=w", "lib:p/L"], explain "lib:p/L" "w"),
+    (["explain", "--config", "c", "set:core"], explain "set:core" "." (some "c")),
+    (["explain", "set:core", "--config=c", "--workspace", "w"], explain "set:core" "w" (some "c")),
+    (["explain"], .error "explain needs a selector, such as 'mod:Editor.Api'"),
+    (["explain", "--workspace", "w"], .error "explain needs a selector, such as 'mod:Editor.Api'"),
+    (["explain", "pkg:a", "pkg:b"], .error "unexpected argument 'pkg:b'"),
+    (["explain", "pkg:"], .error "invalid selector 'pkg:': nothing after 'pkg:'"),
+    (["explain", "Core.Api"],
+      .error "invalid selector 'Core.Api': expected '<kind>:<value>', such as 'mod:Editor.Api'"),
+    (["explain", "-h"], .ok .help), (["explain", "--help"], .ok .help),
+    (["explain", "mod:A", "--help"], .ok .help),
+    (["explain", "--format", "json", "mod:A"], .error "unknown option '--format' for 'explain'"),
+    (["explain", "--config", "a", "--config=b", "mod:A"],
+      .error "option '--config' given more than once"),
+    (["explain", "--workspace"], .error "option '--workspace' requires a value"),
+    (["check", "mod:A"], .error "unexpected argument 'mod:A'")]
+
 /-- `graph`'s cases. -/
 def graphCases : Array (List String × Expect) :=
   #[(["graph"], graph), (["graph", "--help"], .ok .help), (["graph", "-h"], .ok .help),
@@ -88,7 +116,7 @@ def renderExpect : Expect → String
 def failures : Array String :=
   Id.run do
     let mut fs := #[]
-    for (args, want) in cases ++ graphCases do
+    for (args, want) in cases ++ graphCases ++ explainCases do
       let got := parseArgs args
       let same :=
         match got, want with

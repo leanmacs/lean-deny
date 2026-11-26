@@ -1,0 +1,4 @@
+# pkg: includes the executable's root module (Main).
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "pkg:graph-ws"]
+exit = 0

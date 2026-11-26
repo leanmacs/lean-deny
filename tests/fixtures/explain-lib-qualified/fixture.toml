@@ -1,0 +1,4 @@
+# Two packages declare a lean_lib `Util`; the qualified form picks one.
+run = "direct"
+args = ["explain", "--workspace", "../lib-ambiguous", "lib:other/Util"]
+exit = 0

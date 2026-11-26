@@ -1,0 +1,7 @@
+# A union, a set reference and an exception. explain resolves only the set
+# it is asked about and the sets it refers to: `stale` matches nothing, but
+# `explain set:app-surface` does not resolve it.
+[sets]
+app = ["pkg:graph-ws"]
+app-surface = { select = ["set:app", "mod:Core.Api!"], except = ["lib:AppTest"] }
+stale = ["mod:Nope"]

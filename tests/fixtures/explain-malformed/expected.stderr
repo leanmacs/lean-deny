@@ -1,0 +1,2 @@
+lean-deny: error: invalid selector 'pkg:': nothing after 'pkg:'
+Run 'lean-deny --help' for usage.

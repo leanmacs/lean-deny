@@ -1,0 +1,4 @@
+# A usage error: no workspace is read and Lake never runs.
+run = "direct"
+args = ["explain", "pkg:"]
+exit = 2
