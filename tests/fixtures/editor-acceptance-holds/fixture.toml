@@ -1,5 +1,11 @@
 # The editor-project acceptance policy, cut down, over editor-ws, where every
-# rule holds (exit 0), reachable rule 1 among them: every Editor.… module is
+# rule holds (exit 0). The host rules among them: the entry modules come from
+# EditorSetRoot alone, so the fixture support module CompileTest.FixtureSupport,
+# which only EditorSetFixtures imports, is neither an entry module nor a host
+# root, and its import of Editor.Api, which the host reaches, makes no feature
+# module of it (the old derivation, every root import but Editor's, gave deny
+# rule 4 twice here, as editor-project acfed133 gave it three times); and
+# reachable rule 1: every Editor.… module is
 # Editor.Core or imported by it; and co-reach rule 1: every listed root that
 # reaches Editor.Config.Elaborate (EditorSetRoot, EditorSetFixtures and
 # CompileTest.Linked, through Editor.Headless) also reaches Editor; and

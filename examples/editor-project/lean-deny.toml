@@ -1,7 +1,9 @@
 # editor-project's four import rules and its lint-plugins rule as a lean-deny policy: the
 # core, package, host and layer imports checks (tools/*-imports-check.sh at editor-project
 # 78d9d9ea, deleted at d51fe135; .agents/rules/structure.md states them now), and lint
-# plugins (target-config rule 1). Mapping, runs and gaps: docs/editor-project-acceptance.md.
+# plugins (target-config rule 1). The host rules (deny rules 4 to 6) follow structure.md's
+# "Host imports" at editor-project acfed133, whose fixture support wording dates from
+# 5c64af98. Mapping, runs and gaps: docs/editor-project-acceptance.md.
 #
 # The workspace is packages/, the default package set: it requires the core
 # (../lean, Lake package editor-core) and every default package by path.
@@ -140,11 +142,14 @@ test-may = ["set:library-may", "set:doubles"]
 linked-may = ["set:test-may", "set:linked-kit"]
 linked-root-may = ["set:linked-may", "set:linked-root-extra"]
 
-# The generated roots' direct imports: the host's roots (the core's) and the entry modules.
-root-imports = ["imports:mod:EditorSetRoot!", "imports:mod:EditorSetFixtures!"]
-entry-modules = { select = ["set:root-imports"], except = ["mod:Editor"] }
-host-roots = { select = ["set:root-imports"], except = ["set:entry-modules"] }
-# The feature modules: the entry modules and every module they import directly.
+# The host's sets, from the two generated roots (structure.md, "Host imports").
+# The entry modules ("….EditorPackage"): the editor's root's imports but the core's (Editor and Editor.Main).
+entry-modules = { select = ["imports:mod:EditorSetRoot!"], except = ["mod:Editor"] }
+# The fixture support modules ("<P>Test.FixtureSupport"): what only the fixture harness's root imports beyond the core's.
+fixture-support = { select = ["imports:mod:EditorSetFixtures!"], except = ["set:entry-modules", "mod:Editor"] }
+# The host's roots: what the generated roots import "apart from the entry modules … and the fixture support modules".
+host-roots = { select = ["imports:mod:EditorSetRoot!", "imports:mod:EditorSetFixtures!"], except = ["set:entry-modules", "set:fixture-support"] }
+# The feature modules: "an entry module or a module an entry module imports directly".
 feature-modules = ["set:entry-modules", "imports:set:entry-modules"]
 # The core's modules: every Editor.… module (the config base Editor is not one).
 core-modules = { select = ["mod:Editor"], except = ["mod:Editor!"] }
@@ -176,6 +181,20 @@ from = "set:host-roots"
 to = "set:feature-modules"
 transitive = true
 reason = "the host is handed its packages as a value and names none of them (host imports check)"
+
+# Host imports, bullet 2: an entry module imports package modules and nothing else
+# (Lean's implicit Init import is no import line).
+[[deny]]
+from = "set:entry-modules"
+to = ["pkg:editor-core", "external:Std", "external:Lean", "external:Lake"]
+reason = "an entry module imports package modules and nothing else (host imports)"
+
+# Host imports, bullet 3: only the fixture harness's root imports a fixture support module, never the editor's.
+[[deny]]
+from = "mod:EditorSetRoot!"
+to = "set:fixture-support"
+transitive = true
+reason = "a fixture support module is a test module: the fixture harness's root imports it, never the editor's (host imports)"
 
 # Package imports: four tiers.
 [[allow-only]]

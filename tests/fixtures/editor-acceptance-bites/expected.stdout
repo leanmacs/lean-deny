@@ -1,53 +1,58 @@
-deny rule 1 (../editor-acceptance-holds/lean-deny.toml:35:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (../editor-acceptance-holds/lean-deny.toml:38:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   lean/Editor/Core.lean:3: Editor.Core imports Editor.Main
   lean/Editor/Main.lean:2: Editor.Main imports Compile.Compiled
-deny rule 1 (../editor-acceptance-holds/lean-deny.toml:35:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (../editor-acceptance-holds/lean-deny.toml:38:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   lean/Editor/Main.lean:2: Editor.Main imports Compile.Compiled
-deny rule 1 (../editor-acceptance-holds/lean-deny.toml:35:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (../editor-acceptance-holds/lean-deny.toml:38:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   lean/Editor/Test/Fixture/Main.lean:2: Editor.Test.Fixture.Main imports ShippedThemes.EditorPackage
-deny rule 1 (../editor-acceptance-holds/lean-deny.toml:35:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (../editor-acceptance-holds/lean-deny.toml:38:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   lean/ModelTest.lean:2: ModelTest imports ModelTest.Bound
   lean/ModelTest/Bound.lean:2: ModelTest.Bound imports CompileApi
-deny rule 1 (../editor-acceptance-holds/lean-deny.toml:35:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (../editor-acceptance-holds/lean-deny.toml:38:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   lean/ModelTest/Bound.lean:2: ModelTest.Bound imports CompileApi
-deny rule 2 (../editor-acceptance-holds/lean-deny.toml:42:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
+deny rule 2 (../editor-acceptance-holds/lean-deny.toml:45:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
   lean/Editor.lean:1: Editor imports Editor.Bound
   lean/Editor/Bound.lean:1: Editor.Bound imports Lean.Data.Json
-deny rule 2 (../editor-acceptance-holds/lean-deny.toml:42:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
+deny rule 2 (../editor-acceptance-holds/lean-deny.toml:45:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
   lean/ModelTest.lean:2: ModelTest imports ModelTest.Bound
   lean/ModelTest/Bound.lean:1: ModelTest.Bound imports Editor.Bound
   lean/Editor/Bound.lean:1: Editor.Bound imports Lean.Data.Json
-deny rule 3 (../editor-acceptance-holds/lean-deny.toml:49:0): model-test links no Rust library (core imports check, rule 5)
+deny rule 3 (../editor-acceptance-holds/lean-deny.toml:52:0): model-test links no Rust library (core imports check, rule 5)
   lean/ModelTest.lean:2: ModelTest imports ModelTest.Bound
   lean/ModelTest/Bound.lean:3: ModelTest.Bound imports Editor.Ffi.Text
-deny rule 4 (../editor-acceptance-holds/lean-deny.toml:56:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (../editor-acceptance-holds/lean-deny.toml:59:0): the host is handed its packages as a value and names none of them (host imports check)
   lean/Editor/Main.lean:2: Editor.Main imports Compile.Compiled
-deny rule 4 (../editor-acceptance-holds/lean-deny.toml:56:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (../editor-acceptance-holds/lean-deny.toml:59:0): the host is handed its packages as a value and names none of them (host imports check)
   lean/Editor/Test/Fixture/Main.lean:2: Editor.Test.Fixture.Main imports ShippedThemes.EditorPackage
-allow-only rule 1 (../editor-acceptance-holds/lean-deny.toml:63:0): a package's library imports the core's API alone (package imports check)
+deny rule 5 (../editor-acceptance-holds/lean-deny.toml:67:0): an entry module imports package modules and nothing else (host imports)
+  shell/Shell/EditorPackage.lean:2: Shell.EditorPackage imports Std.Data.HashMap
+deny rule 6 (../editor-acceptance-holds/lean-deny.toml:73:0): a fixture support module is a test module: the fixture harness's root imports it, never the editor's (host imports)
+  root/EditorSetRoot.lean:3: EditorSetRoot imports Compile.EditorPackage
+  compile/Compile/EditorPackage.lean:2: Compile.EditorPackage imports CompileTest.FixtureSupport
+allow-only rule 1 (../editor-acceptance-holds/lean-deny.toml:80:0): a package's library imports the core's API alone (package imports check)
   compile/Compile.lean:4: Compile imports Editor.Loop
-allow-only rule 2 (../editor-acceptance-holds/lean-deny.toml:68:0): a package's tests may also import the core's test doubles (package imports check)
+allow-only rule 2 (../editor-acceptance-holds/lean-deny.toml:85:0): a package's tests may also import the core's test doubles (package imports check)
   compile/CompileTest/Model.lean:4: CompileTest.Model imports Editor.Test.Linked.Rig
-allow-only rule 3 (../editor-acceptance-holds/lean-deny.toml:73:0): a package's linked test may also import the linked test kit (package imports check)
+allow-only rule 3 (../editor-acceptance-holds/lean-deny.toml:90:0): a package's linked test may also import the linked test kit (package imports check)
   compile/CompileTest/Linked/Run.lean:4: CompileTest.Linked.Run imports Editor.Headless
-allow-only rule 4 (../editor-acceptance-holds/lean-deny.toml:78:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+allow-only rule 4 (../editor-acceptance-holds/lean-deny.toml:95:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
   compile/CompileTest/Linked.lean:5: CompileTest.Linked imports Editor.Ffi.Text
-allow-only rule 4 (../editor-acceptance-holds/lean-deny.toml:78:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+allow-only rule 4 (../editor-acceptance-holds/lean-deny.toml:95:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
   compile/CompileTest/Linked.lean:6: CompileTest.Linked imports Editor.Window.Real
-layers (../editor-acceptance-holds/lean-deny.toml:84:0): three layers (layer imports check): compile (implementation) may not import shell (implementation)
+layers (../editor-acceptance-holds/lean-deny.toml:101:0): three layers (layer imports check): compile (implementation) may not import shell (implementation)
   compile/Compile.lean:5: Compile imports Shell
-layers (../editor-acceptance-holds/lean-deny.toml:84:0): three layers (layer imports check): editor-core (core) may not import compile (implementation)
+layers (../editor-acceptance-holds/lean-deny.toml:101:0): three layers (layer imports check): editor-core (core) may not import compile (implementation)
   lean/Editor/Main.lean:2: Editor.Main imports Compile.Compiled
-layers (../editor-acceptance-holds/lean-deny.toml:84:0): three layers (layer imports check): editor-core (core) may not import shipped-themes (implementation)
+layers (../editor-acceptance-holds/lean-deny.toml:101:0): three layers (layer imports check): editor-core (core) may not import shipped-themes (implementation)
   lean/Editor/Test/Fixture/Main.lean:2: Editor.Test.Fixture.Main imports ShippedThemes.EditorPackage
-layers (../editor-acceptance-holds/lean-deny.toml:84:0): three layers (layer imports check): editor-core (core) may not import compile-api (interface)
+layers (../editor-acceptance-holds/lean-deny.toml:101:0): three layers (layer imports check): editor-core (core) may not import compile-api (interface)
   lean/ModelTest/Bound.lean:2: ModelTest.Bound imports CompileApi
-reachable rule 1 (../editor-acceptance-holds/lean-deny.toml:95:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (../editor-acceptance-holds/lean-deny.toml:112:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   lean/Editor/Test/Shell.lean: Editor.Test.Shell
-co-reach rule 1 (../editor-acceptance-holds/lean-deny.toml:101:0): the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3): EditorSetFixtures reaches Editor.Config.Elaborate but not Editor
+co-reach rule 1 (../editor-acceptance-holds/lean-deny.toml:118:0): the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3): EditorSetFixtures reaches Editor.Config.Elaborate but not Editor
   root/EditorSetFixtures.lean:1: EditorSetFixtures imports Editor.Test.Fixture.Main
   lean/Editor/Test/Fixture/Main.lean:1: Editor.Test.Fixture.Main imports Editor.Headless
   lean/Editor/Headless.lean:2: Editor.Headless imports Editor.Config.Elaborate
-target-config rule 1 (../editor-acceptance-holds/lean-deny.toml:109:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/FilesApi does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
+target-config rule 1 (../editor-acceptance-holds/lean-deny.toml:126:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/FilesApi does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   lean/lakefile.toml: lean_lib FilesApi
-lean-deny: 22 violations in 12 of 12 rules
+lean-deny: 24 violations in 14 of 14 rules

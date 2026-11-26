@@ -4,11 +4,12 @@
 #   examples/editor-project/acceptance.sh <editor-project dir> <work dir>
 #
 # Run it at the root of lean-deny's repository, after `lake build`. It never
-# writes under <editor-project dir>: it copies that tree's lean/ and packages/
-# (without .lake/ and target/) into <work dir>/pristine and works on copies of
-# that copy. Loading a workspace writes Lake's configuration cache into the
-# workspace's .lake/, which is why the run never points lean-deny at the
-# original.
+# writes under <editor-project dir>, which must be a git checkout: it prints
+# the revision at HEAD, extracts that revision's lean/ and packages/ (`git
+# archive`, so nothing uncommitted or untracked, and no .lake/ or target/)
+# into <work dir>/pristine, and works on copies of that copy. Loading a
+# workspace writes Lake's configuration cache into the workspace's .lake/,
+# which is why the run never points lean-deny at the original.
 #
 # The policy declares the two roots the package-set build generates under
 # packages/.lake/build/root/ ([[root]]); lean-deny never runs Lake to write them,
@@ -21,9 +22,10 @@
 # workspace, expecting exit 0; then, for each breaking edit, starts again from
 # the pristine copy, adds one import line, and expects exit 1 with violations
 # of exactly the named rules and no other (or, for a control edit, only the
-# baseline's), and exactly the named summary line; then, for each lakefile
-# edit, starts again from the pristine copy, applies one sed script to one
-# lakefile, and expects the same. Every lean-deny output is printed with the
+# baseline's), and exactly the named summary line; then, for each sed edit,
+# starts again from the pristine copy, applies one sed script to one file (a
+# lakefile, or the core's root), and expects the same. The policy has 14
+# rules and the core policy 2. Every lean-deny output is printed with the
 # work directory written as <work>. It exits 0 when every expectation held and
 # nothing under <editor-project dir> changed during the run, and 1 otherwise.
 set -eu
@@ -74,12 +76,17 @@ run() {
   fi
 }
 
-echo "editor-project: $(git -C "$source" --no-optional-locks rev-parse HEAD 2>/dev/null || echo unknown)"
+# One revision for the whole run, so that a HEAD that moves meanwhile cannot
+# split it.
+rev=$(git -C "$source" --no-optional-locks rev-parse --verify HEAD 2>/dev/null) || { echo "acceptance: $source is not a git checkout with a HEAD" >&2; exit 2; }
+echo "editor-project: $rev"
 rm -rf "$work/pristine" "$work/edit"
 mkdir -p "$work/pristine"
 # Nothing under the source may be newer than this when the run ends.
 touch "$work/stamp"
-rsync -a --exclude .lake --exclude target "$source/lean" "$source/packages" "$work/pristine/"
+git -C "$source" --no-optional-locks archive "$rev" lean packages | tar -x -C "$work/pristine"
+# POSIX sh has no pipefail: check that the archive arrived.
+[ -f "$work/pristine/lean/lakefile.lean" ] && [ -f "$work/pristine/packages/lakefile.toml" ] || { echo "acceptance: git archive of $rev gave no lean/ and packages/" >&2; exit 2; }
 
 # The policy's declared roots, generated in the copy (never in the source):
 # `query :editorRoot` writes EditorSetRoot.lean. `build --no-build
@@ -117,7 +124,7 @@ missing() {
 # co-reach rule 1): the baseline expects no co-reach violation, and edit core-3
 # makes the contract tests' root, which reaches neither, import the elaborator.
 echo "== baseline: packages/"
-expect_exit=1 expect_rules='reachable rule 1' expect_summary='lean-deny: 1 violation in 1 of 12 rules'
+expect_exit=1 expect_rules='reachable rule 1' expect_summary='lean-deny: 1 violation in 1 of 14 rules'
 run check --workspace "$work/pristine/packages" --config "$policy"
 shell_line="  $work/pristine/lean/Editor/Test/Shell.lean: Editor.Test.Shell"
 if ! printf '%s\n' "$out" | grep -qxF "$shell_line"; then
@@ -144,31 +151,41 @@ while IFS='|' read -r id ws file imported expect_exit expect_rules expect_summar
   if [ "$ws" = lean ]; then config=$core_policy; else config=$policy; fi
   run check --workspace "$work/edit/$ws" --config "$config"
 done <<'EDITS'
-core-1|packages|lean/ModelTest/Editor/Bound.lean|CompileApi|1|deny rule 1,layers,reachable rule 1|lean-deny: 4 violations in 3 of 12 rules
-core-3|packages|lean/ContractTest.lean|Editor.Config.Elaborate|1|co-reach rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-core-4|packages|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 2,reachable rule 1|lean-deny: 3 violations in 2 of 12 rules
+core-1|packages|lean/ModelTest/Editor/Bound.lean|CompileApi|1|deny rule 1,layers,reachable rule 1|lean-deny: 4 violations in 3 of 14 rules
+core-3|packages|lean/ContractTest.lean|Editor.Config.Elaborate|1|co-reach rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+core-4|packages|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 2,reachable rule 1|lean-deny: 3 violations in 2 of 14 rules
 core-4-lean|lean|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 1|lean-deny: 2 violations in 1 of 2 rules
-core-5|packages|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 3,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
+core-5|packages|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 3,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
 core-5-lean|lean|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 2|lean-deny: 1 violation in 1 of 2 rules
-host|packages|lean/Editor/Main.lean|Compile.Compiled|1|deny rule 4,deny rule 1,layers,reachable rule 1|lean-deny: 5 violations in 4 of 12 rules
-host-shipped-themes|packages|lean/Editor/Main.lean|ShippedThemes.EditorPackage|1|deny rule 4,deny rule 1,layers,reachable rule 1|lean-deny: 5 violations in 4 of 12 rules
-package-library|packages|packages/compile/Compile.lean|Editor.Loop|1|allow-only rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-package-library-double|packages|packages/compile/Compile.lean|Editor.Text.Model|1|allow-only rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-package-test|packages|packages/compile/CompileTest/Compile.lean|Editor.Test.Linked.Rig|1|allow-only rule 2,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-package-linked|packages|packages/compile/CompileTest/Linked/Compile.lean|Editor.Headless|1|allow-only rule 3,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-package-linked-root|packages|packages/compile/CompileTest/Linked.lean|Editor.Ffi.Text|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-package-linked-root-window|packages|packages/compile/CompileTest/Linked.lean|Editor.Window.Real|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-package-linked-root-window-check|packages|packages/compile/CompileTest/Linked.lean|Editor.WindowCheck.Real|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-layers|packages|packages/compile/Compile.lean|Shell|1|layers,reachable rule 1|lean-deny: 2 violations in 2 of 12 rules
-control-test-double|packages|packages/compile/CompileTest/Compile.lean|Editor.Text.Model|1|reachable rule 1|lean-deny: 1 violation in 1 of 12 rules
-control-test-fake|packages|packages/compile/CompileTest/Compile.lean|Editor.Job.Fake|1|reachable rule 1|lean-deny: 1 violation in 1 of 12 rules
-control-linked-root-real|packages|packages/compile/CompileTest/Linked.lean|Editor.Text.Real|1|reachable rule 1|lean-deny: 1 violation in 1 of 12 rules
+host|packages|lean/Editor/Main.lean|Compile.Compiled|1|deny rule 4,deny rule 1,layers,reachable rule 1|lean-deny: 5 violations in 4 of 14 rules
+host-shipped-themes|packages|lean/Editor/Main.lean|ShippedThemes.EditorPackage|1|deny rule 4,deny rule 1,layers,reachable rule 1|lean-deny: 5 violations in 4 of 14 rules
+host-entry-core|packages|packages/compile/Compile/EditorPackage.lean|Editor.Text|1|deny rule 4,deny rule 5,reachable rule 1|lean-deny: 5 violations in 3 of 14 rules
+host-entry-lean|packages|packages/compile/Compile/EditorPackage.lean|Lean.Data.Json|1|deny rule 5,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+host-fixture-support|packages|packages/workspace/Workspace/Compiled.lean|WorkspaceTest.FixtureSupport|1|deny rule 6,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+fixture-support-test|packages|packages/workspace/WorkspaceTest/FixtureSupport.lean|Editor.Test.Linked.Rig|1|allow-only rule 2,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-library|packages|packages/compile/Compile.lean|Editor.Loop|1|allow-only rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-library-double|packages|packages/compile/Compile.lean|Editor.Text.Model|1|allow-only rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-test|packages|packages/compile/CompileTest/Compile.lean|Editor.Test.Linked.Rig|1|allow-only rule 2,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-linked|packages|packages/compile/CompileTest/Linked/Compile.lean|Editor.Headless|1|allow-only rule 3,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-linked-root|packages|packages/compile/CompileTest/Linked.lean|Editor.Ffi.Text|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-linked-root-window|packages|packages/compile/CompileTest/Linked.lean|Editor.Window.Real|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+package-linked-root-window-check|packages|packages/compile/CompileTest/Linked.lean|Editor.WindowCheck.Real|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+layers|packages|packages/compile/Compile.lean|Shell|1|layers,reachable rule 1|lean-deny: 2 violations in 2 of 14 rules
+control-test-double|packages|packages/compile/CompileTest/Compile.lean|Editor.Text.Model|1|reachable rule 1|lean-deny: 1 violation in 1 of 14 rules
+control-test-fake|packages|packages/compile/CompileTest/Compile.lean|Editor.Job.Fake|1|reachable rule 1|lean-deny: 1 violation in 1 of 14 rules
+control-linked-root-real|packages|packages/compile/CompileTest/Linked.lean|Editor.Text.Real|1|reachable rule 1|lean-deny: 1 violation in 1 of 14 rules
 EDITS
 
-# Every lean_lib and lean_exe of the core and of every package loads the lint
-# plugin or imports the core's Lint (target-config rule 1). Each edit below
-# drops one plugin: a package's package-level `plugins` (lakefile.toml, three
-# targets) or one core library's `plugins := lintPlugin` (lakefile.lean).
+# Edits that remove or change a line rather than add an import: one sed
+# script applied to one file. Every lean_lib and lean_exe of the core and of
+# every package loads the lint plugin or imports the core's Lint (target-config
+# rule 1): lint-plugin-package drops a package's package-level `plugins`
+# (lakefile.toml, three targets) and lint-plugin-core one core library's
+# `plugins := lintPlugin` (lakefile.lean). Every Editor.… module the build
+# reaches is in Editor.Core's closure (core rule 2, reachable rule 1): core-2
+# drops the core root's import of Editor.Test.Linked.Frames, which a package's
+# linked test still imports, so reachable rule 1 reports it beside the
+# baseline's Editor.Test.Shell.
 # id | workspace | file | sed script | exit | rules that bite | summary line
 while IFS='|' read -r id ws file script expect_exit expect_rules expect_summary; do
   [ -n "$id" ] || continue
@@ -177,22 +194,30 @@ while IFS='|' read -r id ws file script expect_exit expect_rules expect_summary;
   cp -R "$work/pristine" "$work/edit"
   target=$work/edit/$file
   if [ ! -f "$target" ]; then
-    missing "$file" "the lakefile edit table"
+    missing "$file" "the sed edit table"
     continue
   fi
   sed -e "$script" "$target" > "$target.new"
   if cmp -s "$target" "$target.new"; then
     rm -f "$target.new"
-    missing "the line '$id' edits in $file" "the lakefile edit table"
+    missing "the line '$id' edits in $file" "the sed edit table"
     continue
   fi
   mv "$target.new" "$target"
   if [ "$ws" = lean ]; then config=$core_policy; else config=$policy; fi
   run check --workspace "$work/edit/$ws" --config "$config"
-done <<'LAKEFILE'
-lint-plugin-package|packages|packages/compile/lakefile.toml|/^plugins = \["@editor-core\/lintShared"\]$/d|1|reachable rule 1,target-config rule 1|lean-deny: 4 violations in 2 of 12 rules
-lint-plugin-core|packages|lean/lakefile.lean|s/^lean_lib ExtensionFixture where plugins := lintPlugin$/lean_lib ExtensionFixture/|1|reachable rule 1,target-config rule 1|lean-deny: 2 violations in 2 of 12 rules
-LAKEFILE
+  if [ "$id" = core-2 ]; then
+    frames_line="  $work/edit/lean/Editor/Test/Linked/Frames.lean: Editor.Test.Linked.Frames"
+    if ! printf '%s\n' "$out" | grep -qxF "$frames_line"; then
+      echo "MISMATCH: expected the line: $(printf '%s' "$frames_line" | sed "s|$work|<work>|g")"
+      failed=1
+    fi
+  fi
+done <<'SED'
+lint-plugin-package|packages|packages/compile/lakefile.toml|/^plugins = \["@editor-core\/lintShared"\]$/d|1|reachable rule 1,target-config rule 1|lean-deny: 4 violations in 2 of 14 rules
+lint-plugin-core|packages|lean/lakefile.lean|s/^lean_lib ExtensionFixture where plugins := lintPlugin$/lean_lib ExtensionFixture/|1|reachable rule 1,target-config rule 1|lean-deny: 2 violations in 2 of 14 rules
+core-2|packages|lean/Editor/Core.lean|/^import Editor\.Test\.Linked\.Frames$/d|1|reachable rule 1|lean-deny: 2 violations in 1 of 14 rules
+SED
 
 # Anywhere under the source, .git/ included, but for .git/worktrees/: it holds
 # the state of editor-project's other checkouts, which git commands run in them

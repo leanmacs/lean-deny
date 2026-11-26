@@ -805,9 +805,10 @@ lean-deny: 1 violation in 1 of 4 rules
 
 [docs/editor-project-acceptance.md](docs/editor-project-acceptance.md)
 writes editor-project's four import checks (core, package, host and layer
-imports) and its lint-plugins rule as one policy,
+imports, the host's with every bullet of its "Host imports" rule) and its
+lint-plugins rule as one policy,
 [`examples/editor-project/lean-deny.toml`](examples/editor-project/lean-deny.toml),
-runs it over a copy of editor-project with
+runs it over a copy of editor-project's HEAD with
 [`examples/editor-project/acceptance.sh`](examples/editor-project/acceptance.sh),
 and shows each rule biting on an edit that breaks it. What lean-deny cannot
 express yet is listed there as tasks. It is confirmed by `lake build`, then
