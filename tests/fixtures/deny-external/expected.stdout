@@ -1,0 +1,10 @@
+deny rule 1 (lean-deny.toml:6:0): the core does not import the elaborator
+  core/Core/Macros.lean:3: Core.Macros imports Lean.Elab.Command
+deny rule 2 (lean-deny.toml:11:0): the app stays clear of Lean's frontend
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:6: Core.Api imports Core.Macros
+  core/Core/Macros.lean:3: Core.Macros imports Lean.Elab.Command
+deny rule 3 (lean-deny.toml:17:0): the tests import nothing of Lean
+  AppTest.lean:2: AppTest imports App.Shared
+  App/Shared.lean:1: App.Shared imports Lean.Data.Json
+lean-deny: 3 violations in 3 of 3 rules

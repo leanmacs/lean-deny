@@ -1,0 +1,21 @@
+# Deny rules whose `to` is outside the workspace: a core module imports
+# Lean's elaborator directly, App reaches it through the core, and AppTest
+# reaches a module under `Lean` through App.Shared. The graph holds only the
+# external modules the workspace imports directly, so a chain ends at the
+# first one.
+[[deny]]
+from = "pkg:core"
+to = "external:Lean.Elab"
+reason = "the core does not import the elaborator"
+
+[[deny]]
+from = "mod:App!"
+to = "external:Lean.Elab"
+transitive = true
+reason = "the app stays clear of Lean's frontend"
+
+[[deny]]
+from = "mod:AppTest!"
+to = "external:Lean"
+transitive = true
+reason = "the tests import nothing of Lean"

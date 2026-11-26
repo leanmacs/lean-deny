@@ -1,0 +1,12 @@
+# Direct deny rules over graph-ws that bite: the app imports the core's API
+# module, and the API module imports three denied modules (reported in the
+# order its imports are written).
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+reason = "the app imports nothing of the core"
+
+[[deny]]
+from = "mod:Core.Api!"
+to = ["mod:Core.Types", "mod:Core.Impl", "pkg:base"]
+reason = "the API module imports no implementation"

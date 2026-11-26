@@ -1,0 +1,8 @@
+# A wrapper excuses a direct import: App may import the core. The selector
+# also matches App.Shared, which excuses nothing; a wrapper selector needs
+# only one of its modules to excuse an import.
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+wrappers = ["mod:App"]
+reason = "the app reaches the core through App alone"

@@ -1,0 +1,8 @@
+# A wrapper excuses only the chains that pass through it: Core.Impl may
+# reach Core.Types, but App also reaches it through Core.Api alone.
+[[deny]]
+from = "mod:App!"
+to = "mod:Core.Types!"
+transitive = true
+wrappers = ["mod:Core.Impl!"]
+reason = "the app reaches core types only through the implementation"

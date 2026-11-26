@@ -17,4 +17,5 @@ import LeanDeny.Load
 import LeanDeny.Policy
 import LeanDeny.Policy.Resolve
 import LeanDeny.Policy.Selector
+import LeanDeny.Rules.Deny
 import LeanDeny.Version

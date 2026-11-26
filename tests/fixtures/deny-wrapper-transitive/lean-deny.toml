@@ -1,0 +1,17 @@
+# Wrappers excuse import chains. Rule 1: every chain from the app to
+# Core.Prim passes through Core.Api, a wrapper outside `from`. Rule 2: App,
+# a wrapper inside `from`, is excused, and so are AppTest and Main, whose
+# chains pass through it.
+[[deny]]
+from = "pkg:graph-ws"
+to = "mod:Core.Prim!"
+transitive = true
+wrappers = ["mod:Core.Api!"]
+reason = "only the API module may reach the primitives"
+
+[[deny]]
+from = "pkg:graph-ws"
+to = "mod:Core.Prim!"
+transitive = true
+wrappers = "mod:App!"
+reason = "only App may reach the primitives"

@@ -1,0 +1,4 @@
+deny rule 1 (lean-deny.toml:3:0): the app reaches core types only through the implementation
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+lean-deny: 1 violation in 1 of 1 rule

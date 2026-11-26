@@ -1,0 +1,18 @@
+# Three deny rules over graph-ws that hold. Rule 3 is direct (the default):
+# App reaches Core.Types only through Core.Api, so it holds where
+# `transitive = true` would bite.
+[[deny]]
+from = "pkg:core"
+to = "pkg:graph-ws"
+reason = "the core imports nothing of the app"
+
+[[deny]]
+from = "mod:Core.Impl!"
+to = "mod:Core.Api!"
+transitive = true
+reason = "the implementation never reaches the API"
+
+[[deny]]
+from = "mod:App!"
+to = "mod:Core.Types!"
+reason = "the app names no core type module directly"

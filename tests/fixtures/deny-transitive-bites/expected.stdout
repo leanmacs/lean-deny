@@ -1,0 +1,18 @@
+deny rule 1 (lean-deny.toml:5:0): the app never reaches the core's primitives
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+  core/Core/Types.lean:3: Core.Types imports Core.Prim
+deny rule 1 (lean-deny.toml:5:0): the app never reaches the core's primitives
+  AppTest.lean:1: AppTest imports App
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+  core/Core/Types.lean:3: Core.Types imports Core.Prim
+deny rule 1 (lean-deny.toml:5:0): the app never reaches the core's primitives
+  Main.lean:4: Main imports App
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+  core/Core/Types.lean:3: Core.Types imports Core.Prim
+deny rule 2 (lean-deny.toml:11:0): the executable reaches no kernel module
+  Main.lean:4: Main imports App
+  App.lean:2: App imports Core.Api
+lean-deny: 4 violations in 2 of 2 rules

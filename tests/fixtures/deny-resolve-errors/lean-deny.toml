@@ -1,0 +1,27 @@
+# Deny rules whose selectors resolve badly: each is an error (exit 2) naming
+# the rule and the field, and no violation is reported.
+[[deny]]
+from = "mod:Core.Apii"
+to = "pkg:graph-ws"
+reason = "a misspelt module"
+
+[[deny]]
+from = "pkg:core"
+to = "mod:Core.Types"
+reason = "the core is denied to itself"
+
+[[deny]]
+from = "external:Lean"
+to = "pkg:core"
+reason = "external modules import nothing in the graph"
+
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+wrappers = "lib:Nope"
+reason = "a wrapper that matches nothing"
+
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+reason = "broken, but a bad policy is reported alone"

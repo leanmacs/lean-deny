@@ -1,0 +1,9 @@
+deny rule 1 (lean-deny.toml:4:0): the app imports nothing of the core
+  App.lean:2: App imports Core.Api
+deny rule 2 (lean-deny.toml:9:0): the API module imports no implementation
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+deny rule 2 (lean-deny.toml:9:0): the API module imports no implementation
+  core/Core/Api.lean:5: Core.Api imports Core.Impl
+deny rule 2 (lean-deny.toml:9:0): the API module imports no implementation
+  core/Core/Api.lean:8: Core.Api imports Base
+lean-deny: 4 violations in 2 of 2 rules

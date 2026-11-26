@@ -1,4 +1,4 @@
-# Not valid TOML. No rule kinds exist yet, so a malformed policy (exit 2)
-# stands in for a broken one; exit 1 fixtures arrive with `policy-rules`.
+# Not valid TOML: a malformed policy fails `lake lint` with exit 2
+# (lake-lint-violation covers a broken rule, exit 1).
 [[deny]]
 from = = "pkg:a"

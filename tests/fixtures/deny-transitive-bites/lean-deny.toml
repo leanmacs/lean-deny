@@ -1,0 +1,15 @@
+# Transitive deny rules over graph-ws that bite. Rule 1: three of the app's
+# modules reach Core.Prim through chains of imports; each witness is a
+# shortest chain. App.Shared reaches no core module, so it is not reported.
+# Rule 2: the executable reaches a module of a package with keyword `kernel`.
+[[deny]]
+from = "pkg:graph-ws"
+to = "mod:Core.Prim!"
+transitive = true
+reason = "the app never reaches the core's primitives"
+
+[[deny]]
+from = "mod:Main!"
+to = ["keyword:kernel"]
+transitive = true
+reason = "the executable reaches no kernel module"

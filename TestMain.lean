@@ -1,4 +1,5 @@
 import LeanDenyTest.Cli
+import LeanDenyTest.Deny
 import LeanDenyTest.Fixtures
 import LeanDenyTest.Graph
 import LeanDenyTest.Harness
@@ -12,7 +13,7 @@ import LeanDenyTest.View
 
 /-!
 `lake test` driver. Runs the CLI parser tests, the selector, policy and
-resolution tests, the graph checks, the fixture runner's own checks and every
+resolution tests, the deny rule tests, the graph checks, the fixture runner's own checks and every
 fixture under `tests/fixtures/`. `lake test -- <name>…` runs only the named
 fixtures. The working directory is the package root (as `lake test` sets it).
 -/
@@ -39,6 +40,7 @@ def main (args : List String) : IO UInt32 := do
     ok := (← report "query" Query.run) && ok
     ok := (← report "view" View.run) && ok
     ok := (← report "resolve" Resolve.run) && ok
+    ok := (← report "deny" (← Deny.run)) && ok
     ok := (← report "render" (← Render.run root)) && ok
     ok := (← report "graph" (← Graph.run root)) && ok
     ok := (← report "harness" (← Harness.run root)) && ok

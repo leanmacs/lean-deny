@@ -1,0 +1,16 @@
+# Wrappers that excuse nothing, each an error at its selector, so a rule
+# cannot pass on a stale exception. Rule 1 (direct): Main is in `from` but
+# imports no core module. Rule 2 (transitive): Base is on no chain from the
+# app to Core.Prim.
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+wrappers = ["mod:App!", "mod:Main!"]
+reason = "the app reaches the core through App alone"
+
+[[deny]]
+from = "pkg:graph-ws"
+to = "mod:Core.Prim!"
+transitive = true
+wrappers = ["mod:Core.Api!", "mod:Base!"]
+reason = "only the API module may reach the primitives"

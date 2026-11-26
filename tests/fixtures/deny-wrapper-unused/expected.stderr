@@ -1,0 +1,2 @@
+lean-deny: error: lean-deny.toml:8:24: selector 'mod:Main!' in deny rule 1 ('wrappers') excuses nothing: none of its modules is in 'from' and imports a module in 'to'
+lean-deny: error: lean-deny.toml:15:29: selector 'mod:Base!' in deny rule 2 ('wrappers') excuses nothing: none of its modules is the first wrapper on an import chain from 'from' to 'to'
