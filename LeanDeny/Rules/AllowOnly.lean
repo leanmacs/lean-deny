@@ -48,17 +48,9 @@ structure AllowOnlyResolved where
 def AllowOnlyRule.violation (r : AllowOnlyRule) (e : Edge) : Violation :=
   { label := r.label, pos? := r.pos?, reason := r.reason, chain := #[e] }
 
-/-- Rule numbers as prose: "3", "3 and 4", "2, 3 and 4". -/
-private def numberList (ns : Array Nat) : String :=
-  match ns.back? with
-  | none => ""
-  | some last =>
-    let init := ns.pop.map toString
-    if init.isEmpty then toString last else s!"{", ".intercalate init.toList} and {last}"
-
 /-- "allow-only rule 3", or "allow-only rules 3 and 4". -/
 private def rulesText (ns : Array Nat) : String :=
-  s!"allow-only rule{if ns.size == 1 then "" else "s"} {numberList ns}"
+  s!"allow-only rule{if ns.size == 1 then "" else "s"} {proseList (ns.map toString)}"
 
 /-- Resolve rule `r`'s selectors in `g`, with the policy's sets resolved in
 `sets`. The errors, in order: each selector that matches nothing (source

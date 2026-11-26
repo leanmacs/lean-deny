@@ -4,9 +4,9 @@ import LeanDeny.Policy
 /-!
 # What every rule kind shares
 
-A violation and its rendering, and the small graph helpers the rule kinds
-use: a node's name, whether it is external, its package, and whether an
-import leaves its importer's package. Pure.
+A violation and its rendering, the small graph helpers the rule kinds use
+(a node's name, whether it is external, its package, and whether an import
+leaves its importer's package), and `proseList` for their messages. Pure.
 -/
 
 open Lean LeanDeny.Graph
@@ -25,6 +25,14 @@ structure Violation where
   rule; consecutive (`chain[i].dst = chain[i+1].src`). -/
   chain : Array Edge
   deriving BEq, Repr, Inhabited
+
+/-- Items as prose: "a", "a and b", "a, b and c"; "" for none. -/
+def proseList (xs : Array String) : String :=
+  match xs.back? with
+  | none => ""
+  | some last =>
+    let init := xs.pop
+    if init.isEmpty then last else s!"{", ".intercalate init.toList} and {last}"
 
 /-- The name of node `n`. -/
 def nodeName (g : Graph) (n : NodeId) : String :=
