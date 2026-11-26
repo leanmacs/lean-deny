@@ -8,6 +8,7 @@
     "file": "../allow-only-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "no library imports a test double",
    "detail": null,
    "chain":
@@ -29,6 +30,7 @@
     "file": "../allow-only-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "the feature imports the core's API alone",
    "detail": null,
    "chain":
@@ -50,6 +52,7 @@
     "file": "../allow-only-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "the feature imports the core's API alone",
    "detail": null,
    "chain":

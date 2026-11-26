@@ -1,0 +1,6 @@
+lean-deny: error: lean-deny.toml:5:9: selector 'mod:Nope' in co-reach rule 1 ('roots') matches no module: no workspace module is or is under 'Nope'
+lean-deny: error: lean-deny.toml:6:14: selector 'lib:Nope' in co-reach rule 1 ('if-reaches') matches no module: no package has a lean_lib named 'Nope'
+lean-deny: error: lean-deny.toml:5:21: selector 'external:Lean' in co-reach rule 1 ('roots') matches only modules outside the workspace, which import nothing in the graph
+lean-deny: error: lean-deny.toml:6:26: selector 'external:Init' in co-reach rule 1 ('if-reaches') matches only modules outside the workspace, which a rule about reach does not check
+lean-deny: error: lean-deny.toml:7:27: selector 'external:Init' in co-reach rule 1 ('must-reach') matches only modules outside the workspace, which a rule about reach does not check
+lean-deny: error: lean-deny.toml:10:0: co-reach rule 2: no module of 'roots' reaches a module of 'if-reaches', so the rule holds of nothing

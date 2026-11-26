@@ -19,6 +19,7 @@ import LeanDeny.Policy.Resolve
 import LeanDeny.Policy.Selector
 import LeanDeny.Report
 import LeanDeny.Rules.AllowOnly
+import LeanDeny.Rules.CoReach
 import LeanDeny.Rules.Common
 import LeanDeny.Rules.Deny
 import LeanDeny.Rules.Layers

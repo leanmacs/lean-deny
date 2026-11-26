@@ -215,6 +215,69 @@ from = "mod:Editor.Core!"
 must-cover = "set:core-modules"
 reason = "the core's root holds the whole core (core imports check, rule 2)"
 
+# Core imports, rule 3: every executable root that reaches the config elaborator adapter
+# also reaches the config base. The roots are listed, not selected, since a lean_lib root
+# such as Editor.Core reaches the elaborator without the base and is no executable: the
+# two generated roots, the core's lean_exe roots, the package linked tests' roots
+# (editorLinked) and every package's model-test lean_exe root.
+[[co-reach]]
+roots = [
+  "mod:EditorSetRoot!",
+  "mod:EditorSetFixtures!",
+  "mod:FfiTest!",
+  "mod:ConfigTest!",
+  "mod:ModelTest!",
+  "mod:ContractTest!",
+  "mod:LintTest!",
+  "set:package-linked-roots",
+  "mod:AtPointApiTest.Model!",
+  "mod:AtPointTest.Model!",
+  "mod:BindingSearchApiTest.Model!",
+  "mod:BindingSearchTest.Model!",
+  "mod:BuffersApiTest.Model!",
+  "mod:BuffersTest.Model!",
+  "mod:CompileApiTest.Model!",
+  "mod:CompileTest.Model!",
+  "mod:CompletionApiTest.Model!",
+  "mod:CompletionTest.Model!",
+  "mod:EvilApiTest.Model!",
+  "mod:EvilTest.Model!",
+  "mod:ExApiTest.Model!",
+  "mod:ExTest.Model!",
+  "mod:ExecuteCommandApiTest.Model!",
+  "mod:ExecuteCommandTest.Model!",
+  "mod:FilesTest.Model!",
+  "mod:FrameCommandsApiTest.Model!",
+  "mod:FrameCommandsTest.Model!",
+  "mod:LanguagesTest.Model!",
+  "mod:MenuTest.Model!",
+  "mod:MinibufferApiTest.Model!",
+  "mod:MinibufferTest.Model!",
+  "mod:ModeLineTest.Model!",
+  "mod:PackageSetTest.Model!",
+  "mod:ProjectApiTest.Model!",
+  "mod:ProjectSearchApiTest.Model!",
+  "mod:ProjectSearchTest.Model!",
+  "mod:RestoreTest.Model!",
+  "mod:ShellApiTest.Model!",
+  "mod:ShellTest.Model!",
+  "mod:ShippedThemesTest.Model!",
+  "mod:TabCommandsApiTest.Model!",
+  "mod:TabCommandsTest.Model!",
+  "mod:ThemesApiTest.Model!",
+  "mod:ThemesTest.Model!",
+  "mod:VcApiTest.Model!",
+  "mod:VersionControlTest.Model!",
+  "mod:WindowCommandsApiTest.Model!",
+  "mod:WindowCommandsTest.Model!",
+  "mod:WorkingSetApiTest.Model!",
+  "mod:WorkingSetTest.Model!",
+  "mod:WorkspaceTest.Model!",
+]
+if-reaches = "mod:Editor.Config.Elaborate!"
+must-reach = "mod:Editor!"
+reason = "the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3)"
+
 # The two roots the package-set build generates (the setRoot and fixturesRoot facets of
 # lean/lakefile.lean), which no Lake target declares. lean-deny reads them from the build
 # directory; build them first (acceptance.sh does, in its copy).

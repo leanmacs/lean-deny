@@ -44,4 +44,8 @@ layers (../editor-acceptance-holds/lean-deny.toml:84:0): three layers (layer imp
   lean/ModelTest/Bound.lean:2: ModelTest.Bound imports CompileApi
 reachable rule 1 (../editor-acceptance-holds/lean-deny.toml:95:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 20 violations in 10 of 10 rules
+co-reach rule 1 (../editor-acceptance-holds/lean-deny.toml:101:0): the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3): EditorSetFixtures reaches Editor.Config.Elaborate but not Editor
+  root/EditorSetFixtures.lean:1: EditorSetFixtures imports Editor.Test.Fixture.Main
+  lean/Editor/Test/Fixture/Main.lean:1: Editor.Test.Fixture.Main imports Editor.Headless
+  lean/Editor/Headless.lean:2: Editor.Headless imports Editor.Config.Elaborate
+lean-deny: 21 violations in 11 of 11 rules

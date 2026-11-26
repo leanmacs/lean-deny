@@ -1,0 +1,15 @@
+# Two co-reach rules over graph-ws that hold. Rule 1: both roots reach
+# Core.Impl through App and Core.Api, which also imports Core.Macros and Base.
+# Rule 2: the closure is reflexive, so Core.Impl triggers its own rule and
+# reaches Core.Prim through Core.Types.
+[[co-reach]]
+roots = ["mod:Main!", "mod:AppTest!"]
+if-reaches = "mod:Core.Impl!"
+must-reach = ["mod:Core.Macros!", "mod:Base!"]
+reason = "whatever uses the implementation also links its macros and base"
+
+[[co-reach]]
+roots = "mod:Core.Impl!"
+if-reaches = "mod:Core.Impl!"
+must-reach = "mod:Core.Prim!"
+reason = "the implementation links the primitives"

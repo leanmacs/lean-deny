@@ -1,0 +1,4 @@
+# --format json of co-reach violations, with `module`, `chain` and `missing`; the policy is co-reach-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../co-reach-bites/lean-deny.toml", "--format", "json"]
+exit = 1

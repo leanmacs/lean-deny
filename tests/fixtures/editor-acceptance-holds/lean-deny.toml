@@ -97,6 +97,13 @@ from = "mod:Editor.Core!"
 must-cover = "set:core-modules"
 reason = "the core's root holds the whole core (core imports check, rule 2)"
 
+# Core imports, rule 3: every executable root that reaches the config elaborator also reaches the config base.
+[[co-reach]]
+roots = ["mod:EditorSetRoot!", "mod:EditorSetFixtures!", "mod:ModelTest!", "mod:CompileTest.Model!", "set:package-linked-roots"]
+if-reaches = "mod:Editor.Config.Elaborate!"
+must-reach = "mod:Editor!"
+reason = "the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3)"
+
 # The two roots the package-set build generates, which no Lake target declares.
 # Here each is a checked-in stand-in in the workspace's root/ (no Lake build runs).
 [[root]]

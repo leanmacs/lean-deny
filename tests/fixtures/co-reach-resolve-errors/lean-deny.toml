@@ -1,0 +1,14 @@
+# Selectors of co-reach rules that match nothing or only modules outside the
+# workspace (rule 1), and a rule none of whose roots reaches 'if-reaches'
+# (rule 2). Every error is reported; no violation is.
+[[co-reach]]
+roots = ["mod:Nope", "external:Lean"]
+if-reaches = ["lib:Nope", "external:Init"]
+must-reach = ["mod:Base!", "external:Init"]
+reason = "wrong in every selector"
+
+[[co-reach]]
+roots = "mod:Core.Types!"
+if-reaches = "mod:App!"
+must-reach = "mod:Base!"
+reason = "holds of nothing"

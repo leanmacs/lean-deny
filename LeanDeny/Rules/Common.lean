@@ -20,24 +20,30 @@ structure Violation where
   rule : RuleRef
   /-- The rule's table. -/
   pos? : Option Toml.Pos
-  /-- The rule's `reason` as written: always set for deny, allow-only and
-  reachable, optional for `[layers]`. -/
+  /-- The rule's `reason` as written: always set for deny, allow-only,
+  reachable and co-reach, optional for `[layers]`. -/
   reason? : Option String
   /-- What this violation is, beyond the reason: for `[layers]`,
   "app (implementation) may not import plugin (implementation)"; for a
-  reachable rule, "M is outside the import closure of R". -/
+  reachable rule, "M is outside the import closure of R"; for a co-reach
+  rule, "R reaches T but not M". -/
   detail? : Option String := none
-  /-- At least one edge for every kind but reachable, whose chain is empty;
+  /-- At least one edge for every kind but reachable, whose chain is empty,
+  and co-reach, whose chain is the witness from its root to the
+  `if-reaches` module it reaches (empty when the root is itself one);
   exactly one for a direct deny rule, an allow-only rule and `[layers]`;
   consecutive (`chain[i].dst = chain[i+1].src`). -/
   chain : Array Edge
-  /-- The module a reachable rule does not reach; `none` for the other
-  kinds. -/
+  /-- The module a reachable rule does not reach, or the root a co-reach
+  rule is broken for; `none` for the other kinds. -/
   module? : Option NodeId := none
+  /-- The `must-reach` modules a co-reach rule's root does not reach, in
+  `displayOrder`; empty for the other kinds. -/
+  missing : Array NodeId := #[]
   deriving BEq, Repr, Inhabited
 
-/-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1": names
-the rule. -/
+/-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
+"co-reach rule 1": names the rule. -/
 def Violation.label (v : Violation) : String :=
   v.rule.label
 
@@ -98,13 +104,16 @@ def moduleLine (g : Graph) (n : NodeId) (path : System.FilePath → String := g.
   | none => nodeName g n
 
 /-- A violation as a block: `<label> (<path>:<line>:<column>): <message>`,
-then one step per edge, indented two spaces, and, for a reachable rule, the
-uncovered module's line (`moduleLine`), indented two spaces. `policyPath` is
+then one step per edge, indented two spaces, and, when the chain is empty and
+the violation has a module (a reachable rule's uncovered module, a co-reach
+rule's root that is itself in `if-reaches`), that module's line
+(`moduleLine`), indented two spaces. `policyPath` is
 the policy's; `path` writes each file (as in `chainLine`). -/
 def Violation.render (g : Graph) (policyPath : String) (v : Violation)
     (path : System.FilePath → String := g.relPath) : Array String :=
   #[s!"{v.label} ({Policy.posText policyPath v.pos?}): {v.message}"] ++
     v.chain.map (fun e => s!"  {chainLine g e path}") ++
-    (v.module?.map fun m => #[s!"  {moduleLine g m path}"]).getD #[]
+    (if v.chain.isEmpty then (v.module?.map fun m => #[s!"  {moduleLine g m path}"]).getD #[]
+    else #[])
 
 end LeanDeny

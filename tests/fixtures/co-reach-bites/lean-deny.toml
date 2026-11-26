@@ -1,0 +1,16 @@
+# Two co-reach rules over graph-ws that bite. Rule 1: AppTest reaches
+# Core.Types but not Main; Main reaches it and satisfies itself (the closure
+# is reflexive); Core.Prim reaches no module of 'if-reaches' and is skipped.
+# Rule 2: Core.Impl is itself under mod:Core, so it triggers the rule with an
+# empty chain, and reaches neither Core.Macros nor Base.
+[[co-reach]]
+roots = ["mod:Main!", "mod:AppTest!", "mod:Core.Prim!"]
+if-reaches = "mod:Core.Types!"
+must-reach = ["mod:Main!", "mod:Base!"]
+reason = "every root that uses the core's types is the executable"
+
+[[co-reach]]
+roots = "mod:Core.Impl!"
+if-reaches = "mod:Core"
+must-reach = ["mod:Core.Macros!", "mod:Base!"]
+reason = "every core module links the macros and the base"

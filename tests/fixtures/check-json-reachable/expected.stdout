@@ -8,6 +8,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "module": {"name": "AppTest", "file": "AppTest.lean"},
+   "missing": [],
    "message":
    "the app's root holds the whole package: AppTest is outside the import closure of App",
    "detail": "AppTest is outside the import closure of App",
@@ -21,6 +22,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "module": {"name": "Main", "file": "Main.lean"},
+   "missing": [],
    "message":
    "the app's root holds the whole package: Main is outside the import closure of App",
    "detail": "Main is outside the import closure of App",
@@ -34,6 +36,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "module": {"name": "Core.Api", "file": "core/Core/Api.lean"},
+   "missing": [],
    "message":
    "the implementation holds the whole core: Core.Api is outside the import closure of Core.Impl",
    "detail": "Core.Api is outside the import closure of Core.Impl",
@@ -47,6 +50,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "module": {"name": "Core.Macros", "file": "core/Core/Macros.lean"},
+   "missing": [],
    "message":
    "the implementation holds the whole core: Core.Macros is outside the import closure of Core.Impl",
    "detail": "Core.Macros is outside the import closure of Core.Impl",

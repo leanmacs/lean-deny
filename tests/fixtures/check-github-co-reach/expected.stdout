@@ -1,0 +1,3 @@
+::error file=../graph-ws/AppTest.lean,line=1,title=lean-deny%3A co-reach rule 1::co-reach rule 1 (../co-reach-bites/lean-deny.toml:6:0): every root that uses the core's types is the executable: AppTest reaches Core.Types but not Main%0A  ../graph-ws/AppTest.lean:1: AppTest imports App%0A  ../graph-ws/App.lean:2: App imports Core.Api%0A  ../graph-ws/core/Core/Api.lean:5: Core.Api imports Core.Types
+::error file=../graph-ws/core/Core/Impl.lean,title=lean-deny%3A co-reach rule 2::co-reach rule 2 (../co-reach-bites/lean-deny.toml:12:0): every core module links the macros and the base: Core.Impl is in 'if-reaches' but does not reach Base and Core.Macros%0A  ../graph-ws/core/Core/Impl.lean: Core.Impl
+lean-deny: 2 violations in 2 of 2 rules

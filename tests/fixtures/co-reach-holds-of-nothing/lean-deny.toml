@@ -1,0 +1,13 @@
+# Rule 1 holds; rule 2's root, Core.Prim, imports nothing, so no root reaches
+# App and the rule holds of nothing (exit 2). The error is per rule.
+[[co-reach]]
+roots = "mod:Main!"
+if-reaches = "mod:App!"
+must-reach = "mod:Base!"
+reason = "the app links the base"
+
+[[co-reach]]
+roots = "mod:Core.Prim!"
+if-reaches = "mod:App!"
+must-reach = "mod:Base!"
+reason = "the primitives never reach the app"

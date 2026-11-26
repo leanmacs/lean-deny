@@ -1,0 +1,17 @@
+# co-reach tables with shape mistakes, each reported at its line (exit 2,
+# before Lake runs).
+[[co-reach]]
+roots = "mod:App!"
+
+[[co-reach]]
+roots = 1
+if-reaches = []
+must-reach = "mod:Base!"
+reason = "  "
+transitive = true
+
+[[co-reach]]
+roots = "mod:App!"
+if-reaches = "mod:Core.Impl!"
+must-reach = ["pkg:core", 2]
+reason = false

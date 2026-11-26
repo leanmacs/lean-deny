@@ -1,0 +1,4 @@
+# --format github of co-reach violations: a line annotation on the witness chain's first import, and a file-level one on the root's file when the chain is empty; the policy is co-reach-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../co-reach-bites/lean-deny.toml", "--format", "github"]
+exit = 1

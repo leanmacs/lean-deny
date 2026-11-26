@@ -1,6 +1,8 @@
 # The editor-project acceptance policy, cut down, over editor-ws, where every
 # rule holds (exit 0), reachable rule 1 among them: every Editor.… module is
-# Editor.Core or imported by it.
+# Editor.Core or imported by it; and co-reach rule 1: every listed root that
+# reaches Editor.Config.Elaborate (EditorSetRoot, EditorSetFixtures and
+# CompileTest.Linked, through Editor.Headless) also reaches Editor.
 run = "direct"
 args = ["check", "--workspace", "../editor-ws", "--config", "lean-deny.toml"]
 exit = 0

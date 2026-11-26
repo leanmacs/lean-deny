@@ -1,8 +1,9 @@
 # The editor-acceptance fixtures' workspace, editor-ws plus one breaking
-# import per import rule of the acceptance policy, and a core module,
+# import per import rule of the acceptance policy, a core module,
 # Editor.Test.Shell, that only a package test imports, outside the core
-# root's closure (tests/fixtures/editor-acceptance-*): its own policy has no
-# rules.
+# root's closure, and a fixture-harness root, EditorSetFixtures, that reaches
+# the config elaborator without importing the config base
+# (tests/fixtures/editor-acceptance-*): its own policy has no rules.
 run = "direct"
 args = ["check"]
 exit = 0

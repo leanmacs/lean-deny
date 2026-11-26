@@ -1,0 +1,7 @@
+co-reach rule 1 (lean-deny.toml:6:0): every root that uses the core's types is the executable: AppTest reaches Core.Types but not Main
+  AppTest.lean:1: AppTest imports App
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+co-reach rule 2 (lean-deny.toml:12:0): every core module links the macros and the base: Core.Impl is in 'if-reaches' but does not reach Base and Core.Macros
+  core/Core/Impl.lean: Core.Impl
+lean-deny: 2 violations in 2 of 2 rules

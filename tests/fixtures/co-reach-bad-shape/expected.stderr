@@ -1,0 +1,9 @@
+lean-deny: error: lean-deny.toml:3:0: co-reach rule 1 has no 'if-reaches'
+lean-deny: error: lean-deny.toml:3:0: co-reach rule 1 has no 'must-reach'
+lean-deny: error: lean-deny.toml:3:0: co-reach rule 1 has no 'reason'
+lean-deny: error: lean-deny.toml:7:8: co-reach rule 2: 'roots' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:8:13: co-reach rule 2: 'if-reaches' is empty
+lean-deny: error: lean-deny.toml:10:9: co-reach rule 2: 'reason' is empty
+lean-deny: error: lean-deny.toml:11:13: co-reach rule 2: unknown key 'transitive' (expected roots, if-reaches, must-reach, reason)
+lean-deny: error: lean-deny.toml:16:26: co-reach rule 3 ('must-reach'): expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:17:9: co-reach rule 3: 'reason' must be a string, found a boolean

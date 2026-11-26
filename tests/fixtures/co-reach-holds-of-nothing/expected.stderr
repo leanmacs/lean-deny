@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:9:0: co-reach rule 2: no module of 'roots' reaches a module of 'if-reaches', so the rule holds of nothing

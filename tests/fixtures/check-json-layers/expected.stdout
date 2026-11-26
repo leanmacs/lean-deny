@@ -8,6 +8,7 @@
     "file": "../layers-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "app (implementation) may not import plugin (implementation)",
    "detail": "app (implementation) may not import plugin (implementation)",
    "chain":
@@ -29,6 +30,7 @@
     "file": "../layers-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "app (implementation) may not import typo (implementation)",
    "detail": "app (implementation) may not import typo (implementation)",
    "chain":
@@ -50,6 +52,7 @@
     "file": "../layers-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "editor (core) may not import plugin (implementation)",
    "detail": "editor (core) may not import plugin (implementation)",
    "chain":
@@ -71,6 +74,7 @@
     "file": "../layers-bites/lean-deny.toml",
     "column": 0},
    "module": null,
+   "missing": [],
    "message": "iface (interface) may not import typo (implementation)",
    "detail": "iface (interface) may not import typo (implementation)",
    "chain":

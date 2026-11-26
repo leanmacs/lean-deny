@@ -192,8 +192,10 @@ private def jOptNat (n? : Option Nat) : Json :=
 private def jOptStr (s? : Option String) : Json :=
   (s?.map Json.str).getD .null
 
-/-- A reachable violation's module: its name and file (relative to the
-workspace root when under it, otherwise as is); `null` for the other kinds. -/
+/-- A violation's module (the module a reachable rule does not reach, or a
+co-reach rule's root), or one of a co-reach violation's missing modules: its
+name and file (relative to the workspace root when under it, otherwise as
+is); `null` for none. -/
 private def moduleJson (g : Graph) : Option NodeId → Json
   | none => .null
   | some m =>
@@ -210,7 +212,8 @@ private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
             ("line", jOptNat (v.pos?.map (·.line))), ("column", jOptNat (v.pos?.map (·.column))),
             ("reason", jOptStr v.reason?)]),
       ("message", Json.str v.message), ("detail", jOptStr v.detail?),
-      ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?)]
+      ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?),
+      ("missing", Json.arr (v.missing.map (moduleJson g ∘ some)))]
 
 private def diagnosticJson (d : Diagnostic) : Json :=
   Json.mkObj
@@ -234,8 +237,10 @@ def toJsonCheck (ctx : ReportCtx) (r : CheckResult) : Json :=
       ("errors", Json.arr errors), ("summary", Json.str r.summary)]
 
 /-- The result as GitHub workflow commands: one `::error` annotation per
-violation, on the import that starts its chain (for a reachable rule, on the
-uncovered module's file, with no line), or per error; then the summary line.
+violation, on the import that starts its chain (when the chain is empty, as
+for a reachable rule or a co-reach rule whose root is itself in
+`if-reaches`, on the file of the violation's module, with no line), or per
+error; then the summary line.
 Ends in one newline. -/
 def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
   let rel (f : System.FilePath) : String := githubFile ctx.cwd f.toString
