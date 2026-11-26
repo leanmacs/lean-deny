@@ -187,7 +187,7 @@ def cases : Array (String × Array M × Array PackageInfo × String × Array Str
 
 /-- A layers violation's header without a position. -/
 def renderingFailures : Array String :=
-  let v : Violation := { label := "layers", pos? := none, reason := "r", chain := #[] }
+  let v : Violation := { rule := ⟨.layers, 1⟩, pos? := none, reason? := some "r", chain := #[] }
   let got := ", ".intercalate (v.render default "p.toml").toList
   let want := "layers (p.toml): r"
   if got == want then #[] else #[s!"expected {repr want}, got {repr got}"]

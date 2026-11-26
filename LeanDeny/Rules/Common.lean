@@ -13,18 +13,36 @@ open Lean LeanDeny.Graph
 
 namespace LeanDeny
 
-/-- One violation of any rule kind: the rule's label, table position and
-reason, and the chain of imports that breaks it. -/
+/-- One violation of any rule kind: the rule, its table position, its
+reason, what the violation is, and the chain of imports that breaks it. -/
 structure Violation where
-  /-- "deny rule 1", "allow-only rule 2": names one rule of the policy. -/
-  label : String
+  /-- The rule it breaks. -/
+  rule : RuleRef
   /-- The rule's table. -/
   pos? : Option Toml.Pos
-  reason : String
-  /-- At least one edge, exactly one for a direct deny rule and an allow-only
-  rule; consecutive (`chain[i].dst = chain[i+1].src`). -/
+  /-- The rule's `reason` as written: always set for deny and allow-only,
+  optional for `[layers]`. -/
+  reason? : Option String
+  /-- What this violation is, beyond the reason: for `[layers]`,
+  "app (implementation) may not import plugin (implementation)". -/
+  detail? : Option String := none
+  /-- At least one edge, exactly one for a direct deny rule, an allow-only
+  rule and `[layers]`; consecutive (`chain[i].dst = chain[i+1].src`). -/
   chain : Array Edge
   deriving BEq, Repr, Inhabited
+
+/-- "deny rule 1", "allow-only rule 2", "layers": names the rule. -/
+def Violation.label (v : Violation) : String :=
+  v.rule.label
+
+/-- The header's text after the position: "<reason>: <detail>", the reason,
+or the detail. -/
+def Violation.message (v : Violation) : String :=
+  match v.reason?, v.detail? with
+  | some r, some d => s!"{r}: {d}"
+  | some r, none => r
+  | none, some d => d
+  | none, none => ""
 
 /-- Items as prose: "a", "a and b", "a, b and c"; "" for none. -/
 def proseList (xs : Array String) : String :=
@@ -61,15 +79,17 @@ def leavesPackage (g : Graph) (e : Edge) : Bool :=
   | _, _ => true
 
 /-- One step of a chain: `<file>[:<line>]: <importer> imports <imported>[ (implicit)]`,
-the file relative to the workspace. -/
-def chainLine (g : Graph) (e : Edge) : String :=
-  let pos := g.relPath e.file ++ ((e.line?.map (s!":{·}")).getD "")
+the file through `path` (by default, relative to the workspace). -/
+def chainLine (g : Graph) (e : Edge) (path : System.FilePath → String := g.relPath) : String :=
+  let pos := path e.file ++ ((e.line?.map (s!":{·}")).getD "")
   s!"{pos}: {nodeName g e.src} imports {nodeName g e.dst}{if e.implicit then " (implicit)" else ""}"
 
-/-- A violation as a block: `<label> (<path>:<line>:<column>): <reason>`,
-then one step per edge, indented two spaces. `path` is the policy's. -/
-def Violation.render (g : Graph) (path : String) (v : Violation) : Array String :=
-  #[s!"{v.label} ({Policy.posText path v.pos?}): {v.reason}"] ++
-    v.chain.map fun e => s!"  {chainLine g e}"
+/-- A violation as a block: `<label> (<path>:<line>:<column>): <message>`,
+then one step per edge, indented two spaces. `policyPath` is the policy's;
+`path` writes each step's file (as in `chainLine`). -/
+def Violation.render (g : Graph) (policyPath : String) (v : Violation)
+    (path : System.FilePath → String := g.relPath) : Array String :=
+  #[s!"{v.label} ({Policy.posText policyPath v.pos?}): {v.message}"] ++
+    v.chain.map fun e => s!"  {chainLine g e path}"
 
 end LeanDeny

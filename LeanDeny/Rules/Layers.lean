@@ -157,11 +157,8 @@ def resolveLayers (g : Graph) (p : Policy) (sets : Std.HashMap String (Array Nod
 private def violation (r : LayersRule) (pa : Name) (la : String) (pb : Name) (lb : String)
     (e : Edge) : Violation :=
   let detail := s!"{plainName pa} ({la}) may not import {plainName pb} ({lb})"
-  let reason :=
-    match r.reason? with
-    | some why => s!"{why}: {detail}"
-    | none => detail
-  { label := "layers", pos? := r.pos?, reason, chain := #[e] }
+  { rule := ⟨.layers, 1⟩, pos? := r.pos?, reason? := r.reason?, detail? := some detail,
+    chain := #[e] }
 
 /-- Evaluate the classified packages: the violations, in report order (each
 workspace module in `displayOrder`, then its imports in source order), and,

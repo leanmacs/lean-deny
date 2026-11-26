@@ -84,6 +84,36 @@ structure SetDef where
   except : Array SelectorRef
   deriving BEq, Repr, Inhabited
 
+/-- The kind of a policy rule. -/
+inductive RuleKind where
+  | deny
+  | allowOnly
+  | layers
+  deriving BEq, Repr, Inhabited, DecidableEq
+
+/-- As the policy writes it: "deny", "allow-only", "layers". -/
+def RuleKind.toString : RuleKind → String
+  | .deny => "deny"
+  | .allowOnly => "allow-only"
+  | .layers => "layers"
+
+instance : ToString RuleKind :=
+  ⟨RuleKind.toString⟩
+
+/-- One rule of a policy: its kind and its 1-based index among the tables of
+that kind (always 1 for `[layers]`, of which there is at most one). -/
+structure RuleRef where
+  kind : RuleKind
+  index : Nat
+  deriving BEq, Repr, Inhabited
+
+/-- "deny rule 1", "allow-only rule 2", "layers". -/
+def RuleRef.label (r : RuleRef) : String :=
+  match r.kind with
+  | .deny => s!"deny rule {r.index}"
+  | .allowOnly => s!"allow-only rule {r.index}"
+  | .layers => "layers"
+
 /-- One `[[deny]]` table: no module of `sources` may import a module of
 `targets`, directly or (with `transitive`) through others, unless the
 importer, or a module the chain passes through, is a wrapper. (`from` is a
@@ -107,9 +137,13 @@ structure DenyRule where
   reason : String := ""
   deriving BEq, Repr, Inhabited
 
+/-- The rule's reference: `deny` and its index. -/
+def DenyRule.ref (r : DenyRule) : RuleRef :=
+  ⟨.deny, r.index⟩
+
 /-- "deny rule 1". -/
 def DenyRule.label (r : DenyRule) : String :=
-  s!"deny rule {r.index}"
+  r.ref.label
 
 /-- One `[[allow-only]]` table: every import by a module it governs, of a
 module outside that module's own package, must land in `allow`. -/
@@ -130,9 +164,13 @@ structure AllowOnlyRule where
   reason : String := ""
   deriving BEq, Repr, Inhabited
 
+/-- The rule's reference: `allow-only` and its index. -/
+def AllowOnlyRule.ref (r : AllowOnlyRule) : RuleRef :=
+  ⟨.allowOnly, r.index⟩
+
 /-- "allow-only rule 1". -/
 def AllowOnlyRule.label (r : AllowOnlyRule) : String :=
-  s!"allow-only rule {r.index}"
+  r.ref.label
 
 /-- One entry of `[layers]`'s `classify`: the packages `select` matches are
 in `layer`. -/

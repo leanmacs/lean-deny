@@ -46,7 +46,7 @@ structure AllowOnlyResolved where
 
 /-- The violation of rule `r` that import `e` witnesses. -/
 def AllowOnlyRule.violation (r : AllowOnlyRule) (e : Edge) : Violation :=
-  { label := r.label, pos? := r.pos?, reason := r.reason, chain := #[e] }
+  { rule := r.ref, pos? := r.pos?, reason? := some r.reason, chain := #[e] }
 
 /-- "allow-only rule 3", or "allow-only rules 3 and 4". -/
 private def rulesText (ns : Array Nat) : String :=

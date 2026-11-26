@@ -57,7 +57,7 @@ every violation's block followed by the summary line. -/
 def checkReport (g : Graph.Graph) (p : Policy) (vs : Array Violation) : Array String :=
   if vs.isEmpty then #[okLine p.ruleCount]
   else
-    let broken := (vs.map (·.label)).toList.eraseDups.length
+    let broken := (vs.map (·.rule)).toList.eraseDups.length
     vs.flatMap (·.render g p.path) |>.push (summaryLine vs.size broken p.ruleCount)
 
 /-- Run `check`. Diagnostics go to stderr; the report to stdout. -/

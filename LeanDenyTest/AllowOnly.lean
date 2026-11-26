@@ -199,7 +199,7 @@ def cases : Array (String × Array M × String × Array String) :=
 
 /-- An allow-only violation's header without a position. -/
 def renderingFailures : Array String :=
-  let v : Violation := { label := "allow-only rule 1", pos? := none, reason := "r", chain := #[] }
+  let v : Violation := { rule := ⟨.allowOnly, 1⟩, pos? := none, reason? := some "r", chain := #[] }
   let got := ", ".intercalate (v.render default "p.toml").toList
   let want := "allow-only rule 1 (p.toml): r"
   if got == want then #[] else #[s!"expected {repr want}, got {repr got}"]

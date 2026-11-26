@@ -225,7 +225,7 @@ def cases : Array (String × Array M × String × Array String) :=
 
 /-- `okLine`, `summaryLine` and a violation's header without a position. -/
 def renderingFailures : Array String :=
-  let v : Violation := { label := "deny rule 1", pos? := none, reason := "r", chain := #[] }
+  let v : Violation := { rule := ⟨.deny, 1⟩, pos? := none, reason? := some "r", chain := #[] }
   let want :=
     [(okLine 0, "lean-deny: ok (0 rules)"), (okLine 1, "lean-deny: ok (1 rule)"),
       (okLine 2, "lean-deny: ok (2 rules)"),

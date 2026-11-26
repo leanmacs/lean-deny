@@ -56,7 +56,7 @@ structure DenyResolved where
 /-- The violation of rule `r` that `chain` witnesses: a chain of imports
 from a module in `from` to a module in `to`. -/
 def DenyRule.violation (r : DenyRule) (chain : Array Edge) : Violation :=
-  { label := r.label, pos? := r.pos?, reason := r.reason, chain }
+  { rule := r.ref, pos? := r.pos?, reason? := some r.reason, chain }
 
 /-- Resolve rule `r`'s selectors in `g`, with the policy's sets resolved in
 `sets`. The errors, in order: each selector that matches nothing (source
