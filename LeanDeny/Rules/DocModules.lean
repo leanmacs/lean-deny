@@ -45,22 +45,8 @@ directory), `some (.error e)` for a read failure, `some (.ok text)` for the
 text. -/
 def DocModulesRule.readResult (p : Policy) (r : DocModulesRule)
     (contents : Option (Except String String)) : DocRead :=
-  let loc := Policy.locate p.path r.pos?
-  match contents with
-  | none =>
-    .error <|
-      loc s!"{r.label}: no file '{r.file}' in the workspace (looking for heading '{r.heading}')"
-  | some (.error e) =>
-    .error <| loc s!"{r.label}: cannot read '{r.file}' (looking for heading '{r.heading}'): {e}"
-  | some (.ok text) =>
-    match findSection text r.heading with
-    | .ok s => .ok s
-    | .error .notFound => .error <| loc s!"{r.label}: no heading '{r.heading}' in '{r.file}'"
-    | .error (.ambiguous lines) =>
-      .error <|
-        loc <|
-        s!"{r.label}: heading '{r.heading}' appears {lines.size} times in '{r.file}' \
-            (lines {proseList (lines.map toString)})"
+  readDocSection (Policy.locate p.path r.pos?) r.label r.file r.heading contents
+    (findSection · r.heading)
 
 /-- A doc-modules rule with its selectors resolved. -/
 structure DocModulesResolved where

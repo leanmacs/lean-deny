@@ -83,28 +83,12 @@ def DocPackagesRule.readResult (p : Policy) (r : DocPackagesRule)
     (contents : Option (Except String String)) : DocPackagesRead :=
   Id.run do
     let loc := Policy.locate p.path r.pos?
-    let text ←
-      match contents with
-      | none =>
-        return .error <|
-            loc
-              s!"{r.label}: no file '{r.file}' in the workspace (looking for heading '{r.heading}')"
-      | some (.error e) =>
-        return .error <|
-            loc s!"{r.label}: cannot read '{r.file}' (looking for heading '{r.heading}'): {e}"
-      | some (.ok text) =>
-        pure text
     let (headingLine, tables) ←
-      match sectionTables text r.heading with
+      match readDocSection loc r.label r.file r.heading contents (sectionTables · r.heading) with
       | .ok x =>
         pure x
-      | .error .notFound =>
-        return .error <| loc s!"{r.label}: no heading '{r.heading}' in '{r.file}'"
-      | .error (.ambiguous lines) =>
-        return .error <|
-            loc <|
-            s!"{r.label}: heading '{r.heading}' appears {lines.size} times in '{r.file}' \
-                (lines {proseList (lines.map toString)})"
+      | .error e =>
+        return .error e
     let some first := tables[0]?
       | return .error <| loc s!"{r.label}: section '{r.heading}' of '{r.file}' has no top-level table"
     let names := #[r.packageColumn, r.layerColumn, r.requiresColumn]

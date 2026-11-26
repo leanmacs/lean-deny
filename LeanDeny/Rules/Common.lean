@@ -1,3 +1,4 @@
+import LeanDeny.DocSection
 import LeanDeny.Graph.Model
 import LeanDeny.Graph.View
 import LeanDeny.Policy
@@ -7,7 +8,8 @@ import LeanDeny.Policy
 
 A violation and its rendering, the small graph helpers the rule kinds use
 (a node's name, whether it is external, its package, and whether an import
-leaves its importer's package), and `proseList` for their messages. Pure.
+leaves its importer's package), `proseList` for their messages, and
+`readDocSection` for the doc rules' file and heading diagnostics. Pure.
 -/
 
 open Lean LeanDeny.Graph
@@ -195,6 +197,30 @@ def proseList (xs : Array String) : String :=
   | some last =>
     let init := xs.pop
     if init.isEmpty then last else s!"{", ".intercalate init.toList} and {last}"
+
+/-- Rule `label`'s reading of section `heading` of Markdown file `file`,
+from the file's contents (`none` for no file or a directory, `some (.error e)`
+for a read failure, `some (.ok text)` for the text) with `find`, each
+diagnostic located by `loc`: no file, a read failure, no heading, or a
+heading appearing more than once. Shared by `[[doc-modules]]` and
+`[[doc-packages]]`, so their messages are defined once. -/
+def readDocSection (loc : String → String) (label file heading : String)
+    (contents : Option (Except String String)) (find : String → Except SectionError α) :
+    Except String α :=
+  match contents with
+  | none =>
+    .error <| loc s!"{label}: no file '{file}' in the workspace (looking for heading '{heading}')"
+  | some (.error e) =>
+    .error <| loc s!"{label}: cannot read '{file}' (looking for heading '{heading}'): {e}"
+  | some (.ok text) =>
+    match find text with
+    | .ok x => .ok x
+    | .error .notFound => .error <| loc s!"{label}: no heading '{heading}' in '{file}'"
+    | .error (.ambiguous lines) =>
+      .error <|
+        loc <|
+        s!"{label}: heading '{heading}' appears {lines.size} times in '{file}' \
+            (lines {proseList (lines.map toString)})"
 
 /-- The name of node `n`. -/
 def nodeName (g : Graph) (n : NodeId) : String :=
