@@ -1,0 +1,8 @@
+lean-deny: error: lean-deny.toml:3:0: require-backed rule 1 has no 'packages'
+lean-deny: error: lean-deny.toml:7:11: require-backed rule 2: 'packages' is empty
+lean-deny: error: lean-deny.toml:8:9: require-backed rule 2: 'reason' must be a string, found a boolean
+lean-deny: error: lean-deny.toml:10:0: require-backed rule 3 has no 'reason'
+lean-deny: error: lean-deny.toml:11:12: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, mod, keyword, external, set or imports)
+lean-deny: error: lean-deny.toml:11:23: require-backed rule 3 ('packages'): expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:14:11: require-backed rule 4: 'packages' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:15:9: require-backed rule 4: 'reason' is empty

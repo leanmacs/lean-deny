@@ -1,0 +1,5 @@
+# A require-backed rule over require-ws that holds: Impl (package impl)
+# imports Iface, and impl requires iface directly; iface imports nothing.
+[[require-backed]]
+packages = ["pkg:impl", "pkg:iface"]
+reason = "every cross-package import is backed by a direct require"

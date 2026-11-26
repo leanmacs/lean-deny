@@ -1,3 +1,6 @@
+packages (1):
+  root-ws: requires nothing
+
 nodes (4):
   root-ws/lib/App: 3 modules
     App

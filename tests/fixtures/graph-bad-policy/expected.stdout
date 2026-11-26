@@ -1,3 +1,6 @@
+packages (1):
+  graph-bad-policy: requires nothing
+
 nodes (3):
   Lib (Lib.lean): graph-bad-policy/lib/Lib
   Lib.Util (Lib/Util.lean): graph-bad-policy/lib/Lib

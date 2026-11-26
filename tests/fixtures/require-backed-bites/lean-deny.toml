@@ -1,0 +1,7 @@
+# A require-backed rule over require-ws that bites: App (package require-ws)
+# imports Iface, whose package iface reaches require-ws only through impl's
+# require. App's import of Impl is backed by require-ws's direct require, so
+# it is not reported.
+[[require-backed]]
+packages = "pkg:require-ws"
+reason = "a set may drop any implementation package and still build"

@@ -1,0 +1,39 @@
+{"violations":
+ [{"target": null,
+   "rule":
+   {"reason": "a set may drop any implementation package and still build",
+    "line": 5,
+    "label": "require-backed rule 1",
+    "kind": "require-backed",
+    "index": 1,
+    "file": "../require-backed-bites/lean-deny.toml",
+    "column": 0},
+   "require":
+   {"requires": ["impl"],
+    "package": "require-ws",
+    "imported": "iface",
+    "file": "lakefile.toml"},
+   "module": null,
+   "missing": [],
+   "message":
+   "a set may drop any implementation package and still build: App (package require-ws) imports package iface, which require-ws does not require directly",
+   "detail":
+   "App (package require-ws) imports package iface, which require-ws does not require directly",
+   "chain":
+   [{"public": false,
+     "meta": false,
+     "line": 2,
+     "importer": "App",
+     "imported": "Iface",
+     "implicit": false,
+     "file": "App.lean",
+     "exported": true,
+     "all": false}]}],
+ "summary": "lean-deny: 1 violation in 1 of 1 rule",
+ "schemaVersion": 1,
+ "rules": 1,
+ "policy": "../require-backed-bites/lean-deny.toml",
+ "outcome": "violation",
+ "ok": false,
+ "errors": [],
+ "brokenRules": 1}

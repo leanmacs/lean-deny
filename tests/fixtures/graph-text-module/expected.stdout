@@ -1,3 +1,8 @@
+packages (3):
+  graph-ws: requires core
+  core: requires base
+  base: requires nothing
+
 nodes (13):
   App (App.lean): graph-ws/lib/App
   App.Shared (App/Shared.lean): graph-ws/lib/App, graph-ws/lib/AppTest

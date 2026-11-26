@@ -1,0 +1,2 @@
+::error file=../require-ws/App.lean,line=2,title=lean-deny%3A require-backed rule 1::require-backed rule 1 (../require-backed-bites/lean-deny.toml:5:0): a set may drop any implementation package and still build: App (package require-ws) imports package iface, which require-ws does not require directly%0A  ../require-ws/App.lean:2: App imports Iface%0A  ../require-ws/lakefile.toml: require-ws requires impl
+lean-deny: 1 violation in 1 of 1 rule

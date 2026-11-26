@@ -1,0 +1,3 @@
+lean-deny: error: lean-deny.toml:6:12: selector 'mod:Nope' in require-backed rule 1 ('packages') matches no module: no workspace module is or is under 'Nope'
+lean-deny: error: lean-deny.toml:6:24: selector 'external:Init' in require-backed rule 1 ('packages') matches only modules outside the workspace, which are in no package
+lean-deny: error: lean-deny.toml:9:0: require-backed rule 2 splits package 'require-ws': it matches App but not App.Extra; the rule judges whole packages, so select them with pkg:, keyword:, or a set of them

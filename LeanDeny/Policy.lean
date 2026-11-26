@@ -4,7 +4,7 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows eight top-level keys:
+`lean-deny.toml`. This version knows nine top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
@@ -23,6 +23,10 @@ import LeanDeny.Policy.Selector
 - `[[target-config]]`: rules on Lake targets, each with `targets`,
   `except`, `load-plugin`, `or-imports` and `reason`
   (`LeanDeny.Rules.TargetConfig` evaluates them);
+- `[[require-backed]]`: rules on packages, each with `packages` and
+  `reason`: every import from a module of a matched package into another
+  workspace package is backed by a direct `require`
+  (`LeanDeny.Rules.RequireBacked` evaluates them);
 - `[[root]]`: declared roots, each a `module` and its file's `path`
   relative to the workspace directory: a module no Lake target declares,
   read from its file into the graph (`LeanDeny.Graph.LakeApi`). Roots are
@@ -103,10 +107,11 @@ inductive RuleKind where
   | reachable
   | coReach
   | targetConfig
+  | requireBacked
   deriving BEq, Repr, Inhabited, DecidableEq
 
 /-- As the policy writes it: "deny", "allow-only", "layers", "reachable",
-"co-reach", "target-config". -/
+"co-reach", "target-config", "require-backed". -/
 def RuleKind.toString : RuleKind → String
   | .deny => "deny"
   | .allowOnly => "allow-only"
@@ -114,6 +119,7 @@ def RuleKind.toString : RuleKind → String
   | .reachable => "reachable"
   | .coReach => "co-reach"
   | .targetConfig => "target-config"
+  | .requireBacked => "require-backed"
 
 instance : ToString RuleKind :=
   ⟨RuleKind.toString⟩
@@ -126,7 +132,7 @@ structure RuleRef where
   deriving BEq, Repr, Inhabited
 
 /-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
-"co-reach rule 1", "target-config rule 1". -/
+"co-reach rule 1", "target-config rule 1", "require-backed rule 1". -/
 def RuleRef.label (r : RuleRef) : String :=
   match r.kind with
   | .deny => s!"deny rule {r.index}"
@@ -135,6 +141,7 @@ def RuleRef.label (r : RuleRef) : String :=
   | .reachable => s!"reachable rule {r.index}"
   | .coReach => s!"co-reach rule {r.index}"
   | .targetConfig => s!"target-config rule {r.index}"
+  | .requireBacked => s!"require-backed rule {r.index}"
 
 /-- One `[[deny]]` table: no module of `sources` may import a module of
 `targets`, directly or (with `transitive`) through others, unless the
@@ -301,6 +308,30 @@ def TargetConfigRule.ref (r : TargetConfigRule) : RuleRef :=
 def TargetConfigRule.label (r : TargetConfigRule) : String :=
   r.ref.label
 
+/-- One `[[require-backed]]` table: for each package `packages` matches,
+every import from one of its modules into a module of another workspace
+package is backed by a direct `require` of that package. -/
+structure RequireBackedRule where
+  /-- 1-based, in source order among the `require-backed` tables; a table
+  with errors keeps its number. -/
+  index : Nat
+  /-- The table's position: its `[[require-backed]]` header (column 0), or
+  the `{` of an inline table. -/
+  pos? : Option Toml.Pos
+  /-- `packages`: non-empty in a valid policy. -/
+  packages : Array SelectorRef := #[]
+  /-- `reason`: not blank in a valid policy. -/
+  reason : String := ""
+  deriving BEq, Repr, Inhabited
+
+/-- The rule's reference: `require-backed` and its index. -/
+def RequireBackedRule.ref (r : RequireBackedRule) : RuleRef :=
+  ⟨.requireBacked, r.index⟩
+
+/-- "require-backed rule 1". -/
+def RequireBackedRule.label (r : RequireBackedRule) : String :=
+  r.ref.label
+
 /-- One entry of `[layers]`'s `classify`: the packages `select` matches are
 in `layer`. -/
 structure LayerClass where
@@ -400,20 +431,24 @@ structure Policy where
   coReach : Array CoReachRule := #[]
   /-- The `[[target-config]]` rules, in source order. -/
   targetConfig : Array TargetConfigRule := #[]
+  /-- The `[[require-backed]]` rules, in source order. -/
+  requireBacked : Array RequireBackedRule := #[]
   /-- The `[[root]]` tables, in source order. Not rules. -/
   roots : Array RootDef := #[]
   deriving Repr, Inhabited
 
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets", "deny", "allow-only", "layers", "reachable", "co-reach", "target-config", "root"]
+  #["sets", "deny", "allow-only", "layers", "reachable", "co-reach", "target-config",
+    "require-backed", "root"]
 
 /-- The number of rules of every kind; `[layers]` is one rule. Declared roots
 are not rules. -/
 def Policy.ruleCount (p : Policy) : Nat :=
   p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0) + p.reachable.size +
     p.coReach.size +
-    p.targetConfig.size
+    p.targetConfig.size +
+    p.requireBacked.size
 
 /-- `<path>:<line>:<column>`, or `<path>` with no position. -/
 def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
@@ -471,6 +506,10 @@ def CoReachRule.refs (r : CoReachRule) : Array SelectorRef :=
 together, in source order. -/
 def TargetConfigRule.refs (r : TargetConfigRule) : Array SelectorRef :=
   (r.targets ++ r.except ++ r.orImports).qsort fun a b => posLt a.pos? b.pos?
+
+/-- A require-backed rule's selectors, `packages`, in source order. -/
+def RequireBackedRule.refs (r : RequireBackedRule) : Array SelectorRef :=
+  r.packages
 
 /-- The set a selector names, if any: `set:n`, also inside `imports:`
 (`Selector.setName?`). -/
@@ -584,7 +623,7 @@ private def parseReason (e : Errors) (label : String) (x : Toml.LValue) : Errors
   | _ => (e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}", none)
 
 /-- A top-level array-of-tables key (`deny`, `allow-only`, `reachable`,
-`co-reach`, `target-config`, `root`): each table parsed by `parse` with its 1-based index and the tables parsed before
+`co-reach`, `target-config`, `require-backed`, `root`): each table parsed by `parse` with its 1-based index and the tables parsed before
 it. -/
 private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LValue)
     (parse : Errors → Nat → Array α → Toml.LValue → Errors × α) : Errors × Array α :=
@@ -758,6 +797,41 @@ private def parseCoReach (e : Errors) (index : Nat) (v : Toml.LValue) : Errors �
         e :=
           e.add x.pos? <|
             s!"{label}: unknown key '{k}' (expected {", ".intercalate coReachKeys.toList})"
+    return (e, r)
+
+/-- The keys of a require-backed table, in the order messages list them. -/
+private def requireBackedKeys : Array String :=
+  #["packages", "reason"]
+
+/-- Entry `index` (1-based) of the `require-backed` array, as `parseDeny`. -/
+private def parseRequireBacked (e : Errors) (index : Nat) (v : Toml.LValue) :
+    Errors × RequireBackedRule :=
+  Id.run do
+    let label := s!"require-backed rule {index}"
+    let base : RequireBackedRule := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in requireBackedKeys do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k with
+      | "packages" =>
+        let (e', refs?) := parseRuleSelectors e label (.rule "require-backed" index k) k false x
+        e := e'
+        if let some refs := refs? then
+          r := { r with packages := refs }
+      | "reason" =>
+        let (e', reason?) := parseReason e label x
+        e := e'
+        if let some reason := reason? then
+          r := { r with reason }
+      | _ =>
+        e :=
+          e.add x.pos? <|
+            s!"{label}: unknown key '{k}' (expected {", ".intercalate requireBackedKeys.toList})"
     return (e, r)
 
 /-- The keys of a target-config table, in the order messages list them. -/
@@ -1103,8 +1177,8 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
 
 /-- Check that every `set:` in a rule names a set. `refs` holds each rule's
 selectors (`DenyRule.refs`, `AllowOnlyRule.refs`, `LayersRule.refs`,
-`ReachableRule.refs`, `CoReachRule.refs`, `TargetConfigRule.refs`), in
-rule order. -/
+`ReachableRule.refs`, `CoReachRule.refs`, `TargetConfigRule.refs`,
+`RequireBackedRule.refs`), in rule order. -/
 private def checkRuleRefs (e : Errors) (sets : Array SetDef) (refs : Array (Array SelectorRef)) :
     Errors :=
   Id.run do
@@ -1132,6 +1206,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut reachable := #[]
     let mut coReach := #[]
     let mut targetConfig := #[]
+    let mut requireBacked := #[]
     let mut roots := #[]
     for (k, v) in entries do
       if k == "sets" then
@@ -1167,6 +1242,10 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         let (e', rs) := parseRuleArray e "target-config" v fun e i _ x => parseTargetConfig e i x
         e := e'
         targetConfig := targetConfig ++ rs
+      else if k == "require-backed" then
+        let (e', rs) := parseRuleArray e "require-backed" v fun e i _ x => parseRequireBacked e i x
+        e := e'
+        requireBacked := requireBacked ++ rs
       else if k == "root" then
         let (e', rs) := parseRuleArray e "root" v parseRoot
         e := e'
@@ -1178,11 +1257,13 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
       deny.map (·.refs) ++ allowOnly.map (·.refs) ++ (layers?.map (#[·.refs])).getD #[] ++
         reachable.map (·.refs) ++
         coReach.map (·.refs) ++
-        targetConfig.map (·.refs)
+        targetConfig.map (·.refs) ++
+        requireBacked.map (·.refs)
     let errs := checkRuleRefs e' sets refs
     if errs.msgs.isEmpty then
       return .ok
-          { path, sets, order, deny, allowOnly, layers?, reachable, coReach, targetConfig, roots }
+          { path, sets, order, deny, allowOnly, layers?, reachable, coReach, targetConfig,
+            requireBacked, roots }
     return .error errs.msgs
 
 /-- Only the `[[root]]` tables of the parsed TOML document at `path`; every

@@ -87,7 +87,8 @@ def ctx : ReportCtx :=
 
 /-- The hand-made results: the transitive deny violation `A > Y > Z`, a
 violation on an implicit import, one without a position, one of `[layers]`,
-one of a target-config rule; and the policy they are checked against. -/
+one of a target-config rule, one of a require-backed rule; and the policy
+they are checked against. -/
 structure Fixture where
   g : Graph
   p : Policy
@@ -96,6 +97,7 @@ structure Fixture where
   noPos : Violation
   layersV : Violation
   targetV : Violation
+  requireV : Violation
 
 def fixture : IO (Except String Fixture) := do
   let ms := #[Deny.m `A #[`X, `Y], Deny.m `X, Deny.m `Y #[`Z], Deny.m `Z]
@@ -120,7 +122,15 @@ def fixture : IO (Except String Fixture) := do
             target? :=
               some
                 { pkg := `p, kind := .lib, name := `L, configFile := "/ws/p/lakefile.toml"
-                  plugins := #[{ text := "@x/y" }] } } }
+                  plugins := #[{ text := "@x/y" }] } }
+        requireV :=
+          { rule := ⟨.requireBacked, 1⟩, pos? := v0.pos?, reason? := some "why"
+            detail? := some "A (package p) imports package q, which p does not require directly"
+            chain := v0.chain.extract 0 1
+            require? :=
+              some
+                { pkg := `p, imported := `q, configFile := "/ws/lakefile.toml",
+                  requires := #[`r] } } }
 
 def githubFailures (f : Fixture) : Array String :=
   let gh (vs : Array Violation) := renderGithub ctx (.checked f.g f.p vs)
@@ -144,6 +154,23 @@ def githubFailures (f : Fixture) : Array String :=
     expect "text: target-config" ("\n".intercalate (f.targetV.render f.g f.p.path).toList)
       "target-config rule 1 (p.toml:1:0): why: lean_lib p/L does not load t\n  \
           p/lakefile.toml: lean_lib L" ++
+    expect "github: require-backed, on the import, the requires line last" (gh #[f.requireV])
+      "::error file=A.lean,line=2,title=lean-deny%3A require-backed rule 1::require-backed rule 1 \
+          (p.toml:1:0): why: A (package p) imports package q, which p does not require \
+          directly%0A  A.lean:2: A imports Y%0A  lakefile.toml: p requires r\n\
+          lean-deny: 1 violation in 1 of 1 rule\n" ++
+    expect "text: require-backed" ("\n".intercalate (f.requireV.render f.g f.p.path).toList)
+      "require-backed rule 1 (p.toml:1:0): why: A (package p) imports package q, which p does not \
+          require directly\n  A.lean:2: A imports Y\n  lakefile.toml: p requires r" ++
+    expect "text: require-backed, requiring nothing"
+      ("\n".intercalate
+        ({ f.requireV with
+                require? :=
+                  f.requireV.require?.map fun (r : RequireGap) =>
+                    { r with requires := #[] } }.render
+            f.g f.p.path).toList)
+      "require-backed rule 1 (p.toml:1:0): why: A (package p) imports package q, which p does not \
+          require directly\n  A.lean:2: A imports Y\n  lakefile.toml: p requires nothing" ++
     expect "github: holds" (gh #[]) "lean-deny: ok (1 rule)\n" ++
     expect "github: failed" (renderGithub ctx (.failed (some 2) #["p.toml:4:7: bad", "lake: boom"]))
       "::error file=p.toml,line=4,col=8,title=lean-deny%3A error::bad\n::error \
@@ -161,8 +188,8 @@ def jsonFailures (f : Fixture) : Array String :=
   Id.run do
     let results : Array (String × CheckResult × Bool × String × Json) :=
       #[("holds", .checked f.g f.p #[], true, "holds", toJson (1 : Nat)),
-        ("violation", .checked f.g f.p (f.vs ++ #[f.implicitV, f.layersV, f.targetV]), false,
-          "violation", toJson (1 : Nat)),
+        ("violation", .checked f.g f.p (f.vs ++ #[f.implicitV, f.layersV, f.targetV, f.requireV]),
+          false, "violation", toJson (1 : Nat)),
         ("failed", .failed none #["p.toml:4:7: bad", "lake: boom"], false, "error", .null)]
     let mut fs := #[]
     for (what, r, ok, outcome, rules) in results do
@@ -189,9 +216,22 @@ def jsonFailures (f : Fixture) : Array String :=
             path.foldl (fun x k => (x.getObjVal? k).toOption.getD .null) v
           let step0 (v : Json) : Json := (((field v ["chain"]).getArrVal? 0).toOption).getD .null
           fs :=
-            fs ++ check "violation: four violations" (vs.size == 4) ++
+            fs ++ check "violation: five violations" (vs.size == 5) ++
               check "violation: a deny violation's target is null"
                 (field vs[0]! ["target"] == .null) ++
+              check "violation: a deny or target-config violation's require is null"
+                (field vs[0]! ["require"] == .null && field vs[3]! ["require"] == .null) ++
+              check "violation: the require-backed require"
+                (field vs[4]! ["require"] ==
+                  Json.mkObj
+                    [("package", Json.str "p"), ("imported", Json.str "q"),
+                      ("file", Json.str "lakefile.toml"),
+                      ("requires", Json.arr #[Json.str "r"])]) ++
+              check "violation: a require-backed chain is the one import, its kind and label"
+                ((field vs[4]! ["chain"]).getArr?.toOption.map (·.size) == some 1 &&
+                  field vs[4]! ["rule", "kind"] == Json.str "require-backed" &&
+                  field vs[4]! ["rule", "label"] == Json.str "require-backed rule 1" &&
+                  field vs[4]! ["target"] == .null) ++
               check "violation: the target-config target"
                 (field vs[3]! ["target"] ==
                   Json.mkObj

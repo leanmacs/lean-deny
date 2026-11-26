@@ -1,3 +1,8 @@
+packages (3):
+  graph-ws: requires core
+  core: requires base
+  base: requires nothing
+
 nodes (7):
   base/lib/Base: 1 module
     Base

@@ -1,0 +1,5 @@
+# The require-backed fixtures' workspace (tests/fixtures/require-backed-*): its
+# own policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0

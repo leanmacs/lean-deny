@@ -1,0 +1,13 @@
+# The require-backed fixtures' workspace (tests/fixtures/require-backed-*):
+# App requires impl directly, and impl requires iface, so iface reaches App
+# only through impl. App imports both, so its import of Iface is backed by
+# no require of its own. Never built.
+name = "require-ws"
+
+[[require]]
+name = "impl"
+path = "impl"
+
+[[lean_lib]]
+name = "App"
+globs = ["App.*"]  # App.lean and App/Extra.lean

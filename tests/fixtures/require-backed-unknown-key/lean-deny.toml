@@ -1,0 +1,6 @@
+# A require-backed table with a key it does not know (exit 2, before Lake
+# runs), next to valid keys.
+[[require-backed]]
+packages = "pkg:require-ws"
+from = "pkg:x"
+reason = "every cross-package import is backed by a direct require"

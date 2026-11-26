@@ -1,3 +1,7 @@
+packages (2):
+  lib-unreached-module: requires dep
+  dep: requires nothing
+
 nodes (5):
   Dep (dep/Dep.lean): dep/lib/Dep
   Dep.Deep (dep/Dep/Deep.lean): dep/lib/Dep

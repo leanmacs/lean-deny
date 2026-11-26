@@ -1,3 +1,6 @@
+packages (1):
+  root-ws: requires nothing
+
 nodes (6):
   App (App.lean): root-ws/lib/App
   App.Extra (App/Extra.lean): root-ws/lib/App

@@ -13,7 +13,7 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]` and `[[target-config]]` rules of
+> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]` and `[[require-backed]]` rules of
 > `lean-deny.toml`, checks that every selector matches, and exits 1 with
 > the violations when a rule is broken. Any other top-level key is an
 > error, never silently ignored. `lean-deny explain` lists the modules a
@@ -61,6 +61,7 @@ imports.
 | `reachable` | Every module in B is a module of A or imported by one, directly or not: nothing in B lies outside A's import closure. | none |
 | `co-reach` | Every root in R whose import closure holds a module of A also holds every module of B. | none |
 | `target-config` | Every `lean_lib` and `lean_exe` of a set of packages loads a given Lake plugin, or has a module whose import closure holds a module of A. | none |
+| `require-backed` | Every import from a module of a package in A into another workspace package is backed by a direct `require` of that package in the importer's lakefile. | none |
 
 ### Selectors
 
@@ -748,6 +749,88 @@ Each of these is an error (exit 2), reported at the policy's
 
 When the policy has any error, no violation is reported.
 
+### require-backed
+
+A `[[require-backed]]` rule says a package declares every workspace package
+it imports: for each package it selects, every import from one of the
+package's modules into a module of another workspace package is backed by
+a direct `require` of that package in the importing package's lakefile.
+
+```toml
+[[require-backed]]
+packages = ["pkg:app", "keyword:editor-implementation"]
+reason = "a set may drop any implementation package and still build"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `packages` | yes | a selector or a non-empty array of selectors (their union), any form: the packages judged |
+| `reason` | yes | a non-blank string, printed with every violation |
+
+Rules are numbered `require-backed rule 1`, `require-backed rule 2`, … in
+the order they are written, apart from the other kinds' numbers. Both
+`[[require-backed]]` tables and an inline `require-backed = [{ … }, …]`
+work.
+
+**Why:** Lake resolves a workspace's packages from their `require`s,
+transitively. If package Q imports interface package I but reaches I only
+through implementation package P's `require`, dropping P from a set's
+requires drops I too and breaks Q. editor-project's "Leave-out" rule (every
+implementation package can be left out of a set and the set still builds)
+is this rule plus the three-layer rule (see "layers"; no package imports an
+implementation package), checked statically: lean-deny never runs `lake
+update` or `lake build`.
+
+**The packages** judged are those of the workspace modules `packages`
+matches. A rule judges whole packages: like a `[layers]` classify entry, it
+must not match some modules of a package and not others. Select packages
+with `pkg:`, `keyword:`, or a set of them.
+
+**Backed:** an import from a module of judged package A into a module of
+another workspace package B is backed when A's lakefile `require`s B
+directly (the names compared as written in the lakefiles; `lean-deny graph`
+lists each package's requires). Imports within a package, of modules
+outside the workspace (`Init`, `Lean`, …) and to or from a declared root (a
+root is in no package) are not judged. Every import kind counts: plain,
+`meta`, `public` and `all`.
+
+**What is checked:** each (importing module, imported module) pair whose
+import is not backed is one violation, naming the importing package, the
+imported package, the importing module and the reason; its chain is the
+first such import directive, and a last line lists what the importing
+package does require. Violations come after the other kinds', by importing
+module (sorted by library), then imports in source order. From
+`tests/fixtures/require-backed-bites`, where `require-ws` requires `impl`
+and `impl` requires `iface`:
+
+```
+require-backed rule 1 (lean-deny.toml:5:0): a set may drop any implementation package and still build: App (package require-ws) imports package iface, which require-ws does not require directly
+  App.lean:2: App imports Iface
+  lakefile.toml: require-ws requires impl
+lean-deny: 1 violation in 1 of 1 rule
+```
+
+`App`'s import of `Impl` is backed by `require-ws`'s direct require, so it
+is not reported. In `--format json` the violation's `require` holds the
+importing package, the imported package, the lakefile and its requires
+([docs/check-json.md](docs/check-json.md)); in `--format github` it is
+annotated on the import.
+
+Each of these is an error (exit 2), reported at the policy's
+`file:line:column`:
+
+- a malformed rule: `require-backed` not an array of tables, a missing
+  `packages` or `reason`, an empty selector array, a blank `reason`, an
+  unknown key (`require-backed rule 1: unknown key 'from' (expected
+  packages, reason)`), a value of the wrong kind, or a malformed selector;
+- a `set:` that names no set;
+- a selector that matches no module, or only modules in no package
+  (modules outside the workspace, or declared roots);
+- a rule that splits a package: `require-backed rule 1 splits package 'app':
+  it matches App but not App.Extra; …`.
+
+When the policy has any error, no violation is reported.
+
 ## A policy, sketched
 
 ```toml
@@ -863,7 +946,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach" and "target-config"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
+| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach", "target-config" and "require-backed"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a selector that names a set (`set:x`, `imports:set:x`), and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
@@ -873,8 +956,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach` or `target-config` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config` or `require-backed` violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a require-backed table with an unknown key or a missing `packages` or `reason`, a require-backed selector that matches only modules in no package (outside the workspace, or declared roots), a require-backed rule that splits a package, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With
@@ -886,7 +969,10 @@ diagnostics still go to stderr.
 `check --format github` prints each violation as a GitHub Actions error
 annotation on the import that starts its chain (file and line), with the
 rule, its reason and the whole chain in the message, so it shows on the
-pull request's diff; a policy error is annotated on `lean-deny.toml`. Paths
+pull request's diff: a `deny`, `allow-only`, `layers`, `co-reach` or
+`require-backed` violation on its import, a `reachable` violation (and a
+`co-reach` one with an empty chain) on its module's file, a `target-config`
+violation on its package's lakefile; a policy error is annotated on `lean-deny.toml`. Paths
 are relative to the working directory, so run it from the repository root.
 With lean-deny as the lint driver:
 
@@ -926,6 +1012,12 @@ three levels:
   `exe` node.
 - `package`: one node per package.
 
+At every level, the text output starts with the workspace's packages, in
+Lake's order, each with its direct requires as its lakefile writes them
+(`graph-ws: requires core`, `base: requires nothing`): what a
+`require-backed` rule compares imports against. (JSON already has them, as
+each package's `requires`.)
+
 A declared root (see "Declared roots") is its own node at every level: at
 module level `EditorSetRoot (.lake/build/root/EditorSetRoot.lean): declared
 root`, above it `root/EditorSetRoot`, so its imports stay visible.
@@ -962,9 +1054,10 @@ queries on hand-written graphs (`query`); of the module, lib and package
 views on a hand-written graph (`view`); of what selectors and sets match
 on a hand-written graph (`resolve`); of `deny` rules on hand-written
 graphs, from the policy's text to what `check` prints (`deny`), and of
-`allow-only` rules, `[layers]`, `[[reachable]]`, `[[co-reach]]` and
-`[[target-config]]` rules the same way (`allow-only`, `layers`, `reachable`,
-`co-reach`, `target-config`); of the
+`allow-only` rules, `[layers]`, `[[reachable]]`, `[[co-reach]]`,
+`[[target-config]]` and `[[require-backed]]` rules the same way
+(`allow-only`, `layers`, `reachable`, `co-reach`, `target-config`,
+`require-backed`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 of the check report's JSON and GitHub renderings, including the golden
@@ -1002,7 +1095,8 @@ broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
 `allow-only-*` for `allow-only`, over the `tier-ws` workspace; `layers-*`
 for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces;
 `reachable-*` for `reachable` and `co-reach-*` for `co-reach`, over
-`graph-ws`; `target-config-*` for `target-config`, over `target-ws`);
+`graph-ws`; `target-config-*` for `target-config`, over `target-ws`;
+`require-backed-*` for `require-backed`, over `require-ws`);
 `check-json-*` and `check-github-*` for `--format json` and `github` (over
 the same workspaces), and `lake-lint-github` for
 `lake lint -- --format github`. The `editor-acceptance-*` fixtures run a

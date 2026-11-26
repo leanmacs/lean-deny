@@ -1,0 +1,11 @@
+# require-backed rules over require-ws whose selectors match nothing or only
+# modules in no package (rule 1), and one that splits package require-ws:
+# mod:App! matches App but not App.Extra (rule 2). Every error is reported;
+# no violation is.
+[[require-backed]]
+packages = ["mod:Nope", "external:Init"]
+reason = "wrong in every selector"
+
+[[require-backed]]
+packages = "mod:App!"
+reason = "judges part of a package"

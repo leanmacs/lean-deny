@@ -73,18 +73,26 @@ def renderLayers (r : LayersRule) : String :=
   s!"layers@{renderPos r.pos?} classify[{", ".intercalate (r.classify.map entry).toList}] \
     default={dflt} allow[{", ".intercalate (r.allow.map pair).toList}] reason={reason}"
 
+/-- A require-backed rule as `require-backed#1@pos packages[…] reason="…"`. -/
+def renderRequireBacked (r : RequireBackedRule) : String :=
+  let refs (rs : Array SelectorRef) := ", ".intercalate (rs.map renderRef).toList
+  s!"require-backed#{r.index}@{renderPos r.pos?} packages[{refs r.packages}] \
+    reason={repr r.reason}"
+
 /-- A declared root as `root#1@pos Module=path`. -/
 def renderRoot (r : RootDef) : String :=
   s!"root#{r.index}@{renderPos r.pos?} {r.module}={r.path}"
 
 /-- Every set, then the order by name, then every deny rule, then every
-allow-only rule, then `[layers]`, then every declared root. -/
+allow-only rule, then `[layers]`, then every require-backed rule, then
+every declared root. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
   (p.sets.map renderSet |>.push
       s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
     p.deny.map renderRule ++
     p.allowOnly.map renderAllowOnly ++
     (p.layers?.map fun r => #[renderLayers r]).getD #[] ++
+    p.requireBacked.map renderRequireBacked ++
     p.roots.map renderRoot
 
 /-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
@@ -122,11 +130,11 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
       .error
         #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, root)"]),
+            co-reach, target-config, require-backed, root)"]),
     ("foo = 1", "foo = 1\n",
       .error
         #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, root)"]),
+            co-reach, target-config, require-backed, root)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -201,7 +209,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external, set or imports)",
           "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, root)",
+            co-reach, target-config, require-backed, root)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/
@@ -750,9 +758,49 @@ def renderingFailures : Array String :=
     locs.toArray.filterMap fun (got, w) =>
       if got == w then none else some s!"locate: expected {repr w}, got {repr got}"
 
+/-- `[[require-backed]]`: the two forms of `packages`, and every load-time
+error. -/
+def requireBackedCases : Array (String × String × Except (Array String) (Array String)) :=
+  #[("require-backed, one selector", "[[require-backed]]\npackages = \"pkg:a\"\nreason = \"r\"\n",
+      .ok
+        #["order: ",
+          "require-backed#1@1:0 packages[pkg:a@2:11 require-backed1.packages] reason=\"r\""]),
+    ("require-backed, an array of selectors",
+      "[[require-backed]]\npackages = [\"pkg:a\", \"keyword:impl\"]\nreason = \"r\"\n",
+      .ok
+        #["order: ",
+          "require-backed#1@1:0 packages[pkg:a@2:12 require-backed1.packages, \
+            keyword:impl@2:21 require-backed1.packages] reason=\"r\""]),
+    ("require-backed, no packages", "[[require-backed]]\nreason = \"r\"\n",
+      .error #["p.toml:1:0: require-backed rule 1 has no 'packages'"]),
+    ("require-backed, no reason", "[[require-backed]]\npackages = \"pkg:a\"\n",
+      .error #["p.toml:1:0: require-backed rule 1 has no 'reason'"]),
+    ("require-backed, empty packages", "[[require-backed]]\npackages = []\nreason = \"r\"\n",
+      .error #["p.toml:2:11: require-backed rule 1: 'packages' is empty"]),
+    ("require-backed, wrong types", "[[require-backed]]\npackages = 1\nreason = 2\n",
+      .error
+        #["p.toml:2:11: require-backed rule 1: 'packages' must be a selector or an array of \
+            selectors, found an integer",
+          "p.toml:3:9: require-backed rule 1: 'reason' must be a string, found an integer"]),
+    ("require-backed, a blank reason", "[[require-backed]]\npackages = \"pkg:a\"\nreason = \"\"\n",
+      .error #["p.toml:3:9: require-backed rule 1: 'reason' is empty"]),
+    ("require-backed, an unknown key",
+      "[[require-backed]]\npackages = \"pkg:a\"\nfrom = \"pkg:x\"\nreason = \"r\"\n",
+      .error
+        #["p.toml:3:7: require-backed rule 1: unknown key 'from' (expected packages, reason)"]),
+    ("require-backed, not an array", "require-backed = 1\n",
+      .error
+        #["p.toml:1:17: 'require-backed' must be an array of tables, such as [[require-backed]]"]),
+    ("require-backed, an unknown set",
+      "[[require-backed]]\npackages = \"set:nope\"\nreason = \"r\"\n",
+      .error
+        #["p.toml:2:11: selector 'set:nope' in require-backed rule 1 ('packages') names an \
+            unknown set (the policy defines no sets)"])]
+
 def run : IO (Array String) := do
   let mut fs := renderingFailures ++ (← sketchFailures) ++ (← rootsOnlyFailures)
-  for (name, src, want) in cases ++ denyCases ++ allowOnlyCases ++ layersCases ++ rootCases do
+  for (name, src, want) in
+    cases ++ denyCases ++ allowOnlyCases ++ layersCases ++ requireBackedCases ++ rootCases do
     let got := (← load src).map renderPolicy
     let same :=
       match got, want with

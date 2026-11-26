@@ -1,0 +1,2 @@
+# `require-backed` must be an array of tables.
+require-backed = 1

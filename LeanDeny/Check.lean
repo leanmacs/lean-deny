@@ -8,6 +8,7 @@ import LeanDeny.Rules.CoReach
 import LeanDeny.Rules.Deny
 import LeanDeny.Rules.Layers
 import LeanDeny.Rules.Reachable
+import LeanDeny.Rules.RequireBacked
 import LeanDeny.Rules.TargetConfig
 
 /-!
@@ -20,7 +21,8 @@ check the policy's rules: deny rules (`LeanDeny.Rules.Deny`), then
 allow-only rules (`LeanDeny.Rules.AllowOnly`), then `[layers]`
 (`LeanDeny.Rules.Layers`), then reachable rules
 (`LeanDeny.Rules.Reachable`), then co-reach rules (`LeanDeny.Rules.CoReach`),
-then target-config rules (`LeanDeny.Rules.TargetConfig`). Cheap failures come
+then target-config rules (`LeanDeny.Rules.TargetConfig`), then
+require-backed rules (`LeanDeny.Rules.RequireBacked`). Cheap failures come
 first: a bad workspace path
 or policy is reported before Lake runs.
 
@@ -37,14 +39,14 @@ namespace LeanDeny
 
 /-- Every rule of `p`, with the policy's sets resolved in `sets`: deny rules,
 then allow-only rules, then `[layers]`, then reachable rules, then co-reach
-rules, then target-config rules. Every error of
+rules, then target-config rules, then require-backed rules. Every error of
 every kind (in that order), or, when there is none, every violation (in that
 order). -/
 def checkRules (g : Graph.Graph) (p : Policy) (sets : Std.HashMap String (Array Graph.NodeId)) :
     Except (Array String) (Array Violation) :=
   let rs :=
     #[checkDeny g p sets, checkAllowOnly g p sets, checkLayers g p sets, checkReachable g p sets,
-      checkCoReach g p sets, checkTargetConfig g p sets]
+      checkCoReach g p sets, checkTargetConfig g p sets, checkRequireBacked g p sets]
   let errs :=
     rs.flatMap fun
       | .error es => es

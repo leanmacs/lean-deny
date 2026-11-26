@@ -183,7 +183,9 @@ declared roots), so consumers must tolerate kinds they do not know.
 ## Text and DOT
 
 The text format is for people and carries the same information as the JSON
-nodes and edges, with each witness as
+nodes and edges, preceded at every level by a `packages (N):` section: one
+line per package, in the order of `packages`, `<name>: requires <r1, r2>`
+(its `requires`, as written) or `<name>: requires nothing`. Each witness reads
 `<file>[:<line>]: <importer>: <directive>[ (implicit)]`; it may change
 without notice. The DOT format draws the nodes and edges; edges whose
 witnesses are all implicit are dotted, external nodes are dashed, edges are

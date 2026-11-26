@@ -1,3 +1,7 @@
+packages (2):
+  lib-unreached-module: requires dep
+  dep: requires nothing
+
 nodes (3):
   dep/lib/Dep: 3 modules
     Dep

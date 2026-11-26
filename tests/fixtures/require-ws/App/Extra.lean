@@ -1,0 +1,1 @@
+-- Imports nothing across packages; it lets `mod:App!` split the package.

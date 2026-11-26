@@ -4,7 +4,8 @@ import LeanDeny.Graph.View
 /-!
 # Printing a view
 
-`render` prints a `View` as text (for people), JSON (for tools; the schema is
+`render` prints a `View` as text (for people; it starts with every
+workspace package's direct requires), JSON (for tools; the schema is
 in `docs/graph-json.md`) or Graphviz DOT. Pure; each rendering ends in exactly
 one newline and follows the view's order.
 
@@ -93,6 +94,17 @@ private def textNode (g : Graph) (v : View) (n : ViewNode) : Array String :=
     #[s!"  {n.id}: {plural n.members.size "module"}{kws}"] ++
       n.members.map fun m => s!"    {nodeName g m}"
 
+/-- One line per workspace package, in Lake's order: `<package>: requires
+<r1, r2>` (its direct requires, as written in its lakefile), or `requires
+nothing`. -/
+private def packageLines (g : Graph) : Array String :=
+  g.packages.map fun p =>
+    let reqs :=
+      if p.requires.isEmpty then "nothing" else ", ".intercalate (p.requires.map plainName).toList
+    s!"  {plainName p.name}: requires {reqs}"
+
+/-- The view as text, at every level: the workspace's packages and their
+direct requires, then the view's nodes, then its edges. -/
 private def renderText (g : Graph) (v : View) : String :=
   let id (i : Nat) := (v.nodes[i]?.map (·.id)).getD "?"
   let nodes := v.nodes.flatMap (textNode g v)
@@ -101,7 +113,10 @@ private def renderText (g : Graph) (v : View) : String :=
       #[s!"  {id e.src} -> {id e.dst} ({plural e.count "import"})"] ++
         e.imports.filterMap fun i => g.edges[i]?.map fun x => s!"    {witnessLine g x}"
   let lines :=
-    #[s!"nodes ({v.nodes.size}):"] ++ nodes ++ #["", s!"edges ({v.edges.size}):"] ++ edges
+    #[s!"packages ({g.packages.size}):"] ++ packageLines g ++ #["", s!"nodes ({v.nodes.size}):"] ++
+      nodes ++
+      #["", s!"edges ({v.edges.size}):"] ++
+      edges
   "\n".intercalate lines.toList ++ "\n"
 
 /-! ## JSON -/

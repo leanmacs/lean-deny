@@ -1,0 +1,8 @@
+name = "impl"
+
+[[require]]
+name = "iface"
+path = "../iface"
+
+[[lean_lib]]
+name = "Impl"

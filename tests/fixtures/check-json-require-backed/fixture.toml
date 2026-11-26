@@ -1,0 +1,4 @@
+# --format json of a require-backed violation, with `chain` and `require`; the policy is require-backed-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../require-ws", "--config", "../require-backed-bites/lean-deny.toml", "--format", "json"]
+exit = 1

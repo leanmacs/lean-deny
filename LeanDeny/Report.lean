@@ -214,6 +214,18 @@ private def targetJson (g : Graph) : Option TargetRef → Json
         ("name", Json.str (plainName t.name)), ("file", Json.str (g.relPath t.configFile)),
         ("plugins", Json.arr (t.plugins.map (Json.str ·.text)))]
 
+/-- A require-backed violation's package dependency: the importing package,
+the imported package, the importing package's lakefile (relative to the
+workspace root when under it, otherwise as is) and its direct requires, as
+written; `null` for the other kinds. -/
+private def requireJson (g : Graph) : Option RequireGap → Json
+  | none => .null
+  | some r =>
+    Json.mkObj
+      [("package", Json.str (plainName r.pkg)), ("imported", Json.str (plainName r.imported)),
+        ("file", Json.str (g.relPath r.configFile)),
+        ("requires", Json.arr (r.requires.map (Json.str ∘ plainName)))]
+
 private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
   Json.mkObj
     [("rule",
@@ -225,7 +237,7 @@ private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
       ("message", Json.str v.message), ("detail", jOptStr v.detail?),
       ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?),
       ("missing", Json.arr (v.missing.map (moduleJson g ∘ some))),
-      ("target", targetJson g v.target?)]
+      ("target", targetJson g v.target?), ("require", requireJson g v.require?)]
 
 private def diagnosticJson (d : Diagnostic) : Json :=
   Json.mkObj
@@ -252,8 +264,8 @@ def toJsonCheck (ctx : ReportCtx) (r : CheckResult) : Json :=
 violation, on the import that starts its chain (when the chain is empty, as
 for a reachable rule or a co-reach rule whose root is itself in
 `if-reaches`, on the file of the violation's module, with no line; for a
-target-config rule, on the target's package lakefile, with no line), or per
-error; then the summary line.
+target-config rule, on the target's package lakefile, with no line; a
+require-backed violation's chain is its one unbacked import), or per error; then the summary line.
 Ends in one newline. -/
 def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
   let rel (f : System.FilePath) : String := githubFile ctx.cwd f.toString

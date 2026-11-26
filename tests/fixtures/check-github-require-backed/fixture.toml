@@ -1,0 +1,4 @@
+# --format github of a require-backed violation: a line annotation on the unbacked import, its block ending in the importing package's requires; the policy is require-backed-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../require-ws", "--config", "../require-backed-bites/lean-deny.toml", "--format", "github"]
+exit = 1

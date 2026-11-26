@@ -1,0 +1,15 @@
+# require-backed tables with shape mistakes, each reported at its line (exit
+# 2, before Lake runs).
+[[require-backed]]
+reason = "no packages"
+
+[[require-backed]]
+packages = []
+reason = false
+
+[[require-backed]]
+packages = ["crate:x", 2]
+
+[[require-backed]]
+packages = 1
+reason = "  "
