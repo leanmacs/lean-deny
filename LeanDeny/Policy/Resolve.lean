@@ -179,7 +179,9 @@ private def closure (p : Policy) (start : Nat) : Array Bool :=
 one set (`explain set:x`). Errors are rendered with `Policy.locate`, in
 source order of the sets, then of the selectors within a set. A `set:`
 selector adds no error of its own: a set it names that failed has reported
-already, and the referring set goes on with what that set did match. -/
+already, and the referring set goes on with what that set did match. Nor does
+an except entry that seems to remove nothing when a `select` selector of its
+set failed, or names a set that failed: the set's modules are not all known. -/
 def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
     Except (Array String) (Std.HashMap String (Array NodeId)) :=
   Id.run do
@@ -205,13 +207,21 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
           | s => matchSelector g s
       let mut selected := #[]
       let mut removed := #[]
+      -- Whether a `select` selector failed, or names a set that failed: then
+      -- `selected` may be short, and an except entry that seems to remove
+      -- nothing would be a second error for the same mistake.
+      let mut selectFailed := false
       for (r, m) in refs.zip results do
-        if let .ok ns := m then
-          match r.use with
-          | .setExcept _ =>
-            removed := union removed ns
-          | _ =>
-            selected := union selected ns
+        match r.use, m with
+        | .setExcept _, .ok ns =>
+          removed := union removed ns
+        | .setExcept _, _ =>
+          pure ()
+        | _, .ok ns =>
+          selected := union selected ns
+          selectFailed := selectFailed || r.setName?.any failed.contains
+        | _, _ =>
+          selectFailed := true
       let mut es := #[]
       let loc (pos? : Option Toml.Pos) (msg : String) := Policy.locate p.path pos? msg
       for (r, m) in refs.zip results do
@@ -223,7 +233,8 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
           es := es.push (loc r.pos? s!"{r.describe} is ambiguous: {detail}")
         | .ok ns =>
           if let .setExcept _ := r.use then
-            if !ns.isEmpty && !fromFailedSet && (diff ns selected).size == ns.size then
+            let removesNone := !ns.isEmpty && (diff ns selected).size == ns.size
+            if removesNone && !fromFailedSet && !selectFailed then
               es := es.push (loc r.pos? s!"{r.describe} removes no module from it")
       let result := diff selected removed
       if !selected.isEmpty && result.isEmpty then

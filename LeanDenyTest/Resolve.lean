@@ -145,6 +145,17 @@ def setCases : Array (String × LeanDeny.Policy × Option String × Array String
       mkPolicy #[mkSet "t" 1 ["lib:AppTest"] ["mod:AppTest!", "mod:App.Shared!"]], none,
       #["error: p.toml:1:0: set 't' matches no module: its except list removes every module it \
           selects"]),
+    ("a failed select selector adds no 'removes no module' error",
+      mkPolicy #[mkSet "core" 1 ["mod:Core.Apii"] ["mod:Core.Api!"]], none,
+      #["error: p.toml:1:10: selector 'mod:Core.Apii' in set 'core' matches no module: no \
+          workspace module is or is under 'Core.Apii'"]),
+    ("a select-side set: naming a failed set adds no 'removes no module' error",
+      mkPolicy
+        #[mkSet "bad" 1 ["mod:Apps", "mod:App!"],
+          mkSet "s" 2 ["set:bad", "pkg:core"] ["mod:App.Shared!"]],
+      none,
+      #["error: p.toml:1:10: selector 'mod:Apps' in set 'bad' matches no module: no workspace \
+          module is or is under 'Apps'"]),
     ("an ambiguous lib in a set", mkPolicy #[mkSet "util" 1 ["lib:Util"]], none,
       #["error: p.toml:1:10: selector 'lib:Util' in set 'util' is ambiguous: lean_lib 'Util' is \
           in packages core, other; write 'lib:<package>/Util'"]),
