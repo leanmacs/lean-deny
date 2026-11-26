@@ -1,0 +1,3 @@
+[[root]]
+module = "Broken"
+path = "gen/Broken.lean"

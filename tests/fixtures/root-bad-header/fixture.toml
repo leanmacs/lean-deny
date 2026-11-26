@@ -1,0 +1,5 @@
+# A declared root whose header Lean cannot parse: exit 2 with the parse
+# error, located at the file, as Lake reports one for an ordinary module.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

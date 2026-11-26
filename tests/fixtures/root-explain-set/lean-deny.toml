@@ -1,0 +1,9 @@
+# A set whose selectors match the declared root `Gen` and a library module,
+# minus the library module. explain set: loads the whole policy, so the
+# declared root must reach the graph through that path too.
+[[root]]
+module = "Gen"
+path = "gen/Gen.lean"
+
+[sets]
+gen = { select = ["mod:Gen!", "mod:App!"], except = ["mod:App!"] }

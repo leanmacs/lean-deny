@@ -2,8 +2,9 @@
 # target lists, as a Lake facet's generated root would be. `App.Extra` is a
 # module of library App that no root of App reaches: only `Gen` imports it,
 # so it is in the graph only because the declared root's imports seed the
-# search. `gen/Bad.lean` imports a module of App that has no file; this
-# workspace's own policy does not declare it. Never built.
+# search. `gen/Bad.lean` imports a module of App that has no file, and
+# `gen/Broken.lean` has a header Lean cannot parse; this workspace's own
+# policy declares neither. Never built.
 name = "root-ws"
 
 [[lean_lib]]

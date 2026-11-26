@@ -1,0 +1,4 @@
+# set: resolves against a graph that includes the policy's declared roots.
+run = "direct"
+args = ["explain", "--workspace", "../root-ws", "--config", "lean-deny.toml", "set:gen"]
+exit = 0
