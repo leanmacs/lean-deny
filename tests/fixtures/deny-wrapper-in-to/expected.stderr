@@ -1,0 +1,2 @@
+lean-deny: error: lean-deny.toml:9:11: selector 'mod:Core.Api!' in deny rule 1 ('wrappers') excuses nothing: it matches only modules in 'to', and a wrapper is a module allowed to import 'to', so list the module that imports it instead
+lean-deny: error: lean-deny.toml:16:11: selector 'mod:Core.Api!' in deny rule 2 ('wrappers') excuses nothing: it matches only modules in 'to', and a wrapper is a module allowed to import 'to', so list the module that imports it instead

@@ -18,7 +18,7 @@ A deny rule says no module of `from` may import a module of `to`. Pure.
 - **Wrappers** excuse importers. A `from` module that is a wrapper is
   excused, in both modes. A transitive search never walks out of a wrapper,
   so a chain through one is allowed; reaching a wrapper that is itself in
-  `to` is still a violation.
+  `to` is still a violation, since a chain stops at the first `to` module.
 
 A rule's selectors are resolved against the graph first. A selector that
 matches nothing, a `from` selector that matches only external modules, `from`
@@ -31,7 +31,10 @@ A wrapper module is *used* when it is the first wrapper on a chain from a
 `from` module into `to`: for a direct rule, a `from` module with an import
 into `to`; for a transitive rule, a module reached from `from` (or in it)
 without passing a wrapper or a `to` module, from which some `to` module is
-reachable. A wrapper selector none of whose modules is used excuses nothing.
+reachable. A wrapper in `to` is never used, in either mode: no `to` module
+is in `from`, and a chain stops at it before walking out of it. A wrapper
+selector none of whose modules is used excuses nothing; when every module it
+matches is in `to`, the error says so and points at the importer instead.
 -/
 
 open Lean LeanDeny.Graph
@@ -146,17 +149,23 @@ def evalDeny (g : Graph) (d : DenyResolved) : Array DenyViolation × Array Bool 
       else #[]
     let used (w : NodeId) : Bool :=
       let inFromW := inFrom[w]?.getD false
-      if d.rule.transitive then
-        (inFromW || reached[w]?.getD false) && (g.shortestPath? #[w] isTo).isSome
-      else inFromW && (g.imports w).any (isTo ·.dst)
+      !isTo w &&
+        if d.rule.transitive then
+          (inFromW || reached[w]?.getD false) && (g.shortestPath? #[w] isTo).isSome
+        else inFromW && (g.imports w).any (isTo ·.dst)
     return (vs, d.wrappers.map fun (_, ns) => ns.any used)
 
-/-- The message for wrapper selector `ref` of rule `r` that excuses nothing. -/
-private def unusedWrapper (r : DenyRule) (ref : SelectorRef) : String :=
+/-- The message for wrapper selector `ref` of rule `r` that excuses nothing,
+`allInTo` when every module it matches is in `to`. -/
+private def unusedWrapper (r : DenyRule) (ref : SelectorRef) (allInTo : Bool) : String :=
   let why :=
-    if r.transitive then
+    match allInTo, r.transitive with
+    | true, _ =>
+      "it matches only modules in 'to', and a wrapper is a module allowed to import 'to', \
+        so list the module that imports it instead"
+    | false, true =>
       "none of its modules is the first wrapper on an import chain from 'from' to 'to'"
-    else "none of its modules is in 'from' and imports a module in 'to'"
+    | false, false => "none of its modules is in 'from' and imports a module in 'to'"
   s!"{ref.describe} excuses nothing: {why}"
 
 /-- Every deny rule of `p`, with the policy's sets resolved in `sets`: the
@@ -173,9 +182,10 @@ def checkDeny (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeId)
         errs := errs ++ es
       | .ok d =>
         let (rvs, used) := evalDeny g d
-        for ((ref, _), u) in d.wrappers.zip used do
+        for ((ref, ns), u) in d.wrappers.zip used do
           unless u do
-            errs := errs.push (Policy.locate p.path ref.pos? (unusedWrapper r ref))
+            let allInTo := ns.all d.targets.contains
+            errs := errs.push (Policy.locate p.path ref.pos? (unusedWrapper r ref allInTo))
         vs := vs ++ rvs
     if errs.isEmpty then
       return .ok vs

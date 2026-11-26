@@ -61,6 +61,10 @@ def direct : String :=
 def transitive : String :=
   "none of its modules is the first wrapper on an import chain from 'from' to 'to'"
 
+def inTo : String :=
+  "it matches only modules in 'to', and a wrapper is a module allowed to import 'to', so list \
+    the module that imports it instead"
+
 /-- `(case, modules, policy, expected lines)`. -/
 def cases : Array (String × Array M × String × Array String) :=
   #[ -- Direct rules.
@@ -146,6 +150,11 @@ def cases : Array (String × Array M × String × Array String) :=
       trule "\"mod:A!\"" "[\"mod:T!\", \"mod:T2!\"]" "wrappers = \"mod:W!\"\n",
       #[s!"p.toml:5:11: selector 'mod:W!' in deny rule 1 ('wrappers') excuses nothing: \
           {transitive}"]),
+    ("a wrapper in to excuses nothing, in either mode", #[m `A #[`W], m `W #[`T], m `T],
+      rule "\"mod:A!\"" "[\"mod:W!\", \"mod:T!\"]" "wrappers = \"mod:W!\"\n" ++
+        trule "\"mod:A!\"" "[\"mod:W!\", \"mod:T!\"]" "wrappers = \"mod:W!\"\n",
+      #[s!"p.toml:4:11: selector 'mod:W!' in deny rule 1 ('wrappers') excuses nothing: {inTo}",
+        s!"p.toml:10:11: selector 'mod:W!' in deny rule 2 ('wrappers') excuses nothing: {inTo}"]),
     -- External and implicit targets.
     ("direct: an external target", #[m `A #[`Lean.Elab.Command]],
       rule "\"mod:A!\"" "\"external:Lean.Elab\"",

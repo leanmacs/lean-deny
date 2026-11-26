@@ -160,14 +160,19 @@ written. Both `[[deny]]` tables and an inline `deny = [{ … }, …]` work.
 `wrappers`). A `from` module that is a wrapper is excused, in both modes. A
 transitive rule never follows the imports of a wrapper, so a chain that
 passes through one is allowed; a chain that avoids every wrapper is still a
-violation. A wrapper that is itself in `to` still counts as reached.
+violation. A wrapper that is itself in `to` still counts as reached: a
+chain into it is a violation, since a chain stops at the first module of
+`to` it reaches.
 
 A wrapper selector must excuse something. A wrapper module is used when it
 is the first wrapper on a chain from `from` to `to`: for a direct rule, it
 is in `from` and imports a module of `to`; for a transitive rule, it is in
 `from`, or reached from `from` without passing through another wrapper or a
 module of `to`, and some module of `to` is reachable from it. A selector none
-of whose modules is used is an error. One used module is enough, so
+of whose modules is used is an error. A wrapper module in `to` is never
+used, in either mode: no module of `to` is in `from`, and a chain stops at
+it. When every module a selector matches is in `to`, the error says so: list
+the module that imports it instead. One used module is enough, so
 `wrappers = ["mod:Editor.Adapters"]` may cover several adapters of which
 only some import `to`. Removing an unused selector never changes the rule's
 result.

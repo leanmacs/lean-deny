@@ -1,0 +1,17 @@
+# A wrapper that is itself in `to` excuses nothing, in either mode: no `to`
+# module is in `from`, and a chain stops at the first `to` module it reaches.
+# Core.Api is in the core package, so both selectors are errors with the same
+# message, though the app does import Core.Api (rule 1) and Core.Api reaches
+# Core.Types (rule 2). The error hides the violations.
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+wrappers = "mod:Core.Api!"
+reason = "the app imports no core module"
+
+[[deny]]
+from = "pkg:graph-ws"
+to = "pkg:core"
+transitive = true
+wrappers = "mod:Core.Api!"
+reason = "the app reaches no core module"
