@@ -36,8 +36,9 @@ def isSetName (s : String) : Bool :=
   !s.isEmpty && s.all fun c => c.isAlphanum || c == '-' || c == '_'
 
 /-- `s` as a module name written as in `import` (`Core.Api`, `«my-mod».X`):
-no empty, numeric or anonymous component. -/
-private def moduleName? (s : String) : Option Name :=
+no empty, numeric or anonymous component. A `[[root]]` table's `module`
+(`LeanDeny.Policy`) goes through it too. -/
+def parseModuleName? (s : String) : Option Name :=
   let n := s.toName
   let ok :=
     !n.isAnonymous &&
@@ -88,12 +89,13 @@ def Selector.parse (s : String) : Except String Selector := do
     | _ =>
       throw "expected 'lib:<lib>' or 'lib:<package>/<lib>'"
   | "mod" =>
-    let some n := moduleName? body | throw (moduleReason (if body.isEmpty then value else body))
+    let some n :=
+      parseModuleName? body | throw (moduleReason (if body.isEmpty then value else body))
     return .mod n (body.length < value.length)
   | "keyword" =>
     return .keyword value
   | "external" =>
-    let some n := moduleName? value | throw (moduleReason value)
+    let some n := parseModuleName? value | throw (moduleReason value)
     return .external n
   | _ =>
     unless isSetName value do

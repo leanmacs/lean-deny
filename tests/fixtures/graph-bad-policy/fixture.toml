@@ -1,6 +1,8 @@
-# graph never reads the policy: a malformed lean-deny.toml (the same one as
-# malformed-policy, where check exits 2) must not stop it. Run from inside
-# this minimal workspace, so the default --workspace picks it up.
+# graph reads the policy only for its [[root]] tables, and a lean-deny.toml
+# that is not valid TOML (the same one as malformed-policy, where check exits
+# 2) must not stop it: it warns, and prints the graph without declared roots.
+# Run from inside this minimal workspace, so the default --workspace picks it
+# up.
 run = "direct"
 args = ["graph", "--format", "text", "--level", "module"]
 exit = 0

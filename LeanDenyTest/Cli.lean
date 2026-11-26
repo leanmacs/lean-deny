@@ -17,8 +17,8 @@ def check (ws : System.FilePath := ".") (config? : Option System.FilePath := non
   .ok (.check { workspace := ws, config?, format })
 
 def graph (ws : System.FilePath := ".") (format : LeanDeny.Graph.Format := .text)
-    (level : LeanDeny.Graph.Level := .module) : Expect :=
-  .ok (.graph { workspace := ws, format, level })
+    (level : LeanDeny.Graph.Level := .module) (config? : Option System.FilePath := none) : Expect :=
+  .ok (.graph { workspace := ws, config?, format, level })
 
 def explain (text : String) (ws : System.FilePath := ".")
     (config? : Option System.FilePath := none) : Expect :=
@@ -74,7 +74,10 @@ def graphCases : Array (List String × Expect) :=
     (["graph", "--format"], .error "option '--format' requires a value"),
     (["graph", "--level="], .error "option '--level' requires a value"),
     (["graph", "--level", "--format", "json"], .error "option '--level' requires a value"),
-    (["graph", "--config", "p.toml"], .error "unknown option '--config' for 'graph'"),
+    (["graph", "--config", "p.toml"], graph "." .text .module (some "p.toml")),
+    (["graph", "--config=p.toml", "--workspace", "w", "--level", "lib"],
+      graph "w" .text .lib (some "p.toml")),
+    (["graph", "--config", "a", "--config", "b"], .error "option '--config' given more than once"),
     (["graph", "--frob"], .error "unknown option '--frob' for 'graph'"),
     (["graph", "x"], .error "unexpected argument 'x'")]
 

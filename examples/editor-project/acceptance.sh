@@ -10,6 +10,10 @@
 # workspace's .lake/, which is why the run never points lean-deny at the
 # original.
 #
+# The policy declares the two roots the package-set build generates under
+# packages/.lake/build/root/ ([[root]]); lean-deny never runs Lake to write them,
+# so the script generates them in the copy first.
+#
 # It checks the policy (examples/editor-project/lean-deny.toml) over the copy's
 # packages/ workspace and the core policy (lean-deny.core.toml) over its lean/
 # workspace, expecting exit 0; then, for each breaking edit, starts again from
@@ -72,6 +76,17 @@ mkdir -p "$work/pristine"
 # Nothing under the source may be newer than this when the run ends.
 touch "$work/stamp"
 rsync -a --exclude .lake --exclude target "$source/lean" "$source/packages" "$work/pristine/"
+
+# The policy's declared roots, generated in the copy (never in the source):
+# `query :editorRoot` writes EditorSetRoot.lean. `build --no-build
+# :editorFixtures` fails by design, since --no-build refuses the link, but the
+# facet's own FetchM code writes EditorSetFixtures.lean before any job runs.
+# `cp -R` of the pristine tree carries them into every edit's copy.
+(cd "$work/pristine" && lake -d packages query :editorRoot > /dev/null)
+(cd "$work/pristine" && lake -d packages build --no-build :editorFixtures > /dev/null 2>&1) || true
+for f in EditorSetRoot EditorSetFixtures; do
+  [ -f "$work/pristine/packages/.lake/build/root/$f.lean" ] || { echo "MISMATCH: no generated $f.lean"; failed=1; }
+done
 
 echo "== load the packages/ workspace as it is"
 set +e

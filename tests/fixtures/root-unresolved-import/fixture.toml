@@ -1,0 +1,6 @@
+# A declared root importing a module Lake resolves to a workspace library
+# with no file fails with the message unresolved-import gives for an
+# ordinary module.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

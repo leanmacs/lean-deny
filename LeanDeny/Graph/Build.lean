@@ -10,6 +10,11 @@ import LeanDeny.Graph.Raw
   same file, is one node with all of them as owners. The same name from two
   files or two packages is an error: Lean could not import both, and a graph
   that picked one would check the wrong code.
+- **Declared roots** (`[[root]]` in the policy) are merged in after the
+  targets' modules, as nodes with no owner. A name a target already
+  provides is an error: a declared root must be a module no Lake target
+  provides. Their imports are paired, checked and turned into edges as any
+  module's.
 - **External nodes** are the direct import targets no workspace target lists
   (`Init`, `Lean.Data.Json`, …). The toolchain's own imports are not read.
 - **Unresolvable imports.** An import Lake resolves to a workspace library
@@ -38,6 +43,8 @@ private def isImplicitInit (imp : RawImport) (isMeta : Bool) : Bool :=
 private structure Merged where
   first : RawModule
   owners : Array Owner
+  /-- A declared root: `owners` is empty. -/
+  declared : Bool := false
   deriving Inhabited
 
 /-- Split Lake's imports into whether the implicit `Init` pair is present
@@ -85,6 +92,17 @@ def build (snap : Snapshot) (headers : Std.HashMap Name (Array HeaderImport)) :
         throw s!"module {m.name} is provided by both {describe g.first} and {describe m}"
       unless g.owners.contains m.owner do
         merged := merged.insert m.name { g with owners := g.owners.push m.owner }
+  -- 1b. The declared roots, each a module no target provides.
+  for r in snap.roots do
+    let n := r.decl.module
+    if let some g := merged[n]? then
+      throw
+          s!"{r.decl.loc}: module {n} is already provided by {describe g.first}; \
+        a declared root must be a module no Lake target provides"
+    order := order.push n
+    let first : RawModule :=
+      { name := n, owner := default, file := r.file, isModule := r.isModule, imports := r.imports }
+    merged := merged.insert n { first, owners := #[], declared := true }
   -- 2.–4. Workspace nodes, external nodes, and the unresolvable-import check.
   let mut paired : Std.HashMap Name (Bool × Array (RawImport × HeaderImport)) := {}
   let mut externals : Std.HashSet Name := {}
@@ -115,7 +133,8 @@ def build (snap : Snapshot) (headers : Std.HashMap Name (Array HeaderImport)) :
       match merged[n]? with
       | some g =>
         let owners := g.owners.qsort Owner.lt
-        { name := n, origin := .workspace owners, file? := some g.first.file
+        { name := n, origin := if g.declared then .declared else .workspace owners
+          file? := some g.first.file
           isModule := g.first.isModule
           isPrelude := !(paired[n]?.map (·.1) |>.getD true) }
       | none => { name := n, origin := .external, file? := none }

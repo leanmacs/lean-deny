@@ -10,7 +10,8 @@ import LeanDeny.Rules.Layers
 /-!
 # `lean-deny check`
 
-Resolve the workspace, load the policy, load the workspace's module graph,
+Resolve the workspace, load the policy, load the workspace's module graph
+with the policy's declared roots (`[[root]]`),
 resolve every set of the policy against it (each selector must match), then
 check the policy's rules: deny rules (`LeanDeny.Rules.Deny`), then
 allow-only rules (`LeanDeny.Rules.AllowOnly`), then `[layers]`
@@ -67,7 +68,7 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
       return ← finish (.failed none msgs)
   let rules := some policy.ruleCount
   let g ←
-    match ← loadGraph ws with
+    match ← loadGraph ws (rootDecls policy.path policy.roots) with
     | .ok g =>
       pure g
     | .error msgs =>

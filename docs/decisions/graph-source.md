@@ -466,3 +466,36 @@ and that `collect` is a single walk of the facets and executable roots.
 - **Each round is a separate `runBuild`** with `noBuild := true`; nothing is
   built. On editor-project's `packages/` one extra round fetches
   `Editor.Test.Shell`, whose imports add no new module.
+
+## Addendum, 2026-11-26: phase 2 (`editor-project-parity` / `phase-2-generated-root-modules`)
+
+The record above stays as written. This phase adds modules that no Lake
+target declares: the policy's declared roots (`[[root]]`, a module name and
+a path relative to the workspace directory), such as the roots a Lake facet
+generates under `.lake/build/`.
+
+- **Read with Lake's own recipe, outside a facet.** A declared root's header
+  is read exactly as `Lake.Module.recFetchInput` reads any module's (Lake
+  v4.35.0 `Lake/Build/Module.lean`): `Lean.parseImports'` on the file's
+  text, which gives the implicit `Init` pair (unless `prelude`), `isModule`
+  and each import's keywords, then `ws.findModule?` for each import, which is
+  what fills Lake's `module?`. It cannot go through the `input` facet: a
+  `Lake.Module` belongs to a library whose `srcDir` fixes its file's path,
+  and a declared path is arbitrary. A header Lean cannot parse fails the
+  load with the message Lake would log for it.
+- **Their imports seed the phase-1 fixpoint.** The roots' rows join the
+  first frontier of `LakeApi.collectAll`, so a library module that only a
+  declared root imports is fetched and owned by `ws.findModule?`'s library,
+  as phase 1 does for any importer. Root names are in `seen` from the start,
+  so one root importing another is never fetched.
+- **Positions still come from `HeaderParser`.** Each root is parsed for its
+  import lines with the other modules, and paired with Lake's view of its
+  imports by the same check.
+- **Collisions are errors.** Before Lake fetches anything, a declared root
+  whose file does not exist, or whose name `ws.findModule?` resolves to a
+  library module with an existing file, fails the load, every such problem
+  one line. The graph builder then rejects a root whose name a fetched module
+  or an executable's root already has. A declared root must be a module no
+  Lake target provides.
+- **Nothing is generated.** lean-deny never runs Lake to write a root's file;
+  the user builds first.

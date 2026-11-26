@@ -1,0 +1,1 @@
+lean-deny: warning: ignoring the policy's [[root]] tables: lean-deny.toml:3:7: unexpected '='; expected 'false', 'true', array, date-time, float, inline-table, integer or string

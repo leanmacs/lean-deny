@@ -1,0 +1,1 @@
+lean-deny: error: <repo>/tests/fixtures/root-ws/gen/Bad.lean:1: import of App.Missing: Lake resolves it to library App of package root-ws, but no such module file exists

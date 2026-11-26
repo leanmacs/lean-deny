@@ -259,9 +259,43 @@ def failuresOn (g : Graph) : Array String :=
         fs := fs.push s!"resolveRef {sel}: expected {repr want}, got {repr got}"
     return fs
 
+/-- The test graph plus a declared root `App.Gen` importing `App`: `mod:`
+matches it, by prefix and with `!`; `pkg:`, `lib:`, `keyword:` and
+`external:` never do. -/
+def rootFailures : Array String :=
+  let (s, h) := addRoot (mkInput modules) `App.Gen #[(`App, some (`ws, `App))]
+  match build s h with
+  | .error e => #[s!"building the root test graph failed: {e}"]
+  | .ok g =>
+    let g := { g with packages }
+    let cases :=
+      #[("mod:App", "ok [App, App.Gen, App.Shared]"), ("mod:App.Gen!", "ok [App.Gen]"),
+        ("mod:App.Gen", "ok [App.Gen]"), ("pkg:ws", "ok [App, AppTest, Main, App.Shared]"),
+        ("lib:App", "ok [App, App.Shared]"),
+        ("external:App.Gen",
+          "nothing: no external module is or is under 'App.Gen' (the graph holds only the \
+          external modules the workspace imports directly)")]
+    let kw :=
+      let g' := { g with packages := g.packages.map fun p => { p with keywords := #["k"] } }
+      match matchSelector g' (.keyword "k") with
+      | .ok ns =>
+        if ns.any fun n => (g.nodes[n]?.map (·.name)) == some `App.Gen then
+          #["root: keyword: matches the declared root"]
+        else #[]
+      | _ => #["root: keyword:k matches nothing"]
+    kw ++
+      cases.filterMap fun (sel, want) =>
+        let got :=
+          match Selector.parse sel with
+          | .ok s => renderMatch g (matchSelector g s)
+          | .error e => s!"parse error {e}"
+        if got == want then none
+        else some s!"root: match {sel}: expected {repr want}, got {repr got}"
+
 def run : Array String :=
-  match graph with
-  | .ok g => failuresOn g
-  | .error e => #[s!"building the test graph failed: {e}"]
+  rootFailures ++
+    match graph with
+    | .ok g => failuresOn g
+    | .error e => #[s!"building the test graph failed: {e}"]
 
 end LeanDenyTest.Resolve

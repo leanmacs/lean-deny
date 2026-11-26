@@ -30,6 +30,9 @@ structure CheckOpts where
 structure GraphOpts where
   /-- The Lake workspace to read. -/
   workspace : FilePath := "."
+  /-- The policy file, read only for its `[[root]]` tables; `none` means
+  `<workspace>/lean-deny.toml`. -/
+  config? : Option FilePath := none
   format : Graph.Format := .text
   level : Graph.Level := .module
   deriving BEq, Repr, Inhabited
@@ -38,8 +41,8 @@ structure GraphOpts where
 structure ExplainOpts where
   /-- The Lake workspace to read. -/
   workspace : FilePath := "."
-  /-- The policy file, read only for a `set:` selector; `none` means
-  `<workspace>/lean-deny.toml`. -/
+  /-- The policy file, read for its `[[root]]` tables, and in full for a
+  `set:` selector; `none` means `<workspace>/lean-deny.toml`. -/
   config? : Option FilePath := none
   /-- The selector as written. -/
   text : String
@@ -67,8 +70,8 @@ def usage : String :=
 Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
                   [--format text|json|github]
-  lean-deny graph [--workspace <dir>] [--format text|json|dot]
-                  [--level module|lib|package]
+  lean-deny graph [--workspace <dir>] [--config <file>]
+                  [--format text|json|dot] [--level module|lib|package]
   lean-deny explain [--workspace <dir>] [--config <file>] <selector>
   lean-deny --help | --version
 
@@ -85,12 +88,15 @@ Options for check:
 
 Options for graph:
   --workspace <dir>   The Lake workspace to read (default: .)
+  --config <file>     The policy file, read only for its [[root]] tables
+                      (default: <dir>/lean-deny.toml)
   --format <fmt>      text, json or dot (default: text)
   --level <level>     module, lib or package (default: module)
 
 Options for explain:
   --workspace <dir>   The Lake workspace to read (default: .)
-  --config <file>     The policy file, read only for a set: selector
+  --config <file>     The policy file, read for its [[root]] tables, and
+                      in full for a set: selector
                       (default: <dir>/lean-deny.toml)
 
 Selectors:
@@ -99,6 +105,7 @@ Selectors:
                       several packages have one by that name)
   mod:<Prefix>        that module and every module under it
   mod:<Module>!       that module alone
+                      (mod: also matches the policy's declared roots)
   keyword:<kw>        every module of every package with that keyword
   external:<Prefix>   modules from outside the workspace that it imports
   set:<name>          a set from the policy's [sets] table
@@ -195,6 +202,7 @@ private def parseCheck (args : List String) : Except UsageError Command := do
 /-- `graph`'s options. -/
 private def graphSpecs : List (OptSpec GraphOpts) :=
   [("--workspace", fun o v => .ok { o with workspace := v }),
+    ("--config", fun o v => .ok { o with config? := some v }),
     ("--format", fun o v =>
       match Graph.Format.parse? v with
       | some f => .ok { o with format := f }

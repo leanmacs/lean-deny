@@ -1,0 +1,4 @@
+# pkg: never matches a declared root, which is in no package.
+run = "direct"
+args = ["explain", "--workspace", "../root-ws", "pkg:root-ws"]
+exit = 0

@@ -1,0 +1,5 @@
+# Every shape error of [[root]], in source order. Policy errors come before
+# the workspace is loaded.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

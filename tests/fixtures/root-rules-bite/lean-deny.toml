@@ -1,0 +1,16 @@
+[sets]
+gen = { select = ["mod:Gen", "mod:App"], except = ["mod:App"] }
+
+[[deny]]
+from = "set:gen"
+to = "external:Lean"
+reason = "the generated root must not import Lean"
+
+[[allow-only]]
+from = "mod:Gen!"
+allow = ["pkg:root-ws", "external:Init"]
+reason = "the generated root imports only the workspace"
+
+[[root]]
+module = "Gen"
+path = "gen/Gen.lean"

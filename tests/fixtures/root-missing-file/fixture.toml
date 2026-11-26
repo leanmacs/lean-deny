@@ -1,0 +1,5 @@
+# A declared root whose file is not there: exit 2 before Lake fetches
+# anything, naming the module and the path.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

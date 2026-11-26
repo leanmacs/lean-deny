@@ -64,7 +64,8 @@ imports.
 Every rule names its sets of modules with selectors. `pkg:`, `lib:`,
 `mod:` and `keyword:` match modules of the workspace only (a dependency
 package's modules are workspace modules); `external:` matches modules from
-outside it only.
+outside it only. `mod:` also matches the policy's declared roots (see
+"Declared roots"); `pkg:`, `lib:` and `keyword:` never do.
 
 | Selector | Matches |
 |---|---|
@@ -113,6 +114,52 @@ or names a set that has one, the set's modules are not all known, so the two
 
 Every set is checked, whether a rule uses it or not, so a set no rule uses
 is fine.
+
+### Declared roots
+
+Some modules no Lake target declares: a root module a Lake facet generates
+under `.lake/build/` from a target list, say, which imports every entry
+module of a plugin host. A `[[root]]` table declares one, so the graph has it
+and its imports:
+
+```toml
+[[root]]
+module = "EditorSetRoot"
+path = ".lake/build/root/EditorSetRoot.lean"
+```
+
+- `module` is the module's name, written as in `import`.
+- `path` is its file, **relative to the workspace directory** (the
+  `--workspace` directory, not the policy's directory nor the working
+  directory), with `/` separators; `..` is allowed, an absolute path is not.
+- No two tables may declare one module or one path.
+
+lean-deny reads the file's header the way Lake reads any module's, resolves
+its imports as Lake does, and adds the root to the graph as a node of its
+own kind (`declared root`), with no package and no owner. A library module
+that only a declared root imports is in the graph too, owned by its library.
+lean-deny never generates the file and never runs Lake to write it: build
+the workspace (or the facet) first. Each of these is an error (exit 2):
+
+- a declared root whose file does not exist;
+- a declared root that a Lake target already provides (a library module
+  with a file, or an executable's root);
+- an import from a declared root that Lake resolves to a workspace library
+  but whose file does not exist, with the same message as for any module;
+- a malformed `[[root]]` table.
+
+How the rules see a declared root:
+
+- `mod:` matches it, by name component and with `!`; `pkg:`, `lib:`,
+  `keyword:` and `external:` never do.
+- `deny`: as any module, in `from`, `to` or `wrappers`.
+- `allow-only`: a declared root is in no package, so **every** one of its
+  imports is judged, its implicit `Init` imports included.
+- `layers`: a declared root is in no package, so its imports are never
+  judged, as importer or imported, and a classify selector that matches only
+  declared roots (or those and external modules) is an error.
+
+Declared roots are not rules: `ok (N rules)` does not count them.
 
 ### deny
 
@@ -541,9 +588,9 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Command | Status | Does |
 |---|---|---|
 | `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only" and "layers"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
-| `lean-deny graph [--workspace <dir>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--format text`, `--level module`. Does not read the policy. |
+| `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
-| `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read only for a `set:` selector, and then only that set and the sets it refers to are resolved. |
+| `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a `set:` selector, and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
 
 ### Exit codes
 
@@ -551,7 +598,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
 | 1 | At least one rule is broken (a `deny`, `allow-only` or `layers` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing. No violation is reported then. The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for `set:`. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With
@@ -602,6 +649,10 @@ three levels:
   `lib:` selectors will see it; an executable's root module is its own
   `exe` node.
 - `package`: one node per package.
+
+A declared root (see "Declared roots") is its own node at every level: at
+module level `EditorSetRoot (.lake/build/root/EditorSetRoot.lean): declared
+root`, above it `root/EditorSetRoot`, so its imports stay visible.
 
 Above module level, modules from outside the workspace collapse to their
 first name component (`external/Lean` holds `Lean.Data.Json`); these are

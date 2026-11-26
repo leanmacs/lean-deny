@@ -1,0 +1,29 @@
+nodes (6):
+  App (App.lean): root-ws/lib/App
+  App.Extra (App/Extra.lean): root-ws/lib/App
+  App.Util (App/Util.lean): root-ws/lib/App
+  Gen (gen/Gen.lean): declared root
+  Init: external
+  Lean.Data.Json: external
+
+edges (8):
+  App -> App.Util (1 import)
+    App.lean:1: App: import App.Util
+  App -> Init (2 imports)
+    App.lean: App: import Init (implicit)
+    App.lean: App: meta import Init (implicit)
+  App.Extra -> Init (2 imports)
+    App/Extra.lean: App.Extra: import Init (implicit)
+    App/Extra.lean: App.Extra: meta import Init (implicit)
+  App.Util -> Init (2 imports)
+    App/Util.lean: App.Util: import Init (implicit)
+    App/Util.lean: App.Util: meta import Init (implicit)
+  Gen -> App (1 import)
+    gen/Gen.lean:1: Gen: import App
+  Gen -> App.Extra (1 import)
+    gen/Gen.lean:2: Gen: import App.Extra
+  Gen -> Init (2 imports)
+    gen/Gen.lean: Gen: import Init (implicit)
+    gen/Gen.lean: Gen: meta import Init (implicit)
+  Gen -> Lean.Data.Json (1 import)
+    gen/Gen.lean:3: Gen: import Lean.Data.Json

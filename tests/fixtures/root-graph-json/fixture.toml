@@ -1,0 +1,4 @@
+# A declared root in graph JSON: kind "root", no package, no owners.
+run = "direct"
+args = ["graph", "--workspace", "../root-ws", "--format", "json", "--level", "module"]
+exit = 0

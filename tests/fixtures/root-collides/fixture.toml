@@ -1,0 +1,4 @@
+# A declared root may not be a module a Lake target provides.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

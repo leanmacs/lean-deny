@@ -3,8 +3,8 @@ lean-deny 0.1.0: dependency policy checks for Lean 4 / Lake workspaces
 Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
                   [--format text|json|github]
-  lean-deny graph [--workspace <dir>] [--format text|json|dot]
-                  [--level module|lib|package]
+  lean-deny graph [--workspace <dir>] [--config <file>]
+                  [--format text|json|dot] [--level module|lib|package]
   lean-deny explain [--workspace <dir>] [--config <file>] <selector>
   lean-deny --help | --version
 
@@ -21,12 +21,15 @@ Options for check:
 
 Options for graph:
   --workspace <dir>   The Lake workspace to read (default: .)
+  --config <file>     The policy file, read only for its [[root]] tables
+                      (default: <dir>/lean-deny.toml)
   --format <fmt>      text, json or dot (default: text)
   --level <level>     module, lib or package (default: module)
 
 Options for explain:
   --workspace <dir>   The Lake workspace to read (default: .)
-  --config <file>     The policy file, read only for a set: selector
+  --config <file>     The policy file, read for its [[root]] tables, and
+                      in full for a set: selector
                       (default: <dir>/lean-deny.toml)
 
 Selectors:
@@ -35,6 +38,7 @@ Selectors:
                       several packages have one by that name)
   mod:<Prefix>        that module and every module under it
   mod:<Module>!       that module alone
+                      (mod: also matches the policy's declared roots)
   keyword:<kw>        every module of every package with that keyword
   external:<Prefix>   modules from outside the workspace that it imports
   set:<name>          a set from the policy's [sets] table

@@ -9,9 +9,11 @@ import LeanDeny.Policy.Resolve
 # `lean-deny explain`
 
 List the modules a selector matches, for authoring a policy. The policy is
-read only for a `set:` selector, so a policy that is half written cannot stop
-anyone from exploring. A selector that matches nothing is an error (exit 2),
-as it is in a policy.
+read in full only for a `set:` selector; for any other selector only its
+`[[root]]` tables are read (`loadRoots`), so a policy whose rules are half
+written cannot stop anyone from exploring, and a policy that is not valid
+TOML only warns. A selector that matches nothing is an error (exit 2), as it
+is in a policy.
 -/
 
 namespace LeanDeny
@@ -25,22 +27,28 @@ def runExplain (opts : ExplainOpts) : IO Outcome := do
   let ws := opts.workspace
   if let .error msgs← checkWorkspaceDir ws then
     return ← fail msgs
-  let policy? ←
+  let policyPath := opts.config?.getD (defaultPolicyPath ws)
+  let (policy?, roots) ←
     match opts.selector with
     | .set _ =>
-      match ← loadPolicy (opts.config?.getD (defaultPolicyPath ws)) with
+      match ← loadPolicy policyPath with
       | .ok p =>
-        pure (some p)
+        pure (some p, p.roots)
       | .error msgs =>
         return ← fail msgs
     | _ =>
-      pure none
+      match ← loadRoots policyPath opts.config?.isSome with
+      | .ok (roots, warnings) =>
+        warnings.forM printWarning
+        pure (none, roots)
+      | .error msgs =>
+        return ← fail msgs
   -- An unknown set is reported before Lake runs.
   if let (.set n, some p) := (opts.selector, policy?) then
     if (p.findSet? n).isNone then
       return ← fail #[p.unknownSet n]
   let g ←
-    match ← loadGraph ws with
+    match ← loadGraph ws (rootDecls policyPath.toString roots) with
     | .ok g =>
       pure g
     | .error msgs =>

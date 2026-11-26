@@ -20,11 +20,12 @@ def unescaped (n : Name) : String :=
   n.toString (escape := false)
 
 /-- A node as `Name origin file module-or-- prelude-or--`, where origin is
-`external` or the owners as `pkg/kind/target`, comma-separated. -/
+`external`, `declared` or the owners as `pkg/kind/target`, comma-separated. -/
 def renderNode (g : Graph) (n : Node) : String :=
   let origin :=
     match n.origin with
     | .external => "external"
+    | .declared => "declared"
     | .workspace os =>
       ",".intercalate
         (os.map fun (o : Owner) => s!"{unescaped o.pkg}/{o.kind}/{unescaped o.target}").toList

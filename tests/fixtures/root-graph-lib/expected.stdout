@@ -1,0 +1,28 @@
+nodes (4):
+  root-ws/lib/App: 3 modules
+    App
+    App.Extra
+    App.Util
+  root/Gen: 1 module
+    Gen
+  external/Init: 1 module
+    Init
+  external/Lean: 1 module
+    Lean.Data.Json
+
+edges (4):
+  root-ws/lib/App -> external/Init (6 imports)
+    App.lean: App: import Init (implicit)
+    App.lean: App: meta import Init (implicit)
+    App/Extra.lean: App.Extra: import Init (implicit)
+    App/Extra.lean: App.Extra: meta import Init (implicit)
+    App/Util.lean: App.Util: import Init (implicit)
+    App/Util.lean: App.Util: meta import Init (implicit)
+  root/Gen -> root-ws/lib/App (2 imports)
+    gen/Gen.lean:1: Gen: import App
+    gen/Gen.lean:2: Gen: import App.Extra
+  root/Gen -> external/Init (2 imports)
+    gen/Gen.lean: Gen: import Init (implicit)
+    gen/Gen.lean: Gen: meta import Init (implicit)
+  root/Gen -> external/Lean (1 import)
+    gen/Gen.lean:3: Gen: import Lean.Data.Json

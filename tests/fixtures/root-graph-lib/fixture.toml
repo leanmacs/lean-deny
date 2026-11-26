@@ -1,0 +1,5 @@
+# Above module level a declared root is its own group, root/<Module>, so its
+# imports stay visible.
+run = "direct"
+args = ["graph", "--workspace", "../root-ws", "--format", "text", "--level", "lib"]
+exit = 0

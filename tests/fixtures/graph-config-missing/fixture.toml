@@ -1,0 +1,5 @@
+# graph reads an explicit --config for its [[root]] tables, so a missing one
+# is an error, as for check.
+run = "direct"
+args = ["graph", "--config", "x"]
+exit = 2

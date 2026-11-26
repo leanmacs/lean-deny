@@ -1,0 +1,6 @@
+# graph reads the policy's [[root]] tables: a TOML-valid policy whose root
+# table is bad is an error, since lean-deny cannot know the graph it
+# describes. (Its other keys are not read: the unknown key is not reported.)
+run = "direct"
+args = ["graph", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

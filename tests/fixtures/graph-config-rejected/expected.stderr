@@ -1,2 +1,0 @@
-lean-deny: error: unknown option '--config' for 'graph'
-Run 'lean-deny --help' for usage.

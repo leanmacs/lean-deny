@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:1:0: root 1: module Missing: file 'gen/Missing.lean' does not exist in the workspace directory <repo>/tests/fixtures/root-ws; build the workspace first (lean-deny reads a generated root but never runs Lake to write it)

@@ -6,7 +6,7 @@ graphs, from the policy's TOML text to what `check` prints: which imports
 are checked (those leaving the importer's package, the implicit `Init`
 included), the most specific rule governing a module, `except`, the errors a
 rule or a group of rules can give and their order, and deny and allow-only
-rules together.
+rules together, and a declared root's imports.
 -/
 
 open Lean LeanDeny LeanDeny.Graph LeanDenyTest.Query
@@ -204,10 +204,29 @@ def renderingFailures : Array String :=
   let want := "allow-only rule 1 (p.toml): r"
   if got == want then #[] else #[s!"expected {repr want}, got {repr got}"]
 
+/-- `(case, modules, declared roots, policy, expected lines)`: a declared
+root is in no package, so every one of its imports is checked, the implicit
+`Init` included. -/
+def rootCases : Array (String × Array M × Array (Name × Array Name) × String × Array String) :=
+  let ms := #[mp `a `A, mp `x `X]
+  let roots := #[(`R, #[`A, `X])]
+  #[("every import of a root is checked", ms, roots, arule "\"mod:R!\"" s!"[\"mod:A!\", {init}]",
+      #[hdr 1 1, "  gen/R.lean:2: R imports X", "lean-deny: 1 violation in 1 of 1 rule"]),
+    ("a root's implicit Init import is checked", ms, roots,
+      arule "\"mod:R!\"" "[\"mod:A!\", \"mod:X!\"]",
+      #[hdr 1 1, "  gen/R.lean: R imports Init (implicit)",
+        "lean-deny: 1 violation in 1 of 1 rule"]),
+    ("a root's imports, all allowed", ms, roots,
+      arule "\"mod:R!\"" s!"[\"mod:A!\", \"mod:X!\", {init}]", ok1)]
+
 def run : IO (Array String) := do
   let mut fs := renderingFailures
   for (name, ms, src, want) in cases do
     let got ← LeanDenyTest.Deny.outcome ms src
+    unless got == want do
+      fs := fs.push s!"{name}: expected {repr want}, got {repr got}"
+  for (name, ms, roots, src, want) in rootCases do
+    let got ← LeanDenyTest.Deny.outcome ms src (roots := roots)
     unless got == want do
       fs := fs.push s!"{name}: expected {repr want}, got {repr got}"
   return fs

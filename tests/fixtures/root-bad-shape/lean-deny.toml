@@ -1,0 +1,27 @@
+[[root]]
+module = "A"
+
+[[root]]
+module = "B"
+path = "gen/B.lean"
+file = "x"
+
+[[root]]
+module = "1x"
+path = "gen/C.lean"
+
+[[root]]
+module = "D"
+path = "/abs/D.lean"
+
+[[root]]
+module = "B"
+path = "gen/E.lean"
+
+[[root]]
+module = "F"
+path = "gen/B.lean"
+
+[[root]]
+module = 1
+path = ""

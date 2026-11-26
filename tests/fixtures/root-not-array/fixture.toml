@@ -1,0 +1,4 @@
+# `root` must be an array of tables.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 2

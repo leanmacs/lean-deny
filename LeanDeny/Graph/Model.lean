@@ -12,7 +12,9 @@ Lean frontend, so the model does not change when the toolchain does.
   module namespace). A workspace node is owned by the Lake targets
   (`lean_lib`s, `lean_exe` roots) that list it; an external node is a module
   some workspace module imports that no workspace target lists, such as
-  `Init` or `Lean.Data.Json`.
+  `Init` or `Lean.Data.Json`. A declared root is a module the policy
+  declares (`[[root]]`), read from its file, that no target lists: it has no
+  package and no owner.
 - An **edge** is one `import` directive, with its keywords, its file and
   line, plus Lean's two implicit `Init` imports of every non-`prelude`
   module.
@@ -66,6 +68,9 @@ inductive Origin where
   /-- Not a module of any workspace target: the direct target of some
   workspace module's import. -/
   | external
+  /-- A root module the policy declares (`[[root]]`), read from its file; no
+  Lake target lists it, so it has no package and no owner. -/
+  | declared
   deriving BEq, Repr, Inhabited
 
 /-- One module. -/
@@ -73,7 +78,8 @@ structure Node where
   /-- The node's identity: the module name. -/
   name : Name
   origin : Origin
-  /-- The absolute source path; `none` exactly for external nodes. -/
+  /-- The absolute source path; `none` exactly for external nodes (a
+  declared root has its file). -/
   file? : Option FilePath
   /-- The header starts with `module` (the module system is on). -/
   isModule : Bool := false

@@ -195,6 +195,45 @@ def ownerFailures : Array String :=
     check fs "edges" (toString (g.edges.map (renderEdge g)))
       "#[Sh>Init:-, Sh>Init[meta]:-, U>Init:-, U>Init[meta]:-, U>Sh:1]"
 
+/-- `input` plus the declared root `name`, at `gen/<name>.lean`, with the
+implicit `Init` pair and the explicit imports `imps` (the `n`th on line
+`n`), each resolved as given. -/
+def addRoot (input : Snapshot × Std.HashMap Name (Array HeaderImport)) (name : Name)
+    (imps : Array (Name × Option (Name × Name))) :
+    Snapshot × Std.HashMap Name (Array HeaderImport) :=
+  let (s, h) := input
+  let implicit : Array RawImport :=
+    #[{ module := `Init, isExported := true, isMeta := false, importAll := false,
+        resolved? := none },
+      { module := `Init, isExported := true, isMeta := true, importAll := false,
+        resolved? := none }]
+  let explicit : Array RawImport :=
+    imps.map fun (n, r?) =>
+      { module := n, isExported := true, isMeta := false, importAll := false, resolved? := r? }
+  let root : RawRoot :=
+    { decl := { module := name, path := s!"gen/{name}.lean", loc := "p.toml:1:0: root 1" }
+      file := s!"/ws/gen/{name}.lean", isModule := false, imports := implicit ++ explicit }
+  ({ s with roots := s.roots.push root },
+    h.insert name (imps.zipIdx.map fun ((n, _), i) => { module := n, kind := {}, line := i + 1 }))
+
+/-- A declared root `R` importing a library module and an external one: a
+node of origin `declared` with its file, whose imports are edges as any
+module's. -/
+def rootFailures : Array String :=
+  let input :=
+    addRoot (mkInput #[{ name := `A }, { name := `E, kind := .exe, target := `e }]) `R
+      #[(`A, some (`p, `L)), (`Lean.Data.Json, none)]
+  match build input.1 input.2 with
+  | .error e => #[s!"root: unexpected error {e}"]
+  | .ok g =>
+    let fs :=
+      check #[] "root nodes" (toString (g.nodes.map (·.name))) "#[A, E, Init, R, Lean.Data.Json]"
+    let r := g.nodes.find? (·.name == `R)
+    let fs := check fs "root origin" (toString (r.map (·.origin == .declared))) "(some true)"
+    let fs := check fs "root file" (toString (r.bind (·.file?))) "(some /ws/gen/R.lean)"
+    check fs "root edges" (toString ((g.imports ((g.find? `R).getD 0)).map (renderEdge g)))
+      "#[R>Init:-, R>Init[meta]:-, R>A:1, R>Lean.Data.Json:2]"
+
 /-- `(case, input, expected error)`. -/
 def errorCases : Array (String × (Snapshot × Std.HashMap Name (Array HeaderImport)) × String) :=
   #[("one module name from two packages",
@@ -233,6 +272,17 @@ def errorCases : Array (String × (Snapshot × Std.HashMap Name (Array HeaderImp
         mkInput #[{ name := `X, isModule := true, imports := #[(`A, { isPublic := true })] }]
       (s, h.insert `X #[{ module := `A, kind := {}, line := 1 }]),
       "internal error: X.lean: the import positions disagree with Lake's header"),
+    ("a declared root importing a resolved module with no file",
+      addRoot (mkInput #[{ name := `A }]) `R #[(`Missing, some (`p, `L))],
+      "/ws/gen/R.lean:1: import of Missing: Lake resolves it to library L of package p, \
+      but no such module file exists"),
+    ("a declared root a library provides", addRoot (mkInput #[{ name := `A }]) `A #[],
+      "p.toml:1:0: root 1: module A is already provided by p/L (A.lean); a declared root must \
+      be a module no Lake target provides"),
+    ("a declared root that is an executable's root",
+      addRoot (mkInput #[{ name := `E, kind := .exe, target := `e }]) `E #[],
+      "p.toml:1:0: root 1: module E is already provided by p/e (E.lean); a declared root must \
+      be a module no Lake target provides"),
     ("no header was parsed",
       let (s, _) := mkInput #[{ name := `X }]
       (s, {}),
@@ -255,6 +305,6 @@ def run : Array String :=
     match mkGraph main with
     | .ok g => queryFailures g
     | .error e => #[s!"building the main test graph failed: {e}"]
-  main ++ ownerFailures ++ errorFailures
+  main ++ ownerFailures ++ rootFailures ++ errorFailures
 
 end LeanDenyTest.Query

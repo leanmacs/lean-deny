@@ -1,0 +1,5 @@
+# A policy with a declared root and no rules: the root's file is read, its
+# imports resolved, and the policy holds.
+run = "direct"
+args = ["check"]
+exit = 0

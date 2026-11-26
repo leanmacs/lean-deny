@@ -12,7 +12,9 @@ library's `modules` facet, and each module's and each executable root's
 lists, but that a fetched module imports and that Lake resolves to a
 workspace library with an existing file, is fetched too, owned by that
 library (`ws.findModule?`, as Lake's `module?`), repeated until no new module
-appears (`collectAll`). Nothing is built; the only files
+appears (`collectAll`). The policy's declared roots (`[[root]]`) are read
+from their files the way Lake reads any module's header (`readRoot`), and
+their imports seed that search. Nothing is built; the only files
 Lake may write are the cached configuration oleans under
 `<workspace>/.lake/config/` for packages configured with `lakefile.lean`.
 
@@ -179,17 +181,26 @@ def unreached (ws : Workspace) (seen : Std.HashSet Name) (rows : Array (Except L
   return (found, seen)
 
 /-- `collect`'s rows, plus every module the `modules` facets do not list but
-some fetched module imports and Lake resolves to a workspace library with an
-existing file, owned by that library, repeated until no new module appears.
-It terminates: `seen` only grows, within the workspace's finitely many
+some fetched module or declared root (`roots`) imports and Lake resolves to a
+workspace library with an existing file, owned by that library, repeated
+until no new module appears. A declared root is never fetched itself. It
+terminates: `seen` only grows, within the workspace's finitely many
 modules. -/
-def collectAll (ws : Workspace) : IO (Array (Except Log RawModule)) := do
+def collectAll (ws : Workspace) (roots : Array RawRoot) : IO (Array (Except Log RawModule)) := do
   let mut rows ← ws.runBuild (collect ws) fetchCfg
   let mut seen : Std.HashSet Name := {}
   for r in rows do
     if let .ok m := r then
       seen := seen.insert m.name
-  let mut frontier := rows
+  -- A declared root's imports seed the search like any fetched module's.
+  let rootRows : Array (Except Log RawModule) :=
+    roots.map fun r =>
+      .ok {
+          name := r.decl.module, owner := default, file := r.file, isModule := r.isModule
+          imports := r.imports }
+  for r in roots do
+    seen := seen.insert r.decl.module
+  let mut frontier := rows ++ rootRows
   repeat
     let (extra, seen') ← unreached ws seen frontier
     seen := seen'
@@ -233,15 +244,66 @@ def failureMessages (failures : Array (Array (Bool × String))) : Array String :
           errs := errs.push msg
     return errs
 
-/-- Load `dir` and copy out everything the graph needs, with stage timings.
+/-- The problems with the declared roots `decls` that need no header read:
+a file that is not there, or a module a workspace library provides with an
+existing file. One message each, in declaration order. -/
+def rootProblems (ws : Workspace) (decls : Array RootDecl) : IO (Array String) := do
+  let mut errs := #[]
+  for d in decls do
+    let file := ws.root.dir / d.path
+    unless (← file.pathExists) && !(← file.isDir) do
+      errs :=
+        errs.push
+          s!"{d.loc}: module {d.module}: file '{d.path}' does not exist in the workspace \
+            directory {ws.root.dir}; build the workspace first (lean-deny reads a generated \
+            root but never runs Lake to write it)"
+    if let some mod := ws.findModule? d.module then
+      if ← mod.leanFile.pathExists then
+        errs :=
+          errs.push
+            s!"{d.loc}: module {d.module} is already provided by \
+              {mod.pkg.baseName.toString (escape := false)}/\
+              {mod.lib.name.toString (escape := false)} ({mod.leanFile}); a declared root must \
+              be a module no Lake target provides"
+  return errs
 
-A module whose header Lake cannot read, or a library whose module list it
-cannot compute, fails the whole load with Lake's error messages, one per
-line, in module order (`failureMessages`). -/
-def snapshot (dir : FilePath) : IO (Snapshot × Timings) := do
+/-- Read a declared root's header the way `Lake.Module.recFetchInput` reads
+any module's (Lake v4.35.0 `Lake/Build/Module.lean`): `Lean.parseImports'`,
+then each import resolved by `ws.findModule?`. Lake's own facet cannot do it:
+a `Lake.Module` needs a library whose `srcDir` fixes its file, and a declared
+path is arbitrary. A header Lean cannot parse is thrown as Lake reports it,
+`file:line:col: msg`. -/
+def readRoot (ws : Workspace) (d : RootDecl) : IO RawRoot := do
+  let file ← IO.FS.realPath (ws.root.dir / d.path)
+  let header ← Lean.parseImports' (← IO.FS.readFile file) file.toString
+  return {
+      decl := d
+      file
+      isModule := header.isModule
+      imports :=
+        header.imports.map fun imp =>
+          { module := imp.module
+            isExported := imp.isExported
+            isMeta := imp.isMeta
+            importAll := imp.importAll
+            resolved? := (ws.findModule? imp.module).map fun m => (m.pkg.baseName, m.lib.name) } }
+
+/-- Load `dir` and copy out everything the graph needs, with stage timings;
+`roots` are the policy's declared roots.
+
+A declared root whose file is missing, or that a workspace library already
+provides, fails the load before Lake fetches anything, every such problem
+one line. A module whose header Lake cannot read, or a library whose module
+list it cannot compute, fails the whole load with Lake's error messages, one
+per line, in module order (`failureMessages`). -/
+def snapshot (dir : FilePath) (roots : Array RootDecl := #[]) : IO (Snapshot × Timings) := do
   let (env, tEnv) ← timed computeEnv
   let (ws, tLoad) ← timed (loadWs env dir)
-  let (results, tFetch) ← timed (collectAll ws)
+  let problems ← rootProblems ws roots
+  unless problems.isEmpty do
+    throw <| IO.userError <| "\n".intercalate problems.toList
+  let rawRoots ← roots.mapM (readRoot ws)
+  let (results, tFetch) ← timed (collectAll ws rawRoots)
   let mut failures : Array (Array (Bool × String)) := #[]
   let mut modules : Array RawModule := #[]
   for r in results do
@@ -255,7 +317,9 @@ def snapshot (dir : FilePath) : IO (Snapshot × Timings) := do
   let errs := failureMessages failures
   unless errs.isEmpty do
     throw <| IO.userError <| "\n".intercalate errs.toList
-  let snap := { root := ws.root.dir, packages := ws.packages.map (packageInfo ws), modules }
+  let snap :=
+    { root := ws.root.dir, packages := ws.packages.map (packageInfo ws), modules
+      roots := rawRoots }
   return (snap, { env := tEnv, load := tLoad, fetch := tFetch })
 
 end LeanDeny.Graph.LakeApi

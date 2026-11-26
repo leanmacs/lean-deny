@@ -9,7 +9,9 @@ What each selector matches in a loaded graph, and the policy's sets
 resolved to modules. Pure.
 
 - `pkg:`, `lib:`, `mod:` and `keyword:` match workspace modules only;
-  `external:` matches external ones only.
+  `external:` matches external ones only. `mod:` matches workspace modules
+  and declared roots (`[[root]]`); `pkg:`, `lib:` and `keyword:` never match
+  a declared root, which has no package and no owner.
 - `pkg:` and `keyword:` include executables' root modules; `lib:` does not
   (an executable's root is no library's module).
 - `mod:` compares names by component: `mod:App` matches `App` and
@@ -36,11 +38,12 @@ inductive MatchResult where
   | ambiguous (detail : String)
   deriving BEq, Repr, Inhabited
 
-/-- A workspace node's owners; none for an external one. -/
+/-- A workspace node's owners; none for an external node or a declared
+root. -/
 private def owners (n : Node) : Array Owner :=
   match n.origin with
   | .workspace os => os
-  | .external => #[]
+  | .external | .declared => #[]
 
 private def isExternal (n : Node) : Bool :=
   n.origin == .external

@@ -1,0 +1,5 @@
+# The declared root `Gen` is a node of its own kind, with the imports its
+# file declares; `App.Extra` is in the graph only because `Gen` imports it.
+run = "direct"
+args = ["graph", "--workspace", "../root-ws", "--format", "text", "--level", "module"]
+exit = 0

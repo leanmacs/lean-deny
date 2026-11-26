@@ -4,7 +4,7 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows four top-level keys:
+`lean-deny.toml`. This version knows five top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
@@ -15,7 +15,11 @@ import LeanDeny.Policy.Selector
   and `reason` (`LeanDeny.Rules.AllowOnly` evaluates them);
 - `[layers]`: one table with `classify` entries (`layer`, `select`),
   `default`, `allow` pairs of layers, `same-package` and `reason`
-  (`LeanDeny.Rules.Layers` evaluates it).
+  (`LeanDeny.Rules.Layers` evaluates it);
+- `[[root]]`: declared roots, each a `module` and its file's `path`
+  relative to the workspace directory: a module no Lake target declares,
+  read from its file into the graph (`LeanDeny.Graph.LakeApi`). Roots are
+  not rules.
 
 Any other key is rejected rather than ignored, so a policy full of rules
 cannot pass while checking nothing.
@@ -233,6 +237,24 @@ def LayersRule.layerNames (r : LayersRule) : Array String :=
 def LayersRule.refs (r : LayersRule) : Array SelectorRef :=
   r.classify.flatMap (·.select)
 
+/-- One `[[root]]` table: a module no Lake target declares, such as one a
+Lake facet generates, read from its file into the graph as a declared
+root. -/
+structure RootDef where
+  /-- 1-based, in source order among the `root` tables. -/
+  index : Nat
+  /-- The table's position: its `[[root]]` header (column 0), or the `{` of
+  an inline table. -/
+  pos? : Option Toml.Pos
+  module : Lean.Name
+  /-- As written: `/` separators, relative to the workspace directory. -/
+  path : String
+  deriving BEq, Repr, Inhabited
+
+/-- "root 1". -/
+def RootDef.label (r : RootDef) : String :=
+  s!"root {r.index}"
+
 /-- A parsed policy. -/
 structure Policy where
   /-- The policy path as given. It starts every message about the file. -/
@@ -247,13 +269,16 @@ structure Policy where
   allowOnly : Array AllowOnlyRule := #[]
   /-- The `[layers]` table, if any (TOML allows at most one). -/
   layers? : Option LayersRule := none
+  /-- The `[[root]]` tables, in source order. Not rules. -/
+  roots : Array RootDef := #[]
   deriving Repr, Inhabited
 
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets", "deny", "allow-only", "layers"]
+  #["sets", "deny", "allow-only", "layers", "root"]
 
-/-- The number of rules of every kind; `[layers]` is one rule. -/
+/-- The number of rules of every kind; `[layers]` is one rule. Declared roots
+are not rules. -/
 def Policy.ruleCount (p : Policy) : Nat :=
   p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0)
 
@@ -411,10 +436,11 @@ private def parseReason (e : Errors) (label : String) (x : Toml.LValue) : Errors
     else (e, some s)
   | _ => (e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}", none)
 
-/-- A top-level rule key (`deny`, `allow-only`): an array of tables, each
-parsed by `parse` with its 1-based index. -/
+/-- A top-level array-of-tables key (`deny`, `allow-only`, `root`): each
+table parsed by `parse` with its 1-based index and the tables parsed before
+it. -/
 private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LValue)
-    (parse : Errors → Nat → Toml.LValue → Errors × α) : Errors × Array α :=
+    (parse : Errors → Nat → Array α → Toml.LValue → Errors × α) : Errors × Array α :=
   Id.run do
     match v with
     | .array pos? xs =>
@@ -423,7 +449,7 @@ private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LVa
         e := e.add pos? s!"'{key}' is empty (omit it)"
       let mut rs := #[]
       for (x, i) in xs.zipIdx do
-        let (e', r) := parse e (i + 1) x
+        let (e', r) := parse e (i + 1) rs x
         e := e'
         rs := rs.push r
       return (e, rs)
@@ -679,6 +705,63 @@ private def parseLayers (e : Errors) (v : Toml.LValue) : Errors × Option Layers
                   entry nor 'default' declares (layers: {", ".intercalate names.toList})"
     return (e, some r)
 
+/-- One `[[root]]` table while parsing: each field `none` until it parses. -/
+private structure RootParse where
+  index : Nat
+  pos? : Option Toml.Pos
+  module? : Option Lean.Name := none
+  path? : Option String := none
+  deriving Inhabited
+
+/-- Entry `index` (1-based) of the `root` array, given the entries before
+it. Missing keys are reported first, at the table, then each entry in source
+order, then a module or path an earlier table already declares. -/
+private def parseRoot (e : Errors) (index : Nat) (prev : Array RootParse) (v : Toml.LValue) :
+    Errors × RootParse :=
+  Id.run do
+    let label := s!"root {index}"
+    let base : RootParse := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in #["module", "path"] do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k, x with
+      | "module", .string xpos? s =>
+        match parseModuleName? s with
+        | some n =>
+          r := { r with module? := some n }
+        | none =>
+          e := e.add xpos? s!"{label}: 'module': '{s}' is not a module name"
+      | "path", .string xpos? s =>
+        if s.isEmpty then
+          e := e.add xpos? s!"{label}: 'path' must not be empty"
+        else if (FilePath.mk s).isAbsolute || s.startsWith "/" then
+          e := e.add xpos? s!"{label}: 'path' must be relative to the workspace directory"
+        else
+          r := { r with path? := some s }
+      | "module", _ | "path", _ =>
+        e := e.add x.pos? s!"{label}: '{k}' must be a string, found {x.kindName}"
+      | _, _ =>
+        e := e.add x.pos? s!"{label}: unknown key '{k}' (expected module, path)"
+    if let some m := r.module? then
+      if let some q := prev.find? (·.module? == some m) then
+        e := e.add pos? s!"{label}: module {m} is already declared by root {q.index}"
+    if let some p := r.path? then
+      if let some q := prev.find? (·.path? == some p) then
+        e := e.add pos? s!"{label}: path '{p}' is already declared by root {q.index}"
+    return (e, r)
+
+/-- The roots of `root`'s tables that parsed in full. -/
+private def completeRoots (rs : Array RootParse) : Array RootDef :=
+  rs.filterMap fun r =>
+    match r.module?, r.path? with
+    | some module, some path => some { index := r.index, pos? := r.pos?, module, path }
+    | _, _ => none
+
 /-- The depth-first walk that finds cycles and the order. -/
 private structure Walk where
   /-- Per set: 0 not seen, 1 on the stack, 2 done. -/
@@ -763,6 +846,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut deny := #[]
     let mut allowOnly := #[]
     let mut layers? := none
+    let mut roots := #[]
     for (k, v) in entries do
       if k == "sets" then
         match v with
@@ -774,25 +858,41 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         | _ =>
           e := e.add v.pos? "'sets' must be a table, such as [sets]"
       else if k == "deny" then
-        let (e', rs) := parseRuleArray e "deny" v parseDeny
+        let (e', rs) := parseRuleArray e "deny" v fun e i _ x => parseDeny e i x
         e := e'
         deny := deny ++ rs
       else if k == "allow-only" then
-        let (e', rs) := parseRuleArray e "allow-only" v parseAllowOnly
+        let (e', rs) := parseRuleArray e "allow-only" v fun e i _ x => parseAllowOnly e i x
         e := e'
         allowOnly := allowOnly ++ rs
       else if k == "layers" then
         let (e', r?) := parseLayers e v
         e := e'
         layers? := r?
+      else if k == "root" then
+        let (e', rs) := parseRuleArray e "root" v parseRoot
+        e := e'
+        roots := completeRoots rs
       else
         e := e.add v.pos? s!"unknown key '{k}' (known keys: {", ".intercalate knownKeys.toList})"
     let (e', order) := checkRefs e sets
     let refs := deny.map (·.refs) ++ allowOnly.map (·.refs) ++ (layers?.map (#[·.refs])).getD #[]
     let errs := checkRuleRefs e' sets refs
     if errs.msgs.isEmpty then
-      return .ok { path, sets, order, deny, allowOnly, layers? }
+      return .ok { path, sets, order, deny, allowOnly, layers?, roots }
     return .error errs.msgs
+
+/-- Only the `[[root]]` tables of the parsed TOML document at `path`; every
+other key is ignored, not checked. `graph` and `explain` (for any selector
+but `set:`) read a policy this way, so a policy whose rules are broken cannot
+stop anyone from looking at the graph. -/
+def Policy.rootsOfToml (path : String) (entries : Array (String × Toml.LValue)) :
+    Except (Array String) (Array RootDef) :=
+  match entries.find? (·.1 == "root") with
+  | none => .ok #[]
+  | some (_, v) =>
+    let (e, rs) := parseRuleArray { path } "root" v parseRoot
+    if e.msgs.isEmpty then .ok (completeRoots rs) else .error e.msgs
 
 /-- The default policy file of a workspace. -/
 def defaultPolicyPath (workspace : FilePath) : FilePath :=
@@ -814,5 +914,35 @@ def loadPolicy (path : FilePath) : IO (Except (Array String) Policy) := do
     return .error msgs
   | .ok entries =>
     return Policy.ofToml path.toString entries
+
+/-- The prefix of every warning `loadRoots` gives for a policy that is not
+valid TOML. -/
+def ignoringRootsWarning (msg : String) : String :=
+  s!"ignoring the policy's [[root]] tables: {msg}"
+
+/-- The declared roots of the policy at `path`, for `graph` and `explain`:
+only the `[[root]]` tables are read (`Policy.rootsOfToml`). A missing file
+gives no roots, unless it was given explicitly (`explicit`): then it is an
+error, as for `check`. A file that is not valid TOML gives no roots and one
+warning per TOML message; a bad `[[root]]` table is an error. On success,
+the roots and the warnings. -/
+def loadRoots (path : FilePath) (explicit : Bool) :
+    IO (Except (Array String) (Array RootDef × Array String)) := do
+  unless ← path.pathExists do
+    if explicit then
+      return .error #[s!"no policy file '{path}'"]
+    return .ok (#[], #[])
+  if ← path.isDir then
+    return .error #[s!"policy file '{path}' is a directory"]
+  let input ←
+    try
+      IO.FS.readFile path
+    catch e =>
+      return .error #[s!"cannot read policy file '{path}': {e}"]
+  match ← Toml.parseLocated path.toString input with
+  | .error msgs =>
+    return .ok (#[], msgs.map ignoringRootsWarning)
+  | .ok entries =>
+    return (Policy.rootsOfToml path.toString entries).map (·, #[])
 
 end LeanDeny

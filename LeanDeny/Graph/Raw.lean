@@ -46,12 +46,36 @@ structure HeaderImport where
   line : Nat
   deriving BEq, Repr, Inhabited
 
+/-- A root module the policy declares (`[[root]]`), as the graph layer
+needs it: the policy itself is not imported here. -/
+structure RootDecl where
+  module : Name
+  /-- As written: relative to the workspace directory. -/
+  path : String
+  /-- The ready-made message prefix, `<policy>:<line>:<column>: root N`. -/
+  loc : String
+  deriving BEq, Repr, Inhabited
+
+/-- A declared root read from its file: its header read as Lake reads any
+module's (`Lake.Module.recFetchInput`). -/
+structure RawRoot where
+  decl : RootDecl
+  /-- The real path of its file. -/
+  file : FilePath
+  isModule : Bool
+  /-- As `RawModule.imports`: the implicit `Init` pair first unless the
+  header says `prelude`, each import resolved by `ws.findModule?`. -/
+  imports : Array RawImport
+  deriving BEq, Repr, Inhabited
+
 /-- Everything the graph builder needs from Lake. -/
 structure Snapshot where
   /-- The workspace directory (a real path). -/
   root : FilePath
   packages : Array PackageInfo
   modules : Array RawModule
+  /-- The policy's declared roots, read from their files. -/
+  roots : Array RawRoot := #[]
   deriving Inhabited
 
 end LeanDeny.Graph

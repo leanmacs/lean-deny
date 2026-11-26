@@ -73,14 +73,16 @@ private def textNode (g : Graph) (v : View) (n : ViewNode) : Array String :=
   match v.level with
   | .module =>
     let m? : Option Node := n.members[0]? >>= (g.nodes[·]?)
-    match m?, m?.map (·.origin) with
-    | some m, some (Origin.workspace os) =>
-      let owners := ", ".intercalate (os.map fun o => targetId o.pkg o.kind o.target).toList
+    -- `<id> (<file>): <what>[; module][, prelude]`.
+    let line (m : Node) (what : String) : String :=
       let flags :=
         (if m.isModule then ["module"] else []) ++ (if m.isPrelude then ["prelude"] else [])
       let flags := if flags.isEmpty then "" else "; " ++ ", ".intercalate flags
-      let file := (m.file?.map g.relPath).getD "?"
-      #[s!"  {n.id} ({file}): {owners}{flags}"]
+      s!"  {n.id} ({(m.file?.map g.relPath).getD "?"}): {what}{flags}"
+    match m?, m?.map (·.origin) with
+    | some m, some (Origin.workspace os) =>
+      #[line m (", ".intercalate (os.map fun o => targetId o.pkg o.kind o.target).toList)]
+    | some m, some Origin.declared => #[line m "declared root"]
     | _, _ => #[s!"  {n.id}: external"]
   | _ =>
     let kws :=

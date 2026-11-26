@@ -141,7 +141,10 @@ linked-may = ["set:test-may", "set:linked-kit"]
 linked-root-may = ["set:linked-may", "set:linked-root-extra"]
 
 # The host's modules, by hand from the generated roots' text (rootSource, fixturesRootSource):
-# every import but the entry modules.
+# every import but the entry modules. The roots themselves are in the graph now (the
+# [[root]] tables at the end), but deriving this set from their imports needs `imports:`
+# selectors (roadmap editor-project-parity, phase 3): `imports:mod:<R>!` for each declared
+# root R, except set:entry-modules.
 host-roots = ["mod:Editor!", "mod:Editor.Main!", "mod:Editor.Test.Fixture.Main!"]
 entry-modules = ["mod:AtPoint.EditorPackage!", "mod:BindingSearch.EditorPackage!", "mod:Buffers.EditorPackage!", "mod:Compile.EditorPackage!", "mod:Completion.EditorPackage!", "mod:Evil.EditorPackage!", "mod:Ex.EditorPackage!", "mod:ExecuteCommand.EditorPackage!", "mod:Files.EditorPackage!", "mod:FrameCommands.EditorPackage!", "mod:Languages.EditorPackage!", "mod:Menu.EditorPackage!", "mod:Minibuffer.EditorPackage!", "mod:ModeLine.EditorPackage!", "mod:PackageSet.EditorPackage!", "mod:ProjectSearch.EditorPackage!", "mod:Restore.EditorPackage!", "mod:Shell.EditorPackage!", "mod:TabCommands.EditorPackage!", "mod:Themes.EditorPackage!", "mod:VersionControl.EditorPackage!", "mod:WindowCommands.EditorPackage!", "mod:WorkingSet.EditorPackage!", "mod:Workspace.EditorPackage!"]
 feature-modules = ["set:entry-modules", "mod:AtPoint.Compiled!", "mod:BindingSearch.Compiled!", "mod:Buffers.Compiled!", "mod:Compile.Compiled!", "mod:Completion.Compiled!", "mod:Evil.Compiled!", "mod:Ex.Compiled!", "mod:ExecuteCommand.Compiled!", "mod:Files.Compiled!", "mod:FrameCommands.Compiled!", "mod:Languages.Compiled!", "mod:Menu.Compiled!", "mod:Minibuffer.Compiled!", "mod:ModeLine.Compiled!", "mod:PackageSet.Compiled!", "mod:ProjectSearch.Compiled!", "mod:Restore.Compiled!", "mod:Shell.Compiled!", "mod:TabCommands.Compiled!", "mod:Themes.Compiled!", "mod:VersionControl.Compiled!", "mod:WindowCommands.Compiled!", "mod:WorkingSet.Compiled!", "mod:Workspace.Compiled!", "mod:Evil.Theorems!"]
@@ -205,3 +208,14 @@ default = "implementation"
 allow = [["interface", "core"], ["implementation", "core"], ["implementation", "interface"], ["interface", "interface"]]
 same-package = "allow"
 reason = "three layers (layer imports check)"
+
+# The two roots the package-set build generates (the setRoot and fixturesRoot facets of
+# lean/lakefile.lean), which no Lake target declares. lean-deny reads them from the build
+# directory; build them first (acceptance.sh does, in its copy).
+[[root]]
+module = "EditorSetRoot"
+path = ".lake/build/root/EditorSetRoot.lean"
+
+[[root]]
+module = "EditorSetFixtures"
+path = ".lake/build/root/EditorSetFixtures.lean"

@@ -7,7 +7,7 @@ the policy's TOML text to what `check` prints: which imports are judged
 (between two packages, not within one, not of external modules), allowed
 pairs, same-layer pairs, the default layer, one violation per pair and the
 order, the errors classification and the allow pairs can give and their
-order, and all three rule kinds together.
+order, all three rule kinds together, and declared roots.
 -/
 
 open Lean LeanDeny LeanDeny.Graph LeanDenyTest.Query LeanDenyTest.AllowOnly
@@ -192,10 +192,31 @@ def renderingFailures : Array String :=
   let want := "layers (p.toml): r"
   if got == want then #[] else #[s!"expected {repr want}, got {repr got}"]
 
+/-- `(case, declared roots, policy, expected lines)` over `base`: a declared
+root is in no package, so its imports are never judged, and a classify
+selector cannot select it. -/
+def rootCases : Array (String × Array (Name × Array Name) × String × Array String) :=
+  #[("a root's imports are not judged", #[(`R, #[`B, `C])], lrule cls (allow := std), ok1),
+    ("a classify selector matching a root and a package's modules ignores the root",
+      #[(`C.Gen, #[`C])], lrule cls (allow := std), ok1),
+    ("a classify selector matching only a root", #[(`R, #[`C])],
+      lrule (cls.push ("gen", "\"mod:R!\"")) (allow := std),
+      #["p.toml:5:28: selector 'mod:R!' in layers classify entry 3 matches only declared roots or \
+          modules outside the workspace, which are in no package"]),
+    ("a classify selector matching a root and external modules", #[(`R, #[`C])],
+      "[sets]\ngen = [\"mod:R!\", \"external:Std\"]\n\n" ++
+        lrule (cls.push ("gen", "\"set:gen\"")) (allow := std),
+      #["p.toml:8:28: selector 'set:gen' in layers classify entry 3 matches only declared roots \
+          or modules outside the workspace, which are in no package"])]
+
 def run : IO (Array String) := do
   let mut fs := renderingFailures
   for (name, ms, packages, src, want) in cases do
     let got ← LeanDenyTest.Deny.outcome ms src packages
+    unless got == want do
+      fs := fs.push s!"{name}: expected {repr want}, got {repr got}"
+  for (name, roots, src, want) in rootCases do
+    let got ← LeanDenyTest.Deny.outcome base src (roots := roots)
     unless got == want do
       fs := fs.push s!"{name}: expected {repr want}, got {repr got}"
   return fs

@@ -14,14 +14,15 @@ from a module of one package to a module of another must be an allowed
   must select whole packages: matching some modules of a package but not
   others is an error. A package two entries select is an error. A package no
   entry selects is in `default`, or, with no `default`, an error.
-- Imports within one package (`same-package = "allow"`) and imports of
-  modules outside the workspace are never judged. Every other import counts:
+- Imports within one package (`same-package = "allow"`), imports of
+  modules outside the workspace, and a declared root's imports (as importer
+  or imported: a root is in no package) are never judged. Every other import counts:
   plain, `meta` and `public` alike. Only listed pairs are allowed, same-layer
   pairs included. One violation per (importer, imported) pair, the first
   directive in source order as its witness.
 
 Errors, in order: each classify selector that matches nothing, each that
-matches only modules outside the workspace, each entry that splits a
+matches only modules outside the workspace or declared roots, each entry that splits a
 package; then, only if there were none, each package in two or more
 entries, the packages in no layer (no `default`), and a `default` that holds
 no package; then, only if there were none, each `allow` pair that allows no
@@ -74,25 +75,30 @@ def resolveLayers (g : Graph) (p : Policy) (sets : Std.HashMap String (Array Nod
         | some pk => m.insert pk ((m.getD pk #[]).push n)
         | none => m
     let mut errs := #[]
-    let mut externalOnly := #[]
-    -- Per classify entry: its workspace modules, or `none` when a selector
-    -- of it failed.
+    -- Each selector that matches only modules in no package: externals, or
+    -- declared roots too (`true`).
+    let mut noPackage : Array (SelectorRef × Bool) := #[]
+    -- Per classify entry: its modules in a package, or `none` when a
+    -- selector of it failed.
     let mut matched : Array (Option (Array NodeId)) := #[]
     for c in r.classify do
       let mut u : Option (Array NodeId) := some #[]
       for ref in c.select do
         match matchRef g sets ref with
         | .ok ns =>
-          if !ns.isEmpty && ns.all (isExternalId g) then
-            externalOnly := externalOnly.push ref
+          if !ns.isEmpty && ns.all fun n => (packageOf? g n).isNone then
+            noPackage := noPackage.push (ref, !ns.all (isExternalId g))
           u := u.map (sortedUnion · ns)
         | m =>
           errs := errs.push (loc ref.pos? ((matchError? ref m).getD ""))
           u := none
-      matched := matched.push (u.map (·.filter (!isExternalId g ·)))
-    for ref in externalOnly do
+      matched := matched.push (u.map (·.filter fun n => (packageOf? g n).isSome))
+    for (ref, hasRoot) in noPackage do
       let msg :=
-        s!"{ref.describe} matches only modules outside the workspace, which are in no package"
+        if hasRoot then
+          s!"{ref.describe} matches only declared roots or modules outside the workspace, which \
+            are in no package"
+        else s!"{ref.describe} matches only modules outside the workspace, which are in no package"
       errs := errs.push (loc ref.pos? msg)
     for (c, u?) in r.classify.zip matched do
       let some u := u? | continue

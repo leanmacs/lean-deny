@@ -17,6 +17,9 @@ serves every level, so every rendering has one shape.
 - **Package level:** one node per package, named after it.
 - **Externals,** at lib and package level, collapse to the first component of
   their name: `Lean.Data.Json` is a member of `external/Lean`.
+- **Declared roots** (`[[root]]`) have no package and no target, so at lib
+  and package level each is its own group, `root/<Module>`; without one its
+  imports would vanish above module level.
 
 Every target and package is a node, even with no modules. An edge between
 two groups aggregates every import from a member of one to a member of the
@@ -62,6 +65,8 @@ inductive ViewKind where
   | lib
   | exe
   | package
+  /-- A declared root (`[[root]]`), at every level. -/
+  | root
   deriving BEq, Repr, Inhabited
 
 def ViewKind.toString : ViewKind → String
@@ -70,6 +75,7 @@ def ViewKind.toString : ViewKind → String
   | .lib => "lib"
   | .exe => "exe"
   | .package => "package"
+  | .root => "root"
 
 instance : ToString ViewKind :=
   ⟨ViewKind.toString⟩
@@ -78,12 +84,12 @@ instance : ToString ViewKind :=
 group. -/
 structure ViewNode where
   /-- Unique within the view: the module name, `<pkg>/lib/<lib>`,
-  `<pkg>/exe/<exe>`, `<pkg>` or `external/<Root>`. -/
+  `<pkg>/exe/<exe>`, `<pkg>`, `external/<Root>` or `root/<Module>`. -/
   id : String
   kind : ViewKind
   /-- The module, target or package name, or the external root. -/
   name : String
-  /-- The package; `none` for external nodes. -/
+  /-- The package; `none` for external nodes and declared roots. -/
   package? : Option Name
   /-- The graph's nodes in this group, sorted by name. -/
   members : Array NodeId
@@ -140,6 +146,10 @@ private def groupsOf (lvl : Level) (n : Node) : Array Group :=
         package? := os[0]?.map (·.pkg) }]
   | .module, .external =>
     #[{ id := n.name.toString, kind := .external, name := n.name.toString, package? := none }]
+  | .module, .declared =>
+    #[{ id := n.name.toString, kind := .root, name := n.name.toString, package? := none }]
+  | _, .declared =>
+    #[{ id := s!"root/{n.name}", kind := .root, name := n.name.toString, package? := none }]
   | _, .external =>
     let (id, root) := externalGroup n.name
     #[{ id, kind := .external, name := root, package? := none }]

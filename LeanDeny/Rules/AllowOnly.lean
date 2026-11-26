@@ -17,6 +17,8 @@ package: every such import must land in `allow`. Pure.
 - Every import of a governed module whose target is external or in another
   package must be in `allow`: plain, `meta` and Lean's implicit `Init`
   imports alike. Imports within the module's own package are never checked.
+  A declared root (`[[root]]`) is in no package, so every one of its imports
+  is checked.
   One violation per (importer, imported) pair, the first directive in source
   order as its witness.
 

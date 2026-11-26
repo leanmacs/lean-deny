@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:1:0: root 1: module App.Util is already provided by root-ws/App (<repo>/tests/fixtures/root-ws/App/Util.lean); a declared root must be a module no Lake target provides

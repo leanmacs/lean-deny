@@ -1,0 +1,5 @@
+deny rule 1 (lean-deny.toml:4:0): the generated root must not import Lean
+  gen/Gen.lean:3: Gen imports Lean.Data.Json
+allow-only rule 1 (lean-deny.toml:9:0): the generated root imports only the workspace
+  gen/Gen.lean:3: Gen imports Lean.Data.Json
+lean-deny: 2 violations in 2 of 2 rules

@@ -1,0 +1,8 @@
+# Rules see a declared root: a deny rule whose `from` is a set reaching `Gen`
+# through `mod:` with an except, and an allow-only rule governing `Gen` by
+# `mod:Gen!`, both bite on its import of Lean.Data.Json. allow-only judges
+# every import of a root (it is in no package), so its implicit Init imports
+# need `external:Init`.
+run = "direct"
+args = ["check", "--workspace", "../root-ws", "--config", "lean-deny.toml"]
+exit = 1

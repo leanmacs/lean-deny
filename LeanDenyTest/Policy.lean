@@ -73,14 +73,19 @@ def renderLayers (r : LayersRule) : String :=
   s!"layers@{renderPos r.pos?} classify[{", ".intercalate (r.classify.map entry).toList}] \
     default={dflt} allow[{", ".intercalate (r.allow.map pair).toList}] reason={reason}"
 
+/-- A declared root as `root#1@pos Module=path`. -/
+def renderRoot (r : RootDef) : String :=
+  s!"root#{r.index}@{renderPos r.pos?} {r.module}={r.path}"
+
 /-- Every set, then the order by name, then every deny rule, then every
-allow-only rule, then `[layers]`. -/
+allow-only rule, then `[layers]`, then every declared root. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
   (p.sets.map renderSet |>.push
       s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
     p.deny.map renderRule ++
     p.allowOnly.map renderAllowOnly ++
-    (p.layers?.map fun r => #[renderLayers r]).getD #[]
+    (p.layers?.map fun r => #[renderLayers r]).getD #[] ++
+    p.roots.map renderRoot
 
 /-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
 def denyWith (extra : String) : String :=
@@ -115,9 +120,10 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "b@3:4 [pkg:b@3:5 select(b)]", "order: b a"]),
     -- Unknown top-level keys.
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
-      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers)"]),
+      .error
+        #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, root)"]),
     ("foo = 1", "foo = 1\n",
-      .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers)"]),
+      .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers, root)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -186,7 +192,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
         #["p.toml:3:4: set 'b' is empty",
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external or set)",
-          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers)",
+          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, root)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/
@@ -581,6 +587,70 @@ def layersCases : Array (String × String × Except (Array String) (Array String
           "p.toml:2:39: selector 'set:l' in layers classify entry 1 names an unknown set (the \
             policy defines no sets)"])]
 
+/-- `[[root]]`'s cases: the valid forms and every load-time error. -/
+def rootCases : Array (String × String × Except (Array String) (Array String)) :=
+  #[("one root", "[[root]]\nmodule = \"Gen\"\npath = \".lake/build/root/Gen.lean\"\n",
+      .ok #["order: ", "root#1@1:0 Gen=.lake/build/root/Gen.lean"]),
+    ("two roots, inline, escaped name and '..'",
+      "root = [\n  { module = \"«my-mod».X\", path = \"../x/X.lean\" },\n  \
+        { module = \"Y\", path = \"y.lean\" },\n]\n",
+      .ok #["order: ", "root#1@2:2 «my-mod».X=../x/X.lean", "root#2@3:2 Y=y.lean"]),
+    ("roots are not rules", s!"{denyWith ""}\n[[root]]\nmodule = \"G\"\npath = \"g.lean\"\n",
+      .ok
+        #["order: ", "deny#1@1:0 from[mod:A@2:7 deny1.from] to[mod:B@3:5 deny1.to] reason=\"r\"",
+          "root#1@6:0 G=g.lean"]),
+    ("root = \"x\"", "root = \"x\"\n",
+      .error #["p.toml:1:7: 'root' must be an array of tables, such as [[root]]"]),
+    ("root = []", "root = []\n", .error #["p.toml:1:7: 'root' is empty (omit it)"]),
+    ("root = [1]", "root = [1]\n",
+      .error #["p.toml:1:8: root 1 must be a table, found an integer"]),
+    ("no module, no path", "[[root]]\n",
+      .error #["p.toml:1:0: root 1 has no 'module'", "p.toml:1:0: root 1 has no 'path'"]),
+    ("unknown key", "[[root]]\nmodule = \"G\"\npath = \"g.lean\"\nfile = 1\n",
+      .error #["p.toml:4:7: root 1: unknown key 'file' (expected module, path)"]),
+    ("module not a string", "[[root]]\nmodule = [\"G\"]\npath = \"g.lean\"\n",
+      .error #["p.toml:2:9: root 1: 'module' must be a string, found an array"]),
+    ("module not a name", "[[root]]\nmodule = \"G..H\"\npath = \"g.lean\"\n",
+      .error #["p.toml:2:9: root 1: 'module': 'G..H' is not a module name"]),
+    ("path not a string", "[[root]]\nmodule = \"G\"\npath = 1\n",
+      .error #["p.toml:3:7: root 1: 'path' must be a string, found an integer"]),
+    ("path empty", "[[root]]\nmodule = \"G\"\npath = \"\"\n",
+      .error #["p.toml:3:7: root 1: 'path' must not be empty"]),
+    ("path absolute", "[[root]]\nmodule = \"G\"\npath = \"/g.lean\"\n",
+      .error #["p.toml:3:7: root 1: 'path' must be relative to the workspace directory"]),
+    ("duplicate module and path",
+      "[[root]]\nmodule = \"G\"\npath = \"g.lean\"\n[[root]]\nmodule = \"G\"\npath = \"g.lean\"\n",
+      .error
+        #["p.toml:4:0: root 2: module G is already declared by root 1",
+          "p.toml:4:0: root 2: path 'g.lean' is already declared by root 1"])]
+
+/-- `Policy.rootsOfToml` reads only `root`: other keys, even unknown or
+broken ones, are not checked; a bad root table still is. -/
+def rootsOnlyFailures : IO (Array String) := do
+  let cases : Array (String × String × Except (Array String) (Array String)) :=
+    #[("no root", "bans = 1\n", .ok #[]),
+      ("broken rules ignored",
+        "bans = 1\n[[deny]]\nfrom = 1\n[[root]]\nmodule = \"G\"\npath = \"g.lean\"\n",
+        .ok #["root#1@4:0 G=g.lean"]),
+      ("bad root reported", "bans = 1\n[[root]]\nmodule = \"G\"\n",
+        .error #["p.toml:2:0: root 1 has no 'path'"])]
+  let mut fs := #[]
+  for (name, src, want) in cases do
+    let got ←
+      match ← Toml.parseLocated "p.toml" src with
+      | .error es =>
+        pure (.error es)
+      | .ok entries =>
+        pure ((Policy.rootsOfToml "p.toml" entries).map (·.map renderRoot))
+    let same :=
+      match got, want with
+      | .ok a, .ok b => a == b
+      | .error a, .error b => a == b
+      | _, _ => false
+    unless same do
+      fs := fs.push s!"rootsOfToml {name}: expected {repr want}, got {repr got}"
+  return fs
+
 /-- The policy README.md's "A policy, sketched" shows, verbatim. -/
 def readmeSketch : String :=
   "# lean-deny.toml
@@ -666,8 +736,8 @@ def renderingFailures : Array String :=
       if got == w then none else some s!"locate: expected {repr w}, got {repr got}"
 
 def run : IO (Array String) := do
-  let mut fs := renderingFailures ++ (← sketchFailures)
-  for (name, src, want) in cases ++ denyCases ++ allowOnlyCases ++ layersCases do
+  let mut fs := renderingFailures ++ (← sketchFailures) ++ (← rootsOnlyFailures)
+  for (name, src, want) in cases ++ denyCases ++ allowOnlyCases ++ layersCases ++ rootCases do
     let got := (← load src).map renderPolicy
     let same :=
       match got, want with

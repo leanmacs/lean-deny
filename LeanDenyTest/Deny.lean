@@ -18,12 +18,18 @@ def m (n : Name) (imports : Array Name := #[]) : M :=
   { name := n, imports := imports.map plain }
 
 /-- What `check` prints for policy `src` (as `p.toml`) over the graph of
-`ms`, with package metadata `packages` when given: the errors, or the
-report. -/
-def outcome (ms : Array M) (src : String) (packages : Array PackageInfo := #[]) :
-    IO (Array String) := do
+`ms`, with package metadata `packages` when given, and the declared roots
+`roots` (each a name and its imports, resolved as `mkInput` resolves them):
+the errors, or the report. -/
+def outcome (ms : Array M) (src : String) (packages : Array PackageInfo := #[])
+    (roots : Array (Name × Array Name) := #[]) : IO (Array String) := do
+  let resolve (n : Name) : Option (Name × Name) :=
+    (ms.find? fun m => m.name == n && m.kind == .lib).map fun m => (m.pkg, m.target)
+  let (s, h) :=
+    roots.foldl (init := mkInput ms) fun acc (r, imps) =>
+      addRoot acc r (imps.map fun n => (n, resolve n))
   let g ←
-    match mkGraph ms with
+    match build s h with
     | .ok g =>
       pure (if packages.isEmpty then g else { g with packages })
     | .error e =>

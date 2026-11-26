@@ -1,0 +1,8 @@
+lean-deny: error: lean-deny.toml:1:0: root 1 has no 'path'
+lean-deny: error: lean-deny.toml:7:7: root 2: unknown key 'file' (expected module, path)
+lean-deny: error: lean-deny.toml:10:9: root 3: 'module': '1x' is not a module name
+lean-deny: error: lean-deny.toml:15:7: root 4: 'path' must be relative to the workspace directory
+lean-deny: error: lean-deny.toml:17:0: root 5: module B is already declared by root 2
+lean-deny: error: lean-deny.toml:21:0: root 6: path 'gen/B.lean' is already declared by root 2
+lean-deny: error: lean-deny.toml:26:9: root 7: 'module' must be a string, found an integer
+lean-deny: error: lean-deny.toml:27:7: root 7: 'path' must not be empty

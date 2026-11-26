@@ -5,7 +5,7 @@ import LeanDenyTest.Query
 Tests of `LeanDeny.Graph.collapse` on a hand-written graph: shared modules
 counted in each owner, self-edges dropped above module level, externals
 grouped by their first name component, empty targets and packages kept as
-nodes, and every ordering rule.
+nodes, declared roots as their own groups, and every ordering rule.
 -/
 
 open Lean LeanDeny.Graph LeanDenyTest.Query
@@ -127,13 +127,44 @@ def displayOrderFailures : Array String :=
     LeanDenyTest.Graph.compare "displayOrder" got
       #["App", "App.Shared", "AppTest", "Init", "Lean.Data.Json", "Std"]
 
-def run : Array String :=
-  match mkGraph modules with
-  | .error e => #[s!"building the view test graph failed: {e}"]
+/-- A declared root `Gen` importing `A` of library `L` of package `p` and the
+external `Lean.Data.Json`: its own `root` node at every level, `Gen` at
+module level and `root/Gen` above it, with no package. -/
+def rootFailures : Array String :=
+  let (s, h) :=
+    addRoot (mkInput #[{ name := `A }]) `Gen #[(`A, some (`p, `L)), (`Lean.Data.Json, none)]
+  match build s h with
+  | .error e => #[s!"building the root view graph failed: {e}"]
   | .ok g =>
-    let g := { g with packages }
-    displayOrderFailures ++ levelFailures ++ viewFailures g .module moduleNodes moduleEdges ++
-      viewFailures g .lib libNodes libEdges ++
-      viewFailures g .package packageNodes packageEdges
+    let g := { g with packages := #[pkg `p #[`L] #[]] }
+    viewFailures g .module
+        #["A module A p #[A]", "Gen root Gen - #[Gen]", "Init external Init - #[Init]",
+          "Lean.Data.Json external Lean.Data.Json - #[Lean.Data.Json]"]
+        #["A -> Init: A>Init A>meta Init", "Gen -> A: Gen>A", "Gen -> Init: Gen>Init Gen>meta Init",
+          "Gen -> Lean.Data.Json: Gen>Lean.Data.Json"] ++
+      viewFailures g .lib
+        #["p/lib/L lib L p #[A]", "root/Gen root Gen - #[Gen]",
+          "external/Init external Init - #[Init]",
+          "external/Lean external Lean - #[Lean.Data.Json]"]
+        #["p/lib/L -> external/Init: A>Init A>meta Init", "root/Gen -> p/lib/L: Gen>A",
+          "root/Gen -> external/Init: Gen>Init Gen>meta Init",
+          "root/Gen -> external/Lean: Gen>Lean.Data.Json"] ++
+      viewFailures g .package
+        #["p package p p #[A]", "root/Gen root Gen - #[Gen]",
+          "external/Init external Init - #[Init]",
+          "external/Lean external Lean - #[Lean.Data.Json]"]
+        #["p -> external/Init: A>Init A>meta Init", "root/Gen -> p: Gen>A",
+          "root/Gen -> external/Init: Gen>Init Gen>meta Init",
+          "root/Gen -> external/Lean: Gen>Lean.Data.Json"]
+
+def run : Array String :=
+  rootFailures ++
+    match mkGraph modules with
+    | .error e => #[s!"building the view test graph failed: {e}"]
+    | .ok g =>
+      let g := { g with packages }
+      displayOrderFailures ++ levelFailures ++ viewFailures g .module moduleNodes moduleEdges ++
+        viewFailures g .lib libNodes libEdges ++
+        viewFailures g .package packageNodes packageEdges
 
 end LeanDenyTest.View
