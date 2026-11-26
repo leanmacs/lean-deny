@@ -13,13 +13,7 @@ open Lean LeanDeny.Graph LeanDeny.Graph.LakeApi
 namespace LeanDenyTest.Graph
 
 /-- `path` relative to the graph's root (`.` for the root itself). -/
-def rel (g : Graph) (path : System.FilePath) : String :=
-  let p := path.toString
-  let r := g.root.toString
-  if p == r then "." else
-    match p.dropPrefix? (r ++ "/") with
-    | some rest => rest.toString
-    | none => p
+def rel (g : Graph) (path : System.FilePath) : String := g.relPath path
 
 def unescaped (n : Name) : String := n.toString (escape := false)
 

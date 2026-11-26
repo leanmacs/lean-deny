@@ -148,4 +148,14 @@ structure Graph where
   inc : Array (Array Nat)
   deriving Inhabited
 
+/-- `path` relative to the graph's root, with `/` separators (`.` for the
+root itself); a path outside the root stays as it is. -/
+def Graph.relPath (g : Graph) (path : FilePath) : String :=
+  let p := path.toString
+  let r := g.root.toString
+  if p == r then "." else
+    match p.dropPrefix? (r ++ "/") with
+    | some rest => rest.toString
+    | none => p
+
 end LeanDeny.Graph

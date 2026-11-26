@@ -70,31 +70,41 @@ private def splitEq (a : String) : String × Option String :=
   | n :: v :: vs => (n, some ("=".intercalate (v :: vs)))
   | _ => (a, none)
 
-/-- `check`'s options seen so far. -/
-private structure CheckState where
-  workspace? : Option FilePath := none
-  config? : Option FilePath := none
+/-- One option of a command: its name (`--workspace`) and how its value
+updates the command's options. -/
+private abbrev OptSpec (σ : Type) := String × (σ → String → Except UsageError σ)
 
-/-- Parse the arguments after `check`. -/
-private partial def parseCheck (st : CheckState) : List String → Except UsageError Command
-  | [] => .ok (.check { workspace := st.workspace?.getD ".", config? := st.config? })
+/-- Parse a command's arguments: `--name value` or `--name=value` for each
+option in `specs`, each at most once, no positional arguments. `none` means
+`--help`/`-h` was given. -/
+private partial def parseOpts {σ : Type} (cmd : String) (specs : List (OptSpec σ))
+    (seen : List String) (st : σ) : List String → Except UsageError (Option σ)
+  | [] => .ok (some st)
   | a :: rest => do
-    if isHelp a then return .help
+    if isHelp a then return none
     let (name, inline?) := splitEq a
-    unless name == "--workspace" || name == "--config" do
-      if a.startsWith "-" then throw ⟨s!"unknown option '{name}' for 'check'"⟩
+    let some (_, set) := specs.find? (·.1 == name) | do
+      if a.startsWith "-" then throw ⟨s!"unknown option '{name}' for '{cmd}'"⟩
       throw ⟨s!"unexpected argument '{a}'"⟩
     let (val, rest) ← match inline?, rest with
       | some v, rest => pure (v, rest)
       | none, v :: rest => if v.startsWith "-" then pure ("", v :: rest) else pure (v, rest)
       | none, [] => pure ("", [])
     if val.isEmpty then throw ⟨s!"option '{name}' requires a value"⟩
-    if name == "--workspace" then
-      if st.workspace?.isSome then throw ⟨s!"option '{name}' given more than once"⟩
-      parseCheck { st with workspace? := some val } rest
-    else
-      if st.config?.isSome then throw ⟨s!"option '{name}' given more than once"⟩
-      parseCheck { st with config? := some val } rest
+    if seen.contains name then throw ⟨s!"option '{name}' given more than once"⟩
+    parseOpts cmd specs (name :: seen) (← set st val) rest
+
+/-- `check`'s options. -/
+private def checkSpecs : List (OptSpec CheckOpts) := [
+  ("--workspace", fun o v => .ok { o with workspace := v }),
+  ("--config", fun o v => .ok { o with config? := some v })
+]
+
+/-- Parse the arguments after `check`. -/
+private def parseCheck (args : List String) : Except UsageError Command := do
+  match ← parseOpts "check" checkSpecs [] {} args with
+  | none => return .help
+  | some o => return .check o
 
 /-- Parse lean-deny's command line (without the program name). -/
 def parseArgs : List String → Except UsageError Command
@@ -104,7 +114,7 @@ def parseArgs : List String → Except UsageError Command
       match rest with
       | [] => .ok (if isHelp a then .help else .version)
       | b :: _ => .error ⟨s!"unexpected argument '{b}'"⟩
-    else if a == "check" then parseCheck {} rest
+    else if a == "check" then parseCheck rest
     else if a.startsWith "-" then .error ⟨s!"unknown option '{(splitEq a).1}'"⟩
     else .error ⟨s!"unknown command '{a}'"⟩
 
