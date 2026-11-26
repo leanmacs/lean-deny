@@ -111,6 +111,11 @@ structure View where
 /-- A package or target name as users write it in `lakefile.toml`. -/
 def plainName (n : Name) : String := n.toString (escape := false)
 
+/-- The lib-level id of target `t` of kind `k` in package `pkg`:
+`<pkg>/lib/<lib>` or `<pkg>/exe/<exe>`. -/
+def targetId (pkg : Name) (k : TargetKind) (t : Name) : String :=
+  s!"{plainName pkg}/{k}/{plainName t}"
+
 /-- The external group of module `m`: `external/<first component>`. -/
 private def externalGroup (m : Name) : String × String :=
   let root := (m.components.head?.getD m).toString
@@ -139,7 +144,7 @@ private def groupsOf (lvl : Level) (n : Node) : Array Group :=
     (os[0]?.map fun o => #[packageGroup o.pkg]).getD #[]
 where
   targetGroup (pkg : Name) (k : TargetKind) (t : Name) : Group :=
-    { id := s!"{plainName pkg}/{k}/{plainName t}", kind := if k == .lib then .lib else .exe,
+    { id := targetId pkg k t, kind := if k == .lib then .lib else .exe,
       name := plainName t, package? := some pkg }
   packageGroup (pkg : Name) : Group :=
     { id := plainName pkg, kind := .package, name := plainName pkg, package? := some pkg }

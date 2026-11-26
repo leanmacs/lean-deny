@@ -71,8 +71,7 @@ private def textNode (g : Graph) (v : View) (n : ViewNode) : Array String :=
     let m? : Option Node := n.members[0]? >>= (g.nodes[·]?)
     match m?, m?.map (·.origin) with
     | some m, some (Origin.workspace os) =>
-      let owners := ", ".intercalate (os.map fun o =>
-        s!"{plainName o.pkg}/{o.kind}/{plainName o.target}").toList
+      let owners := ", ".intercalate (os.map fun o => targetId o.pkg o.kind o.target).toList
       let flags := (if m.isModule then ["module"] else []) ++
         (if m.isPrelude then ["prelude"] else [])
       let flags := if flags.isEmpty then "" else "; " ++ ", ".intercalate flags
