@@ -13,14 +13,12 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table and the `[[deny]]` and `[[allow-only]]` rules of `lean-deny.toml`,
-> checks that every selector matches, and exits 1 with the violations when
-> a rule is broken. Only `layers` is not implemented yet: like any other
-> unknown top-level key, it is an error, never silently ignored.
-> `lean-deny explain` lists the modules a selector matches, and
-> `lean-deny graph` prints the graph it loads, as text, JSON or DOT. The
-> syntax of the rules not yet implemented is a draft and will change. The
-> plan lives in the rdm project `lean-deny` (roadmaps `foundation` and
+> table and the `[[deny]]`, `[[allow-only]]` and `[layers]` rules of
+> `lean-deny.toml`, checks that every selector matches, and exits 1 with
+> the violations when a rule is broken. Any other top-level key is an
+> error, never silently ignored. `lean-deny explain` lists the modules a
+> selector matches, and `lean-deny graph` prints the graph it loads, as
+> text, JSON or DOT. The plan lives in the rdm project `lean-deny` (roadmaps `foundation` and
 > `policy-rules`).
 
 [cargo-deny]: https://github.com/EmbarkStudios/cargo-deny
@@ -58,7 +56,7 @@ imports.
 |---|---|---|
 | `deny` | Modules in A must not import modules in B, directly or (with `transitive = true`) through others. `wrappers` name the modules allowed to. | `bans.deny` with `wrappers` |
 | `allow-only` | What a module of A imports from outside its own package must be in a listed set. Nested rules give tiers, such as a library versus its tests: the most specific rule covering a module applies. | none |
-| `layers` | Packages are sorted into layers by name or keyword; an import between packages must go in an allowed direction. | none |
+| `layers` | Every package is in one layer, chosen by selectors such as `pkg:` or `keyword:`; every import between two packages must be an allowed (importer layer, imported layer) pair. | none |
 
 ### Selectors
 
@@ -330,6 +328,101 @@ allow-only rule 1 (lean-deny.toml:10:0): a package's library imports the core's 
 lean-deny: 1 violation in 1 of 2 rules
 ```
 
+### layers
+
+The `[layers]` table puts every package of the workspace in one layer and
+says which layers a package may import from. This is editor-project's
+three-layer rule (its `tools/layer-imports-check.sh`):
+
+```toml
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"     # a misspelt keyword makes a package more refused, never less
+allow = [ ["interface", "core"], ["implementation", "core"], ["implementation", "interface"] ]
+same-package = "allow"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `classify` | yes | a non-empty array of tables `{ layer, select }` (or `[[layers.classify]]` tables): `layer` a layer name, `select` a selector or a non-empty array of selectors (their union) |
+| `default` | no | a layer name: the layer of every package no classify entry selects |
+| `allow` | no | a non-empty array of `[importer, imported]` pairs of layer names (default none) |
+| `same-package` | no | `"allow"`, its only value: imports within one package are always allowed |
+| `reason` | no | a non-blank string; when given, it starts every violation's header |
+
+Layer names use letters, digits, `-` and `_`, as set names do. There is at
+most one `[layers]` table (`layers = { … }` works too), and it counts as one
+rule.
+
+**Classification is per package.** A classify entry puts every package its
+selectors match in its layer, and it must select whole packages: matching
+some modules of a package but not others is an error, so select packages
+with `pkg:`, `keyword:`, or a set of them. A package that two entries select
+is an error, even when they name the same layer (take it out of one with a
+set's `except`). A package that no entry selects is in `default`; with no
+`default`, it is an error, so every package must be classified. Making the
+default the most restricted layer, as above, means a package whose
+`keywords` are misspelt is refused more, never less.
+
+**What is judged:** each direct import from a module of one package to a
+module of another package, of every kind (plain, `meta`, `public`). It holds
+when (importer's layer, imported's layer) is an `allow` pair. Imports within
+one package are never judged, nor are imports of modules outside the
+workspace (`Init`, `Std`, `Lean`, …), which are in no layer: `deny` and
+`allow-only` cover those. Only listed pairs are allowed, same-layer pairs
+included: `["interface", "interface"]` allows imports between two
+interface packages, and without it they are refused. editor-project's
+script allows interface → interface, so a policy that mirrors it exactly
+adds that pair once two interface packages import each other (an unused
+pair is an error, below).
+
+A violation is reported once per (importer, imported) pair, with the first
+such `import` as its witness. Its header names both packages and their
+layers, after the `reason` when there is one. Violations come after the
+deny and allow-only rules', by importing module in the order `graph` lists
+modules, then in the order the imports are written. From
+`tests/fixtures/layers-bites`:
+
+```
+layers (lean-deny.toml:7:0): app (implementation) may not import plugin (implementation)
+  App.lean:3: App imports Plugin
+layers (lean-deny.toml:7:0): app (implementation) may not import typo (implementation)
+  App.lean:4: App imports Typo
+layers (lean-deny.toml:7:0): editor (core) may not import plugin (implementation)
+  editor/Editor.lean:2: Editor imports Plugin
+layers (lean-deny.toml:7:0): iface (interface) may not import typo (implementation)
+  iface/Iface.lean:2: Iface imports Typo
+lean-deny: 4 violations in 1 of 1 rule
+```
+
+Each of these is an error (exit 2), reported at the policy's
+`file:line:column`:
+
+- a malformed table: `layers` not a table, a missing or empty `classify`, a
+  classify entry that is not a table or lacks `layer` or `select`, an
+  invalid layer name, an `allow` element that is not a pair of strings, a
+  pair listed twice, a `same-package` other than `"allow"`, a blank
+  `reason`, an unknown key, a value of the wrong kind, or a malformed
+  selector;
+- a `set:` that names no set;
+- an `allow` pair naming a layer that neither a classify entry nor
+  `default` declares;
+- a classify selector that matches no module, or only modules outside the
+  workspace;
+- a classify entry that splits a package (it names one module it matches
+  and one it does not);
+- a package in two or more classify entries, or, with no `default`, in
+  none;
+- a `default` layer that holds no package, because the classify entries
+  select every package;
+- an `allow` pair that allows nothing: no module of a package in the first
+  layer imports a module of another package in the second.
+
+When the policy has any error, no violation is reported.
+
 ## A policy, sketched
 
 ```toml
@@ -373,16 +466,14 @@ allow = [
 ]
 ```
 
-Only `layers` is not implemented, so today this policy is rejected for its
-`[layers]` table. Without it, a broken rule is reported like this (see
-"deny" above; a
-`--format` option is planned):
+A broken rule is reported like this (see "deny" above; a `--format` option
+is planned):
 
 ```
 deny rule 1 (lean-deny.toml:8:0): a package may depend on the core, and the core on no package
   Editor/Core/Commands.lean:4: Editor.Core.Commands imports Editor.Core.Menus
   Editor/Core/Menus.lean:7: Editor.Core.Menus imports Compile.Api
-lean-deny: 1 violation in 1 of 2 rules
+lean-deny: 1 violation in 1 of 4 rules
 ```
 
 ## Using it with Lake
@@ -433,7 +524,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny" and "allow-only"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
+| `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only" and "layers"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
 | `lean-deny graph [--workspace <dir>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--format text`, `--level module`. Does not read the policy. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read only for a `set:` selector, and then only that set and the sets it refers to are resolved. |
@@ -444,8 +535,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken (a `deny` or `allow-only` rule's violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module. No violation is reported then. The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny`, `allow-only` or `layers` violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing. No violation is reported then. The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
 
 ### Seeing the graph
 
@@ -492,7 +583,7 @@ queries on hand-written graphs (`query`); of the module, lib and package
 views on a hand-written graph (`view`); of what selectors and sets match
 on a hand-written graph (`resolve`); of `deny` rules on hand-written
 graphs, from the policy's text to what `check` prints (`deny`), and of
-`allow-only` rules the same way (`allow-only`); of the
+`allow-only` rules and `[layers]` the same way (`allow-only`, `layers`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 exact checks of the graph loaded for `tests/fixtures/spike-ws` and
@@ -525,7 +616,8 @@ runs with the fixture directory as its working directory.
 
 Each rule kind is tested by fixtures where the rule holds and where it is
 broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
-`allow-only-*` for `allow-only`, over the `tier-ws` workspace). After `lake build --wfail && lake test`,
+`allow-only-*` for `allow-only`, over the `tier-ws` workspace; `layers-*`
+for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces). After `lake build --wfail && lake test`,
 `git status --porcelain` must print nothing; CI checks that too.
 
 The sources are formatted and linted with
