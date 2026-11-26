@@ -1,0 +1,1 @@
+lean-deny: error: module Dup is provided by both duplicate-module/Dup (<fixture>/Dup.lean) and other/Other (<fixture>/other/Dup.lean)

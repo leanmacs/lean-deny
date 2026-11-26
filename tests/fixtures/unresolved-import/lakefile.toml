@@ -1,0 +1,7 @@
+# `App.Missing` matches the library's glob, so Lake resolves the import to
+# library App, but there is no App/Missing.lean.
+name = "unresolved-import"
+
+[[lean_lib]]
+name = "App"
+globs = ["App.*"]

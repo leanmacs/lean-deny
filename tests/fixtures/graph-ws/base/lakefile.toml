@@ -1,0 +1,4 @@
+name = "base"
+
+[[lean_lib]]
+name = "Base"

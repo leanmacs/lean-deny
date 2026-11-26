@@ -1,0 +1,5 @@
+name = "other"
+
+[[lean_lib]]
+name = "Other"
+roots = ["Dup"]

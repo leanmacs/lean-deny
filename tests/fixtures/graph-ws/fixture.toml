@@ -1,0 +1,4 @@
+# Also the graph suite's main workspace (LeanDenyTest/Graph.lean).
+run = "direct"
+args = ["check"]
+exit = 0

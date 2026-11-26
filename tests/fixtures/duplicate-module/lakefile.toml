@@ -1,0 +1,9 @@
+# Two packages each provide a module named `Dup`; Lean could not import both.
+name = "duplicate-module"
+
+[[require]]
+name = "other"
+path = "other"
+
+[[lean_lib]]
+name = "Dup"

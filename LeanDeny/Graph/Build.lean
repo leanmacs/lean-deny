@@ -26,7 +26,7 @@ namespace LeanDeny.Graph
 
 /-- `pkg/target (file)`, for error messages. -/
 private def describe (m : RawModule) : String :=
-  s!"{m.owner.pkg}/{m.owner.target} ({m.file})"
+  s!"{m.owner.pkg.toString (escape := false)}/{m.owner.target.toString (escape := false)} ({m.file})"
 
 /-- Whether Lake's import is Lean's implicit plain or `meta` `Init`. -/
 private def isImplicitInit (imp : RawImport) (isMeta : Bool) : Bool :=
@@ -93,7 +93,8 @@ def build (snap : Snapshot) (headers : Std.HashMap Name (Array HeaderImport)) :
       if merged.contains r.module then continue
       if let some (pkg, lib) := r.resolved? then
         throw s!"{m.file}:{h.line}: import of {r.module}: Lake resolves it to library \
-          {lib} of package {pkg}, but no such module file exists"
+          {lib.toString (escape := false)} of package {pkg.toString (escape := false)}, \
+          but no such module file exists"
       externals := externals.insert r.module
   let mut names := order ++ externals.toArray
   names := names.qsort (fun a b => a.cmp b == .lt)

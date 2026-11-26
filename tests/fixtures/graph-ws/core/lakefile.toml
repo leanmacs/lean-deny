@@ -1,0 +1,10 @@
+name = "core"
+keywords = ["kernel", "api"]
+
+[[require]]
+name = "base"
+path = "../base"
+
+[[lean_lib]]
+name = "Core"
+globs = ["Core.+"]  # no Core.lean root module

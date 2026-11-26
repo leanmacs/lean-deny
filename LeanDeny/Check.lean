@@ -1,7 +1,7 @@
 import LeanDeny.Cli
 import LeanDeny.Exit
 import LeanDeny.Policy
-import LeanDeny.Graph.LakeApi
+import LeanDeny.Graph
 
 /-!
 # `lean-deny check`
@@ -33,11 +33,12 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
   let _policy ← match ← loadPolicy policyPath with
     | .ok p => pure p
     | .error msgs => return ← fail msgs
-  -- Load the graph for real, so an unloadable workspace fails now. No rule
-  -- kinds exist yet, so the snapshot is not used. A load error may carry
-  -- several of Lake's messages, one per line; each is its own diagnostic.
+  -- Load the graph for real, so a workspace that cannot be loaded fails now.
+  -- No rule kinds exist yet, so the graph is not used. A load error may
+  -- carry several of Lake's messages, one per line; each is its own
+  -- diagnostic.
   try
-    let _snap ← Graph.LakeApi.snapshot ws
+    let _graph ← Graph.load ws
   catch e =>
     return ← fail ((toString e).splitOn "\n").toArray
   IO.println "lean-deny: ok (0 rules)"

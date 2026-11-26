@@ -1,0 +1,1 @@
+lean-deny: error: <fixture>/App.lean:2: import of App.Missing: Lake resolves it to library App of package unresolved-import, but no such module file exists

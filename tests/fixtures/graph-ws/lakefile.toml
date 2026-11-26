@@ -1,0 +1,24 @@
+# The module graph's main fixture (LeanDenyTest/Graph.lean): three packages
+# joined by path `require`s (core directly, base through core), two
+# libraries in this package sharing `App.Shared`, an executable whose root
+# no library lists, the module-system keywords, `prelude`, and imports from
+# outside the workspace. Never built.
+name = "graph-ws"
+
+[[require]]
+name = "core"
+path = "core"
+
+[[lean_lib]]
+name = "App"
+globs = ["App.*"]  # App.lean and everything under App/
+
+[[lean_lib]]
+name = "AppTest"
+# Two single modules (`Glob.one`). `AppTest.*` would make Lake list the
+# directory AppTest/, which does not exist.
+globs = ["AppTest", "App.Shared"]
+
+[[lean_exe]]
+name = "graph-app"
+root = "Main"

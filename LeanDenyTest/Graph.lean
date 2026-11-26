@@ -1,50 +1,180 @@
 import LeanDeny
 
 /-!
-Graph checks (formerly the spike's `SpikeTest`): load `tests/fixtures/spike-ws`
-through the in-process Lake API and check the graph it resolves, including the
-module-system import flags and `prelude`, and the no-manifest guard.
+Graph checks: load `tests/fixtures/spike-ws` and `tests/fixtures/graph-ws`
+with `LeanDeny.Graph.load`, through the in-process Lake API and the header
+parser, and compare the in-memory graph with what is expected, exactly:
+every node, every edge with its keywords, file and line, the package
+metadata, and queries on the result. Also the no-manifest guard.
 -/
 
 open Lean LeanDeny.Graph LeanDeny.Graph.LakeApi
 
 namespace LeanDenyTest.Graph
 
-/-- The failures of the fixture's snapshot against what is expected. -/
-def failures (rows : Array RawModule) : Array String := Id.run do
-  let mut fs : Array String := #[]
-  let fixRows := rows.filter fun r =>
-    r.owner == { pkg := `«spike-ws», kind := .lib, target := `Fix }
-  unless fixRows.size == 4 && rows.size == 4 do
-    fs := fs.push s!"expected 4 modules in lib Fix of package spike-ws, got {rows.map (·.name)}"
-  let row? (m : Name) : Option RawModule := rows.find? (·.name == m)
-  let edge? (src dst : Name) : Option RawImport :=
-    (row? src).bind fun r => r.imports.find? (·.module == dst)
-  let expectEdge (src dst : Name) (ok : RawImport → Bool) (what : String) : Option String :=
-    match edge? src dst with
-    | some e => if ok e then none else some s!"{src}→{dst} should be {what}: {repr e}"
-    | none => some s!"missing edge {src}→{dst}"
-  let expectRow (m : Name) (ok : RawModule → Bool) (what : String) : Option String :=
-    match row? m with
-    | some r => if ok r then none else some s!"{m} {what}: {repr r}"
-    | none => some s!"missing module {m}"
-  let importsInit (r : RawModule) := r.imports.any (·.module == `Init)
-  let inWs (e : RawImport) := e.resolved? == some (`«spike-ws», `Fix)
-  let checks := #[
-    expectEdge `Fix.A `Fix.B (fun e => inWs e && e.isExported && !e.isMeta && !e.importAll)
-      "a resolved public import",
-    expectEdge `Fix.A `Fix.C (fun e => inWs e && e.isMeta && !e.isExported && !e.importAll)
-      "a resolved (private) meta import",
-    expectEdge `Fix.A `Fix.D (fun e => inWs e && e.importAll && !e.isMeta)
-      "a resolved import all",
-    expectEdge `Fix.B `Fix.C inWs "a resolved import",
-    expectEdge `Fix.B `Init (·.resolved?.isNone) "a toolchain import (no workspace package)",
-    expectRow `Fix.C (fun r => !importsInit r && r.imports.isEmpty) "(prelude) should import nothing, not even Init",
-    expectRow `Fix.A (·.isModule) "should have isModule = true",
-    expectRow `Fix.D (fun r => importsInit r && !r.isModule) "should import Init and not be a module"
-  ]
-  for c in checks do
-    if let some f := c then fs := fs.push f
+/-- `path` relative to the graph's root (`.` for the root itself). -/
+def rel (g : Graph) (path : System.FilePath) : String :=
+  let p := path.toString
+  let r := g.root.toString
+  if p == r then "." else
+    match p.dropPrefix? (r ++ "/") with
+    | some rest => rest.toString
+    | none => p
+
+def unescaped (n : Name) : String := n.toString (escape := false)
+
+/-- A node as `Name origin file module-or-- prelude-or--`, where origin is
+`external` or the owners as `pkg/kind/target`, comma-separated. -/
+def renderNode (g : Graph) (n : Node) : String :=
+  let origin := match n.origin with
+    | .external => "external"
+    | .workspace os => ",".intercalate (os.map fun (o : Owner) =>
+        s!"{unescaped o.pkg}/{o.kind}/{unescaped o.target}").toList
+  let file := (n.file?.map (rel g)).getD "-"
+  s!"{n.name} {origin} {file} {if n.isModule then "module" else "-"} \
+    {if n.isPrelude then "prelude" else "-"}"
+
+/-- An edge as `Src -> Dst [keywords] exported? implicit? file:line`. -/
+def renderEdge (g : Graph) (e : Edge) : String :=
+  let name (i : NodeId) := toString (g.nodes[i]?.map (·.name) |>.getD `«?»)
+  let kws := (if e.kind.isPublic then ["public"] else []) ++
+    (if e.kind.isMeta then ["meta"] else []) ++ (if e.kind.isAll then ["all"] else [])
+  let flags := (if e.isExported then ["exported"] else []) ++
+    (if e.implicit then ["implicit"] else [])
+  s!"{name e.src} -> {name e.dst} [{",".intercalate kws}] {" ".intercalate flags} \
+    {rel g e.file}:{(e.line?.map toString).getD "-"}"
+
+/-- A package as `name root? dir keywords requires libs exes`. -/
+def renderPackage (g : Graph) (p : PackageInfo) : String :=
+  let libs := p.libs.map fun l => s!"{l.name}{l.roots}{l.globs}"
+  let exes := p.exes.map fun x => s!"{unescaped x.name}:{x.root}"
+  s!"{unescaped p.name} {if p.isRoot then "root" else "dep"} {rel g p.dir} \
+    {rel g p.configFile} {p.keywords} {p.requires.map unescaped} {libs} {exes} {p.remoteUrl?}"
+
+/-- Compare two lists line by line, describing the first few differences. -/
+def compare (what : String) (got want : Array String) : Array String := Id.run do
+  if got == want then return #[]
+  let mut fs := #[s!"{what} differ ({want.size} expected, {got.size} found)"]
+  for i in [0:max got.size want.size] do
+    let g := got[i]?.getD "(none)"
+    let w := want[i]?.getD "(none)"
+    if g != w then fs := fs.push s!"  {what} {i}: expected {w}\n      got      {g}"
+  return fs
+
+def expectStr (what got want : String) : Array String :=
+  if got == want then #[] else #[s!"{what}: expected {want}, got {got}"]
+
+def spikeNodes : Array String := #[
+  "Init external - - -",
+  "Fix.A spike-ws/lib/Fix Fix/A.lean module -",
+  "Fix.B spike-ws/lib/Fix Fix/B.lean - -",
+  "Fix.C spike-ws/lib/Fix Fix/C.lean - prelude",
+  "Fix.D spike-ws/lib/Fix Fix/D.lean - -"
+]
+
+def spikeEdges : Array String := #[
+  "Fix.A -> Init [] exported implicit Fix/A.lean:-",
+  "Fix.A -> Init [meta] exported implicit Fix/A.lean:-",
+  "Fix.A -> Fix.B [public] exported Fix/A.lean:3",
+  "Fix.A -> Fix.C [meta]  Fix/A.lean:4",
+  "Fix.A -> Fix.D [all]  Fix/A.lean:5",
+  "Fix.B -> Init [] exported implicit Fix/B.lean:-",
+  "Fix.B -> Init [meta] exported implicit Fix/B.lean:-",
+  "Fix.B -> Fix.C [] exported Fix/B.lean:1",
+  "Fix.D -> Init [] exported implicit Fix/D.lean:-",
+  "Fix.D -> Init [meta] exported implicit Fix/D.lean:-"
+]
+
+/-- The failures of `spike-ws`'s graph: four modules of one library plus
+`Init`, `Fix.A`'s three import kinds, `Fix.C`'s `prelude`. -/
+def spikeFailures (g : Graph) : Array String :=
+  compare "spike-ws nodes" (g.nodes.map (renderNode g)) spikeNodes ++
+  compare "spike-ws edges" (g.edges.map (renderEdge g)) spikeEdges
+
+/-- `graph-ws`'s ten workspace modules and three external targets, in
+`Name.cmp` order (shallower names first). -/
+def graphWsNodes : Array String := #[
+  "App graph-ws/lib/App App.lean - -",
+  "AppTest graph-ws/lib/AppTest AppTest.lean - -",
+  "Base base/lib/Base base/Base.lean module -",
+  "Init external - - -",
+  "Main graph-ws/exe/graph-app Main.lean - -",
+  "App.Shared graph-ws/lib/App,graph-ws/lib/AppTest App/Shared.lean - -",
+  "Core.Api core/lib/Core core/Core/Api.lean module -",
+  "Core.Impl core/lib/Core core/Core/Impl.lean module -",
+  "Core.Macros core/lib/Core core/Core/Macros.lean module -",
+  "Core.Prim core/lib/Core core/Core/Prim.lean module prelude",
+  "Core.Types core/lib/Core core/Core/Types.lean module -",
+  "Lean.Data.Json external - - -",
+  "Lean.Elab.Command external - - -"
+]
+
+def graphWsEdges : Array String := #[
+  "App -> Init [] exported implicit App.lean:-",
+  "App -> Init [meta] exported implicit App.lean:-",
+  "App -> App.Shared [] exported App.lean:1",
+  "App -> Core.Api [] exported App.lean:2",
+  "AppTest -> Init [] exported implicit AppTest.lean:-",
+  "AppTest -> Init [meta] exported implicit AppTest.lean:-",
+  "AppTest -> App [] exported AppTest.lean:1",
+  "AppTest -> App.Shared [] exported AppTest.lean:2",
+  "Base -> Init [] exported implicit base/Base.lean:-",
+  "Base -> Init [meta] exported implicit base/Base.lean:-",
+  "Main -> Init [] exported implicit Main.lean:-",
+  "Main -> Init [meta] exported implicit Main.lean:-",
+  "Main -> App [] exported Main.lean:4",
+  "App.Shared -> Init [] exported implicit App/Shared.lean:-",
+  "App.Shared -> Init [meta] exported implicit App/Shared.lean:-",
+  "App.Shared -> Lean.Data.Json [] exported App/Shared.lean:1",
+  "Core.Api -> Init [] exported implicit core/Core/Api.lean:-",
+  "Core.Api -> Init [meta] exported implicit core/Core/Api.lean:-",
+  "Core.Api -> Core.Types [public] exported core/Core/Api.lean:5",
+  "Core.Api -> Core.Impl [all]  core/Core/Api.lean:5",
+  "Core.Api -> Core.Macros [public,meta] exported core/Core/Api.lean:6",
+  "Core.Api -> Base [meta]  core/Core/Api.lean:8",
+  "Core.Impl -> Init [] exported implicit core/Core/Impl.lean:-",
+  "Core.Impl -> Init [meta] exported implicit core/Core/Impl.lean:-",
+  "Core.Impl -> Core.Types []  core/Core/Impl.lean:3",
+  "Core.Macros -> Init [] exported implicit core/Core/Macros.lean:-",
+  "Core.Macros -> Init [meta] exported implicit core/Core/Macros.lean:-",
+  "Core.Macros -> Lean.Elab.Command [public] exported core/Core/Macros.lean:3",
+  "Core.Types -> Init [] exported implicit core/Core/Types.lean:-",
+  "Core.Types -> Init [meta] exported implicit core/Core/Types.lean:-",
+  "Core.Types -> Core.Prim []  core/Core/Types.lean:3"
+]
+
+def graphWsPackages : Array String := #[
+  "graph-ws root . lakefile.toml #[] #[core] #[App#[App]#[App.*], AppTest#[AppTest]#[AppTest, App.Shared]] #[graph-app:Main] none",
+  "core dep core core/lakefile.toml #[kernel, api] #[base] #[Core#[Core]#[Core.+]] #[] none",
+  "base dep base base/lakefile.toml #[] #[] #[Base#[Base]#[Base]] #[] none"
+]
+
+/-- The failures of `graph-ws`'s graph: the exact nodes, edges and
+packages, then queries on them. -/
+def graphWsFailures (g : Graph) : Array String := Id.run do
+  let mut fs := compare "graph-ws nodes" (g.nodes.map (renderNode g)) graphWsNodes ++
+    compare "graph-ws edges" (g.edges.map (renderEdge g)) graphWsEdges ++
+    compare "graph-ws packages" (g.packages.map (renderPackage g)) graphWsPackages
+  let id (n : Name) : NodeId := (g.find? n).getD 999999
+  let path := g.shortestPath? #[id `Main] (· == id `Lean.Elab.Command)
+  fs := fs ++ compare "shortest path Main to Lean.Elab.Command"
+    ((path.getD #[]).map (renderEdge g)) #[
+      "Main -> App [] exported Main.lean:4",
+      "App -> Core.Api [] exported App.lean:2",
+      "Core.Api -> Core.Macros [public,meta] exported core/Core/Api.lean:6",
+      "Core.Macros -> Lean.Elab.Command [public] exported core/Core/Macros.lean:3"]
+  fs := fs ++ compare "importers of App.Shared"
+    ((g.importers (id `App.Shared)).map (renderEdge g)) #[
+      "App -> App.Shared [] exported App.lean:1",
+      "AppTest -> App.Shared [] exported AppTest.lean:2"]
+  let names (ns : Array NodeId) := toString (ns.map fun i => (g.nodes[i]?.map (·.name)).getD `«?»)
+  fs := fs ++ expectStr "reachable from Base" (names (g.reachable #[id `Base])) "#[Init]"
+  fs := fs ++ expectStr "App reaches Core.Impl through import all"
+    (toString ((g.reachable #[id `App]).contains (id `Core.Impl))) "true"
+  fs := fs ++ expectStr "App reaches Core.Impl through exported imports"
+    (toString ((g.reachable #[id `App] (·.isExported)).contains (id `Core.Impl))) "false"
+  fs := fs ++ expectStr "App reaches Core.Types through exported imports"
+    (toString ((g.reachable #[id `App] (·.isExported)).contains (id `Core.Types))) "true"
   return fs
 
 /-- Whether `s` contains `sub`. -/
@@ -76,11 +206,17 @@ def noManifestFailures (fixture : System.FilePath) : IO (Array String) :=
       fs := fs.push ".lake/ was created in the manifest-less workspace"
     return fs
 
-/-- Run the graph checks against `<root>/tests/fixtures/spike-ws`. -/
+/-- Load the fixture workspace `name` and check its graph with `check`. -/
+def checkFixture (root : System.FilePath) (name : String) (check : Graph → Array String) :
+    IO (Array String) := do
+  match ← (load (root / "tests" / "fixtures" / name)).toBaseIO with
+  | .ok (g, _) => return check g
+  | .error e => return #[s!"loading {name} failed: {e}"]
+
+/-- Run the graph checks against the fixtures under `<root>/tests/fixtures`. -/
 def run (root : System.FilePath) : IO (Array String) := do
-  let dir := root / "tests" / "fixtures" / "spike-ws"
-  match ← (snapshot dir).toBaseIO with
-  | .ok (snap, _) => return failures snap.modules ++ (← noManifestFailures dir)
-  | .error e => return #[s!"loading spike-ws failed: {e}"]
+  return (← checkFixture root "spike-ws" spikeFailures) ++
+    (← checkFixture root "graph-ws" graphWsFailures) ++
+    (← noManifestFailures (root / "tests" / "fixtures" / "spike-ws"))
 
 end LeanDenyTest.Graph
