@@ -18,7 +18,8 @@ resolved to modules. Pure.
 
 A selector that matches nothing is an error. So is an `except` entry that
 removes nothing from its set, and a set its `except` list empties: each
-would let a rule pass by checking nothing.
+would let a rule pass by checking nothing. Those two are not checked for a set
+whose `select` side already failed, so one mistake gives one error.
 -/
 
 open Lean LeanDeny.Graph
@@ -179,9 +180,10 @@ private def closure (p : Policy) (start : Nat) : Array Bool :=
 one set (`explain set:x`). Errors are rendered with `Policy.locate`, in
 source order of the sets, then of the selectors within a set. A `set:`
 selector adds no error of its own: a set it names that failed has reported
-already, and the referring set goes on with what that set did match. Nor does
-an except entry that seems to remove nothing when a `select` selector of its
-set failed, or names a set that failed: the set's modules are not all known. -/
+already, and the referring set goes on with what that set did match. When a
+`select` selector of a set failed, or names a set that failed, the set's
+modules are not all known: an except entry that seems to remove nothing, or an
+except list that seems to remove everything, adds no error either. -/
 def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
     Except (Array String) (Std.HashMap String (Array NodeId)) :=
   Id.run do
@@ -209,7 +211,8 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
       let mut removed := #[]
       -- Whether a `select` selector failed, or names a set that failed: then
       -- `selected` may be short, and an except entry that seems to remove
-      -- nothing would be a second error for the same mistake.
+      -- nothing, or an except list that seems to empty the set, would be a
+      -- second error for the same mistake.
       let mut selectFailed := false
       for (r, m) in refs.zip results do
         match r.use, m with
@@ -237,7 +240,7 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
             if removesNone && !fromFailedSet && !selectFailed then
               es := es.push (loc r.pos? s!"{r.describe} removes no module from it")
       let result := diff selected removed
-      if !selected.isEmpty && result.isEmpty then
+      if !selectFailed && !selected.isEmpty && result.isEmpty then
         es :=
           es.push <|
             loc d.pos?

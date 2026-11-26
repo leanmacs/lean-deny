@@ -105,6 +105,10 @@ Set names use letters, digits, `-` and `_`. Each of these is an error
   through other sets;
 - a malformed selector or set, or an unknown key.
 
+A mistake is reported once. When a set's `select` list already has an error,
+or names a set that has one, the set's modules are not all known, so the two
+`except` errors above are not reported for it.
+
 Every set is checked, whether a rule uses it or not, so a set no rule uses
 is fine.
 
