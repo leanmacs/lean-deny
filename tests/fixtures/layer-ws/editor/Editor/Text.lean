@@ -1,0 +1,1 @@
+-- The core's text. No imports but the implicit Init.

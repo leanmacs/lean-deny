@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:2:9: 'layers' must be a table, such as [layers]

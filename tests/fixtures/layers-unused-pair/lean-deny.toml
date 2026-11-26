@@ -1,0 +1,14 @@
+# An allow pair that allows nothing is an error (exit 2): layer-ws has one
+# interface package, so no import goes from an interface package to another.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"
+allow = [
+  ["interface", "core"],
+  ["implementation", "core"],
+  ["implementation", "interface"],
+  ["interface", "interface"],
+]

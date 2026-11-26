@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:13:2: layers: allow entry 4 (["interface", "interface"]) allows nothing: no module of a package in layer 'interface' imports a module of another package in layer 'interface'

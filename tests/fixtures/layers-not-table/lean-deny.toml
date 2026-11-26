@@ -1,0 +1,2 @@
+# 'layers' must be a table, such as [layers]: here it is an array.
+layers = ["core", "implementation"]

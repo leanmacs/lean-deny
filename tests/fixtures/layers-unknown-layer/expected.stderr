@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:6:10: layers: allow entry 1 names layer 'implementaton', which neither a classify entry nor 'default' declares (layers: core, implementation)

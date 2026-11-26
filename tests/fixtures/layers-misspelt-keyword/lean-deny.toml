@@ -1,0 +1,19 @@
+# Packages of one layer import each other only when the pair is listed: here
+# implementation packages may, so this package's imports of plugin and typo
+# hold. typo's lakefile misspells editor-interface, so typo is in the
+# default layer, implementation, and the interface package's import of it
+# bites, as does the core's import of plugin. The reason starts each
+# violation's header (exit 1).
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"
+allow = [
+  ["interface", "core"],
+  ["implementation", "core"],
+  ["implementation", "interface"],
+  ["implementation", "implementation"],
+]
+reason = "implementations go through interfaces"

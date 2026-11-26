@@ -1,0 +1,16 @@
+lean-deny: error: lean-deny.toml:5:2: layers classify entry 1 must be a table, found a string
+lean-deny: error: lean-deny.toml:6:2: layers classify entry 2 has no 'layer'
+lean-deny: error: lean-deny.toml:6:13: layers classify entry 2: 'select' is empty
+lean-deny: error: lean-deny.toml:7:12: layers classify entry 3: invalid layer name 'the core' (use letters, digits, '-' and '_')
+lean-deny: error: lean-deny.toml:7:33: layers classify entry 3: 'select' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:7:43: layers classify entry 3: unknown key 'kind' (expected layer, select)
+lean-deny: error: lean-deny.toml:8:12: layers classify entry 4: 'layer' must be a layer name, found an integer
+lean-deny: error: lean-deny.toml:8:37: layers classify entry 4 ('select'): expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:8:40: invalid selector 'editor': expected '<kind>:<value>', such as 'mod:Editor.Api'
+lean-deny: error: lean-deny.toml:10:10: layers: invalid layer name '' (use letters, digits, '-' and '_')
+lean-deny: error: lean-deny.toml:11:9: layers: allow entry 1 must be a pair of layer names [importer, imported], such as ["implementation", "core"]
+lean-deny: error: lean-deny.toml:11:37: layers: allow entry 3 repeats allow entry 2 (["core", "core"])
+lean-deny: error: lean-deny.toml:12:15: layers: 'same-package' must be "allow": imports within one package are always allowed
+lean-deny: error: lean-deny.toml:13:9: layers: 'reason' is empty
+lean-deny: error: lean-deny.toml:14:9: layers: unknown key 'allows' (expected classify, default, allow, same-package, reason)
+lean-deny: error: lean-deny.toml:8:25: selector 'set:nope' in layers classify entry 4 names an unknown set (the policy defines no sets)

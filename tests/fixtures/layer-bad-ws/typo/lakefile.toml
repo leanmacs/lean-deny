@@ -1,0 +1,9 @@
+name = "typo"
+keywords = ["editor-interfase"]  # misspelt: the default layer
+
+[[require]]
+name = "editor"
+path = "../editor"
+
+[[lean_lib]]
+name = "Typo"

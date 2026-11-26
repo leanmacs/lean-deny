@@ -1,0 +1,3 @@
+lean-deny: error: lean-deny.toml:8:34: selector 'keyword:editor-interfac' in layers classify entry 2 matches no module: no package declares keyword 'editor-interfac'
+lean-deny: error: lean-deny.toml:9:32: selector 'external:Std' in layers classify entry 3 matches only modules outside the workspace, which are in no package
+lean-deny: error: lean-deny.toml:7:2: layers classify entry 1 splits package 'editor': it matches Editor.Text but not Editor; a layer holds whole packages, so select them with pkg:, keyword:, or a set of them

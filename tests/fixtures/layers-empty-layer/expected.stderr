@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:9:10: layers: layer 'plugins' (the default) holds no package: a classify entry selects every package

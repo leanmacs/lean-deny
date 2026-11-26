@@ -1,0 +1,27 @@
+# The layers fixtures' workspace where imports between packages break the
+# three-layer rule (tests/fixtures/layers-*): this implementation package
+# (no keyword), the core `editor`, the interface package `iface`, the
+# implementation package `plugin`, and `typo`, whose misspelt keyword
+# `editor-interfase` leaves it in the default layer. The core imports
+# `plugin`; this package imports `plugin` and `typo`; `iface` imports
+# `typo`. Joined by path `require`s. Never built.
+name = "app"
+
+[[require]]
+name = "editor"
+path = "editor"
+
+[[require]]
+name = "iface"
+path = "iface"
+
+[[require]]
+name = "plugin"
+path = "plugin"
+
+[[require]]
+name = "typo"
+path = "typo"
+
+[[lean_lib]]
+name = "App"

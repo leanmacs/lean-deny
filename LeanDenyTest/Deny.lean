@@ -18,12 +18,14 @@ def m (n : Name) (imports : Array Name := #[]) : M :=
   { name := n, imports := imports.map plain }
 
 /-- What `check` prints for policy `src` (as `p.toml`) over the graph of
-`ms`: the errors, or the report. -/
-def outcome (ms : Array M) (src : String) : IO (Array String) := do
+`ms`, with package metadata `packages` when given: the errors, or the
+report. -/
+def outcome (ms : Array M) (src : String) (packages : Array PackageInfo := #[]) :
+    IO (Array String) := do
   let g ←
     match mkGraph ms with
     | .ok g =>
-      pure g
+      pure (if packages.isEmpty then g else { g with packages })
     | .error e =>
       return #[s!"graph: {e}"]
   match ← LeanDenyTest.Policy.load src with

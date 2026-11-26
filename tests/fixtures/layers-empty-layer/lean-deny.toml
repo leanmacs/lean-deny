@@ -1,0 +1,10 @@
+# A layer that no package falls into is an error (exit 2): a classify entry
+# selects every package, so the default layer holds none.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = "keyword:editor-interface" },
+  { layer = "implementation", select = "pkg:app" },
+]
+default = "plugins"
+allow = [["interface", "core"], ["implementation", "core"], ["implementation", "interface"]]

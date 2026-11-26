@@ -1,0 +1,14 @@
+# [layers] shape mistakes, each reported at its line (exit 2, before Lake
+# runs).
+[layers]
+classify = [
+  "pkg:editor",
+  { select = [] },
+  { layer = "the core", select = 3, kind = "x" },
+  { layer = 1, select = ["set:nope", 2, "editor"] },
+]
+default = ""
+allow = [["core"], ["core", "core"], ["core", "core"]]
+same-package = "check"
+reason = " "
+allows = []

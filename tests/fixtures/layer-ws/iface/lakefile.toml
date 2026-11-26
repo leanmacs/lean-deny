@@ -1,0 +1,9 @@
+name = "iface"
+keywords = ["editor-interface"]
+
+[[require]]
+name = "editor"
+path = "../editor"
+
+[[lean_lib]]
+name = "Iface"

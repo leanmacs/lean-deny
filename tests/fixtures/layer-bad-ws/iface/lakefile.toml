@@ -1,0 +1,13 @@
+name = "iface"
+keywords = ["editor-interface"]
+
+[[require]]
+name = "editor"
+path = "../editor"
+
+[[require]]
+name = "typo"
+path = "../typo"
+
+[[lean_lib]]
+name = "Iface"

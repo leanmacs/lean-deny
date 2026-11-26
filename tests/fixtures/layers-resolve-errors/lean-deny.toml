@@ -1,0 +1,11 @@
+# [layers] classify entries whose selectors resolve badly, each an error
+# (exit 2), and no violation is reported: a selector that matches part of a
+# package, a misspelt keyword that matches nothing, and a selector that
+# matches only modules outside the workspace.
+[layers]
+classify = [
+  { layer = "core", select = "mod:Editor.Text!" },
+  { layer = "interface", select = "keyword:editor-interfac" },
+  { layer = "outside", select = "external:Std" },
+]
+default = "implementation"

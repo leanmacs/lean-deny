@@ -1,0 +1,2 @@
+lean-deny: error: lean-deny.toml:6:2: package 'editor' is in layers classify entries 1 and 2; a package is in one layer
+lean-deny: error: lean-deny.toml:3:0: layers: packages 'app', 'plugin' and 'typo' are in no layer: no classify entry selects them, and there is no 'default'

@@ -1,0 +1,14 @@
+# The phase's three-layer policy over layer-bad-ws, where it bites (exit 1):
+# the core imports a package; this implementation package imports the
+# implementation packages plugin and typo (typo's misspelt keyword leaves it
+# in the default layer); the interface package imports typo. The interface
+# package's import of the core, and the implementation packages' imports of
+# the interface package and the core, hold.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"     # a misspelt keyword makes a package more refused, never less
+allow = [ ["interface", "core"], ["implementation", "core"], ["implementation", "interface"] ]
+same-package = "allow"

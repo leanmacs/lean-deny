@@ -1,0 +1,9 @@
+name = "editor"
+
+[[require]]
+name = "plugin"
+path = "../plugin"
+
+[[lean_lib]]
+name = "Editor"
+globs = ["Editor.*"]  # Editor.lean and everything under Editor/

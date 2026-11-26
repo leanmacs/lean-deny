@@ -1,0 +1,17 @@
+# The layers fixtures' workspace where every import between packages goes in
+# an allowed direction (tests/fixtures/layers-*): this implementation
+# package (no keyword), the core `editor`, and the interface package
+# `iface`. Joined by path `require`s. Never built.
+name = "app"
+
+[[require]]
+name = "editor"
+path = "editor"
+
+[[require]]
+name = "iface"
+path = "iface"
+
+[[lean_lib]]
+name = "App"
+globs = ["App.*"]  # App.lean and everything under App/

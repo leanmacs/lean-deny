@@ -1,0 +1,9 @@
+layers (lean-deny.toml:7:0): app (implementation) may not import plugin (implementation)
+  App.lean:3: App imports Plugin
+layers (lean-deny.toml:7:0): app (implementation) may not import typo (implementation)
+  App.lean:4: App imports Typo
+layers (lean-deny.toml:7:0): editor (core) may not import plugin (implementation)
+  editor/Editor.lean:2: Editor imports Plugin
+layers (lean-deny.toml:7:0): iface (interface) may not import typo (implementation)
+  iface/Iface.lean:2: Iface imports Typo
+lean-deny: 4 violations in 1 of 1 rule

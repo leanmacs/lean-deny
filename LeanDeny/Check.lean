@@ -5,6 +5,7 @@ import LeanDeny.Policy
 import LeanDeny.Policy.Resolve
 import LeanDeny.Rules.AllowOnly
 import LeanDeny.Rules.Deny
+import LeanDeny.Rules.Layers
 
 /-!
 # `lean-deny check`
@@ -12,8 +13,9 @@ import LeanDeny.Rules.Deny
 Resolve the workspace, load the policy, load the workspace's module graph,
 resolve every set of the policy against it (each selector must match), then
 check the policy's rules: deny rules (`LeanDeny.Rules.Deny`), then
-allow-only rules (`LeanDeny.Rules.AllowOnly`). Cheap failures come first: a bad workspace path or
-policy is reported before Lake runs.
+allow-only rules (`LeanDeny.Rules.AllowOnly`), then `[layers]`
+(`LeanDeny.Rules.Layers`). Cheap failures come first: a bad workspace path
+or policy is reported before Lake runs.
 
 The report goes to stdout: `lean-deny: ok (N rules)` when every rule holds
 (exit 0), or one block per violation and a summary line (exit 1). Errors go
@@ -34,15 +36,21 @@ def summaryLine (violations broken rules : Nat) : String :=
   s!"lean-deny: {Graph.plural violations "violation"} in {broken} of {Graph.plural rules "rule"}"
 
 /-- Every rule of `p`, with the policy's sets resolved in `sets`: deny rules,
-then allow-only rules. Every error of both kinds (deny's first), or, when
-there is none, every violation (deny's first). -/
+then allow-only rules, then `[layers]`. Every error of every kind (in that
+order), or, when there is none, every violation (in that order). -/
 def checkRules (g : Graph.Graph) (p : Policy) (sets : Std.HashMap String (Array Graph.NodeId)) :
     Except (Array String) (Array Violation) :=
-  match checkDeny g p sets, checkAllowOnly g p sets with
-  | .ok dvs, .ok avs => .ok (dvs ++ avs)
-  | .error des, .error aes => .error (des ++ aes)
-  | .error des, .ok _ => .error des
-  | .ok _, .error aes => .error aes
+  let rs := #[checkDeny g p sets, checkAllowOnly g p sets, checkLayers g p sets]
+  let errs :=
+    rs.flatMap fun
+      | .error es => es
+      | .ok _ => #[]
+  if errs.isEmpty then
+    .ok
+      (rs.flatMap fun
+        | .ok vs => vs
+        | .error _ => #[])
+  else .error errs
 
 /-- What `check` prints on stdout for the rules' result `vs`: the ok line, or
 every violation's block followed by the summary line. -/

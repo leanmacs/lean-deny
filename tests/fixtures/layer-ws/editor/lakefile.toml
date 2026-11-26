@@ -1,0 +1,5 @@
+name = "editor"
+
+[[lean_lib]]
+name = "Editor"
+globs = ["Editor.*"]  # Editor.lean and everything under Editor/

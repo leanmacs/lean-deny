@@ -1,0 +1,13 @@
+# The phase's three-layer policy over layer-ws, where it holds (exit 0): the
+# interface package imports the core, and this implementation package
+# imports the interface package and the core. Imports within one package
+# (Editor -> Editor.Text, App -> App.Util) and imports of modules outside
+# the workspace (Std, Init) are never checked.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"     # a misspelt keyword makes a package more refused, never less
+allow = [ ["interface", "core"], ["implementation", "core"], ["implementation", "interface"] ]
+same-package = "allow"

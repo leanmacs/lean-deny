@@ -1,0 +1,5 @@
+# The layers fixtures' workspace where the three-layer rule holds
+# (tests/fixtures/layers-*): its own policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0

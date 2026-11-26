@@ -1,0 +1,6 @@
+# An allow pair naming a layer that neither a classify entry nor 'default'
+# declares is an error (exit 2, before Lake runs).
+[layers]
+classify = [{ layer = "core", select = "pkg:editor" }]
+default = "implementation"
+allow = [["implementaton", "core"]]

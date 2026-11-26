@@ -1,0 +1,5 @@
+layers (lean-deny.toml:7:0): implementations go through interfaces: editor (core) may not import plugin (implementation)
+  editor/Editor.lean:2: Editor imports Plugin
+layers (lean-deny.toml:7:0): implementations go through interfaces: iface (interface) may not import typo (implementation)
+  iface/Iface.lean:2: Iface imports Typo
+lean-deny: 2 violations in 1 of 1 rule

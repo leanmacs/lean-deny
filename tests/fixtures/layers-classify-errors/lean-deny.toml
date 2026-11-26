@@ -1,0 +1,8 @@
+# [layers] classification errors (exit 2): a package two classify entries
+# select, and, with no 'default', packages that no entry selects.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor" },
+  { layer = "interface", select = ["pkg:iface", "pkg:editor"] },
+]
+allow = [["interface", "core"]]
