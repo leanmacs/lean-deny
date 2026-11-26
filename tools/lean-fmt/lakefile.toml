@@ -1,0 +1,15 @@
+# The host of the Lean formatter (README, "Development"). It holds no Lean
+# source: a Lake package whose one `require` is lean-fmt, so lean-deny
+# itself requires no git repository and a workspace that requires
+# lean-deny fetches nothing for it. Run from the repo root:
+#   lake -d tools/lean-fmt exe lean-fmt <command> --root .
+# lean-fmt's releases are tagged with the Lean toolchain they build with:
+# bump `rev` together with the root `lean-toolchain` (and this directory's
+# copy), then run `lake -d tools/lean-fmt update --keep-toolchain` at the
+# repo root to rewrite lake-manifest.json.
+name = "lean-fmt-host"
+
+[[require]]
+name = "lean-fmt"
+git = "https://github.com/jcreinhold/lean-fmt"
+rev = "v4.35.0"
