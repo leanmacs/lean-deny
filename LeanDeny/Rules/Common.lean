@@ -164,10 +164,7 @@ def Violation.render (g : Graph) (policyPath : String) (v : Violation)
           #[s!"  {path t.configFile}: {t.kindText} {t.name.toString (escape := false)}"]).getD
       #[] ++
     (v.require?.map fun r =>
-          let reqs :=
-            if r.requires.isEmpty then "nothing"
-            else ", ".intercalate (r.requires.map plainName).toList
-          #[s!"  {path r.configFile}: {plainName r.pkg} requires {reqs}"]).getD
+          #[s!"  {path r.configFile}: {plainName r.pkg} {requiresText r.requires}"]).getD
       #[]
 
 end LeanDeny

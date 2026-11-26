@@ -102,15 +102,11 @@ def resolveRequireBacked (g : Graph) (p : Policy) (sets : Std.HashMap String (Ar
       return .error errs
     return .ok { rule := r, packages }
 
-/-- Package `name`'s metadata in `g`, if Lake loaded it. -/
-def packageInfo? (g : Graph) (name : Name) : Option PackageInfo :=
-  g.packages.find? (·.name == name)
-
 /-- Package `name`'s lakefile and direct requires, as written; a package
 missing from `g.packages` requires nothing, its lakefile the workspace
 root. -/
 def requiresOf (g : Graph) (name : Name) : System.FilePath × Array Name :=
-  match packageInfo? g name with
+  match g.findPackage? name with
   | some pk => (pk.configFile, pk.requires)
   | none => (g.root, #[])
 

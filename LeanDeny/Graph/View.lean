@@ -121,6 +121,12 @@ structure View where
 def plainName (n : Name) : String :=
   n.toString (escape := false)
 
+/-- A package's direct requires as text: `requires <r1, r2>` (each as
+written in its lakefile, `plainName`), or `requires nothing`. -/
+def requiresText (reqs : Array Name) : String :=
+  if reqs.isEmpty then "requires nothing"
+  else "requires " ++ ", ".intercalate (reqs.map plainName).toList
+
 /-- The lib-level id of target `t` of kind `k` in package `pkg`:
 `<pkg>/lib/<lib>` or `<pkg>/exe/<exe>`. -/
 def targetId (pkg : Name) (k : TargetKind) (t : Name) : String :=

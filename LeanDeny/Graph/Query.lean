@@ -15,6 +15,10 @@ namespace LeanDeny.Graph
 def Graph.find? (g : Graph) (m : Name) : Option NodeId :=
   g.index[m]?
 
+/-- Package `n`'s metadata, if Lake loaded it. -/
+def Graph.findPackage? (g : Graph) (n : Name) : Option PackageInfo :=
+  g.packages.find? (·.name == n)
+
 /-- The direct imports of node `n`, in source order (the implicit `Init`
 pair first). -/
 def Graph.imports (g : Graph) (n : NodeId) : Array Edge :=

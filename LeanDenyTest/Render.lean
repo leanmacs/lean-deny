@@ -37,6 +37,25 @@ def directiveFailures : Array String :=
     return fs ++
         expect "escaped module" (ImportKind.directive {} (Name.mkSimple "my-mod")) "import «my-mod»"
 
+/-- Package `name`, requiring `reqs`. -/
+def pkg (name : Name) (reqs : Array Name) : PackageInfo :=
+  { name, dir := "/ws", configFile := "/ws/lakefile.toml", keywords := #[], remoteUrl? := none,
+    requires := reqs, libs := #[], exes := #[], isRoot := false }
+
+/-- The text rendering's `packages` section: several requires join with
+`, ` in lakefile order, one require stands alone, none is `nothing`. -/
+def packagesFailures : Array String :=
+  let g : Graph :=
+    { (default : Graph) with
+      packages :=
+        #[pkg `app #[`core, Name.mkSimple "my-lib", `base], pkg `core #[`base], pkg `base #[]] }
+  expect "requiresText: two" (requiresText #[`a, `b]) "requires a, b" ++
+    expect "requiresText: none" (requiresText #[]) "requires nothing" ++
+    expect "text: packages with several requires"
+      (render g { level := .module, nodes := #[], edges := #[] } .text)
+      "packages (3):\n  app: requires core, my-lib, base\n  core: requires base\n  \
+        base: requires nothing\n\nnodes (0):\n\nedges (0):\n"
+
 def formatFailures : Array String :=
   (#[LeanDeny.Graph.Format.text, .json, .dot].filterMap fun f =>
       if LeanDeny.Graph.Format.parse? (toString f) == some f then none
@@ -93,6 +112,6 @@ def run (root : System.FilePath) : IO (Array String) := do
       pure (goldenFailures s)
     | .error e =>
       pure #[s!"reading {golden}: {e}"]
-  return dotFailures ++ directiveFailures ++ formatFailures ++ goldenFs
+  return dotFailures ++ directiveFailures ++ packagesFailures ++ formatFailures ++ goldenFs
 
 end LeanDenyTest.Render

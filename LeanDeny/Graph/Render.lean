@@ -1,4 +1,5 @@
 import Lean.Data.Json
+import LeanDeny.Graph.Query
 import LeanDeny.Graph.View
 
 /-!
@@ -64,10 +65,6 @@ def witnessLine (g : Graph) (e : Edge) : String :=
 def plural (n : Nat) (word : String) : String :=
   s!"{n} {word}{if n == 1 then "" else "s"}"
 
-/-- The package named `n`, if the graph has it. -/
-private def findPackage? (g : Graph) (n : Name) : Option PackageInfo :=
-  g.packages.find? (·.name == n)
-
 /-! ## Text -/
 
 private def textNode (g : Graph) (v : View) (n : ViewNode) : Array String :=
@@ -87,7 +84,7 @@ private def textNode (g : Graph) (v : View) (n : ViewNode) : Array String :=
     | _, _ => #[s!"  {n.id}: external"]
   | _ =>
     let kws :=
-      match n.kind, n.package? >>= findPackage? g with
+      match n.kind, n.package? >>= g.findPackage? with
       | .package, some p =>
         if p.keywords.isEmpty then "" else "; keywords " ++ ", ".intercalate p.keywords.toList
       | _, _ => ""
@@ -98,10 +95,7 @@ private def textNode (g : Graph) (v : View) (n : ViewNode) : Array String :=
 <r1, r2>` (its direct requires, as written in its lakefile), or `requires
 nothing`. -/
 private def packageLines (g : Graph) : Array String :=
-  g.packages.map fun p =>
-    let reqs :=
-      if p.requires.isEmpty then "nothing" else ", ".intercalate (p.requires.map plainName).toList
-    s!"  {plainName p.name}: requires {reqs}"
+  g.packages.map fun p => s!"  {plainName p.name}: {requiresText p.requires}"
 
 /-- The view as text, at every level: the workspace's packages and their
 direct requires, then the view's nodes, then its edges. -/
@@ -224,7 +218,7 @@ private def renderDot (g : Graph) (v : View) : String :=
     for n in v.nodes do
       if isExt n then
         out := out.push s!"  {dotQuote n.id} [style=dashed];"
-      else if !clustered || n.package?.all (fun p => (findPackage? g p).isNone) then
+      else if !clustered || n.package?.all (fun p => (g.findPackage? p).isNone) then
         out := out.push s!"  {dotQuote n.id};"
     for e in v.edges do
       let allImplicit := e.imports.all fun i => (g.edges[i]?.map (·.implicit)).getD false

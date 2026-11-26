@@ -171,6 +171,15 @@ def githubFailures (f : Fixture) : Array String :=
             f.g f.p.path).toList)
       "require-backed rule 1 (p.toml:1:0): why: A (package p) imports package q, which p does not \
           require directly\n  A.lean:2: A imports Y\n  lakefile.toml: p requires nothing" ++
+    expect "text: require-backed, several requires joined in order"
+      ("\n".intercalate
+        ({ f.requireV with
+                require? :=
+                  f.requireV.require?.map fun (r : RequireGap) =>
+                    { r with requires := #[`r, Name.mkSimple "my-lib", `s] } }.render
+            f.g f.p.path).toList)
+      "require-backed rule 1 (p.toml:1:0): why: A (package p) imports package q, which p does not \
+          require directly\n  A.lean:2: A imports Y\n  lakefile.toml: p requires r, my-lib, s" ++
     expect "github: holds" (gh #[]) "lean-deny: ok (1 rule)\n" ++
     expect "github: failed" (renderGithub ctx (.failed (some 2) #["p.toml:4:7: bad", "lake: boom"]))
       "::error file=p.toml,line=4,col=8,title=lean-deny%3A error::bad\n::error \
