@@ -112,17 +112,36 @@ structure Edge where
   implicit : Bool
   deriving BEq, Repr, Inhabited
 
+/-- One entry of a target's `plugins`: a Lake build key. -/
+structure PluginRef where
+  /-- The key's package, for a package target (`@pkg/target`); `none` for
+  any other key or when the package is elided. -/
+  pkg? : Option Name := none
+  /-- The key's target, for a package target; `none` for any other key. -/
+  target? : Option Name := none
+  /-- The key as the Lake CLI writes it, unescaped: `@editor-core/lintShared`,
+  a bare `lintShared` when the package is elided, Lake's own text for any
+  other key (a module, a facet). -/
+  text : String
+  deriving BEq, Repr, Inhabited
+
 /-- A `lean_lib`'s configuration. -/
 structure LibInfo where
   name : Name
   roots : Array Name
   globs : Array String
+  /-- The library's effective plugins, as Lake applies them (`LeanLib.plugins`):
+  its package's `plugins`, then its own. -/
+  plugins : Array PluginRef := #[]
   deriving BEq, Repr, Inhabited
 
 /-- A `lean_exe`'s configuration. -/
 structure ExeInfo where
   name : Name
   root : Name
+  /-- The plugins its root module is elaborated with, as Lake applies them:
+  its package's `plugins`, then its own. -/
+  plugins : Array PluginRef := #[]
   deriving BEq, Repr, Inhabited
 
 /-- Package metadata a policy can key on. -/

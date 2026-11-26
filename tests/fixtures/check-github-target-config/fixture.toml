@@ -1,0 +1,4 @@
+# --format github of target-config violations: a file-level annotation on the target's package lakefile, with no line; the policy is target-config-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../target-ws", "--config", "../target-config-bites/lean-deny.toml", "--format", "github"]
+exit = 1

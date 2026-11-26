@@ -1,0 +1,2 @@
+# `target-config` must be an array of tables.
+target-config = 1

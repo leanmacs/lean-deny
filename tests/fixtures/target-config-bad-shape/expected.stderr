@@ -1,0 +1,18 @@
+lean-deny: error: lean-deny.toml:3:0: target-config rule 1 has no 'targets'
+lean-deny: error: lean-deny.toml:3:0: target-config rule 1 has no 'load-plugin'
+lean-deny: error: lean-deny.toml:3:0: target-config rule 1 has no 'reason'
+lean-deny: error: lean-deny.toml:7:11: target-config rule 2 ('targets'): 'mod:X' is not a target selector (expected pkg:<package>, lib:<lib> or lib:<package>/<lib>)
+lean-deny: error: lean-deny.toml:7:20: target-config rule 2 ('targets'): 'set:s' is not a target selector (expected pkg:<package>, lib:<lib> or lib:<package>/<lib>)
+lean-deny: error: lean-deny.toml:7:29: target-config rule 2 ('targets'): 'keyword:k' is not a target selector (expected pkg:<package>, lib:<lib> or lib:<package>/<lib>)
+lean-deny: error: lean-deny.toml:7:42: target-config rule 2 ('targets'): 'imports:pkg:a' is not a target selector (expected pkg:<package>, lib:<lib> or lib:<package>/<lib>)
+lean-deny: error: lean-deny.toml:8:9: target-config rule 2: 'except' is empty (omit it)
+lean-deny: error: lean-deny.toml:9:14: target-config rule 2: 'load-plugin' must be a Lake target name, '<target>' or '@<package>/<target>', found '@lint/Lint:shared'
+lean-deny: error: lean-deny.toml:10:9: target-config rule 2: 'reason' is empty
+lean-deny: error: lean-deny.toml:11:13: target-config rule 2: unknown key 'transitive' (expected targets, except, load-plugin, or-imports, reason)
+lean-deny: error: lean-deny.toml:15:9: target-config rule 3 ('except'): 'mod:Y!' is not a target selector (expected pkg:<package>, lib:<lib> or lib:<package>/<lib>)
+lean-deny: error: lean-deny.toml:16:14: target-config rule 3: 'load-plugin' must be a Lake target name, '<target>' or '@<package>/<target>', found '+Lint'
+lean-deny: error: lean-deny.toml:21:14: target-config rule 4: 'load-plugin' must be a Lake target name, '<target>' or '@<package>/<target>', found 'a/b/c'
+lean-deny: error: lean-deny.toml:22:13: target-config rule 4: 'or-imports' is empty (omit it)
+lean-deny: error: lean-deny.toml:23:9: target-config rule 4: 'reason' must be a string, found a boolean
+lean-deny: error: lean-deny.toml:26:10: target-config rule 5: 'targets' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:27:14: target-config rule 5: 'load-plugin' must be a string, found an integer

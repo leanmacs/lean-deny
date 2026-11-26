@@ -86,8 +86,8 @@ def ctx : ReportCtx :=
   { policyPath := "p.toml", cwd := "/ws" }
 
 /-- The hand-made results: the transitive deny violation `A > Y > Z`, a
-violation on an implicit import, one without a position, one of `[layers]`;
-and the policy they are checked against. -/
+violation on an implicit import, one without a position, one of `[layers]`,
+one of a target-config rule; and the policy they are checked against. -/
 structure Fixture where
   g : Graph
   p : Policy
@@ -95,6 +95,7 @@ structure Fixture where
   implicitV : Violation
   noPos : Violation
   layersV : Violation
+  targetV : Violation
 
 def fixture : IO (Except String Fixture) := do
   let ms := #[Deny.m `A #[`X, `Y], Deny.m `X, Deny.m `Y #[`Z], Deny.m `Z]
@@ -112,7 +113,14 @@ def fixture : IO (Except String Fixture) := do
       { g, p, vs, implicitV := { v0 with chain := #[implicitE] }, noPos := { v0 with pos? := none },
         layersV :=
           { rule := ⟨.layers, 1⟩, pos? := v0.pos?, reason? := some "why",
-            detail? := some "a (x) may not import b (y)", chain := v0.chain.extract 0 1 } }
+            detail? := some "a (x) may not import b (y)", chain := v0.chain.extract 0 1 }
+        targetV :=
+          { rule := ⟨.targetConfig, 1⟩, pos? := v0.pos?, reason? := some "why"
+            detail? := some "lean_lib p/L does not load t", chain := #[]
+            target? :=
+              some
+                { pkg := `p, kind := .lib, name := `L, configFile := "/ws/p/lakefile.toml"
+                  plugins := #[{ text := "@x/y" }] } } }
 
 def githubFailures (f : Fixture) : Array String :=
   let gh (vs : Array Violation) := renderGithub ctx (.checked f.g f.p vs)
@@ -129,6 +137,13 @@ def githubFailures (f : Fixture) : Array String :=
       ((gh #[f.layersV]).startsWith
         "::error file=A.lean,line=2,title=lean-deny%3A layers::layers (p.toml:1:0): why: a (x) \
                 may not import b (y)%0A") ++
+    expect "github: target-config, on the lakefile with no line" (gh #[f.targetV])
+      "::error file=p/lakefile.toml,title=lean-deny%3A target-config rule 1::target-config rule 1 \
+          (p.toml:1:0): why: lean_lib p/L does not load t%0A  p/lakefile.toml: lean_lib L\n\
+          lean-deny: 1 violation in 1 of 1 rule\n" ++
+    expect "text: target-config" ("\n".intercalate (f.targetV.render f.g f.p.path).toList)
+      "target-config rule 1 (p.toml:1:0): why: lean_lib p/L does not load t\n  \
+          p/lakefile.toml: lean_lib L" ++
     expect "github: holds" (gh #[]) "lean-deny: ok (1 rule)\n" ++
     expect "github: failed" (renderGithub ctx (.failed (some 2) #["p.toml:4:7: bad", "lake: boom"]))
       "::error file=p.toml,line=4,col=8,title=lean-deny%3A error::bad\n::error \
@@ -146,8 +161,8 @@ def jsonFailures (f : Fixture) : Array String :=
   Id.run do
     let results : Array (String × CheckResult × Bool × String × Json) :=
       #[("holds", .checked f.g f.p #[], true, "holds", toJson (1 : Nat)),
-        ("violation", .checked f.g f.p (f.vs ++ #[f.implicitV, f.layersV]), false, "violation",
-          toJson (1 : Nat)),
+        ("violation", .checked f.g f.p (f.vs ++ #[f.implicitV, f.layersV, f.targetV]), false,
+          "violation", toJson (1 : Nat)),
         ("failed", .failed none #["p.toml:4:7: bad", "lake: boom"], false, "error", .null)]
     let mut fs := #[]
     for (what, r, ok, outcome, rules) in results do
@@ -174,7 +189,17 @@ def jsonFailures (f : Fixture) : Array String :=
             path.foldl (fun x k => (x.getObjVal? k).toOption.getD .null) v
           let step0 (v : Json) : Json := (((field v ["chain"]).getArrVal? 0).toOption).getD .null
           fs :=
-            fs ++ check "violation: three violations" (vs.size == 3) ++
+            fs ++ check "violation: four violations" (vs.size == 4) ++
+              check "violation: a deny violation's target is null"
+                (field vs[0]! ["target"] == .null) ++
+              check "violation: the target-config target"
+                (field vs[3]! ["target"] ==
+                  Json.mkObj
+                    [("package", Json.str "p"), ("kind", Json.str "lib"), ("name", Json.str "L"),
+                      ("file", Json.str "p/lakefile.toml"),
+                      ("plugins", Json.arr #[Json.str "@x/y"])]) ++
+              check "violation: a target-config chain is empty and module null"
+                (field vs[3]! ["chain"] == Json.arr #[] && field vs[3]! ["module"] == .null) ++
               check "violation: a deny violation's detail is null"
                 (field vs[0]! ["detail"] == .null) ++
               check "violation: the implicit step's line is null"

@@ -1,5 +1,6 @@
 {"violations":
- [{"rule":
+ [{"target": null,
+   "rule":
    {"reason": "every root that uses the core's types is the executable",
     "line": 6,
     "label": "co-reach rule 1",
@@ -40,7 +41,8 @@
      "file": "core/Core/Api.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "every core module links the macros and the base",
     "line": 12,
     "label": "co-reach rule 2",

@@ -4,7 +4,7 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows seven top-level keys:
+`lean-deny.toml`. This version knows eight top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
@@ -20,6 +20,9 @@ import LeanDeny.Policy.Selector
   `reason` (`LeanDeny.Rules.Reachable` evaluates them);
 - `[[co-reach]]`: co-reach rules, each with `roots`, `if-reaches`,
   `must-reach` and `reason` (`LeanDeny.Rules.CoReach` evaluates them);
+- `[[target-config]]`: rules on Lake targets, each with `targets`,
+  `except`, `load-plugin`, `or-imports` and `reason`
+  (`LeanDeny.Rules.TargetConfig` evaluates them);
 - `[[root]]`: declared roots, each a `module` and its file's `path`
   relative to the workspace directory: a module no Lake target declares,
   read from its file into the graph (`LeanDeny.Graph.LakeApi`). Roots are
@@ -99,16 +102,18 @@ inductive RuleKind where
   | layers
   | reachable
   | coReach
+  | targetConfig
   deriving BEq, Repr, Inhabited, DecidableEq
 
 /-- As the policy writes it: "deny", "allow-only", "layers", "reachable",
-"co-reach". -/
+"co-reach", "target-config". -/
 def RuleKind.toString : RuleKind → String
   | .deny => "deny"
   | .allowOnly => "allow-only"
   | .layers => "layers"
   | .reachable => "reachable"
   | .coReach => "co-reach"
+  | .targetConfig => "target-config"
 
 instance : ToString RuleKind :=
   ⟨RuleKind.toString⟩
@@ -121,7 +126,7 @@ structure RuleRef where
   deriving BEq, Repr, Inhabited
 
 /-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
-"co-reach rule 1". -/
+"co-reach rule 1", "target-config rule 1". -/
 def RuleRef.label (r : RuleRef) : String :=
   match r.kind with
   | .deny => s!"deny rule {r.index}"
@@ -129,6 +134,7 @@ def RuleRef.label (r : RuleRef) : String :=
   | .layers => "layers"
   | .reachable => s!"reachable rule {r.index}"
   | .coReach => s!"co-reach rule {r.index}"
+  | .targetConfig => s!"target-config rule {r.index}"
 
 /-- One `[[deny]]` table: no module of `sources` may import a module of
 `targets`, directly or (with `transitive`) through others, unless the
@@ -240,6 +246,61 @@ def CoReachRule.ref (r : CoReachRule) : RuleRef :=
 def CoReachRule.label (r : CoReachRule) : String :=
   r.ref.label
 
+/-- A Lake target a `[[target-config]]` rule's `load-plugin` names:
+`<target>`, `<package>/<target>` or `@<package>/<target>`. -/
+structure PluginName where
+  /-- The package, when given. -/
+  pkg? : Option String := none
+  target : String
+  /-- As written. -/
+  text : String
+  deriving BEq, Repr, Inhabited
+
+/-- Parse a `load-plugin` value: a target name, optionally after a package
+and a `/` (the package optionally after `@`). No facet (`:`), no module
+(`+`), no empty part, at most one `/`. -/
+def PluginName.parse? (s : String) : Option PluginName :=
+  let ok (part : String) : Bool :=
+    !part.isEmpty &&
+      !part.any fun c => c == ':' || c == '+' || c == '@' || c == '/' || c.isWhitespace
+  match s.splitOn "/" with
+  | [t] => if ok t then some { target := t, text := s } else none
+  | [p, t] =>
+    let p := if p.startsWith "@" then (p.drop 1).toString else p
+    if ok p && ok t then some { pkg? := some p, target := t, text := s } else none
+  | _ => none
+
+/-- One `[[target-config]]` table: every `lean_lib` and `lean_exe` of
+`targets` (minus `except`) loads `loadPlugin` as a plugin, or has a module
+whose import closure holds a module of `orImports`. -/
+structure TargetConfigRule where
+  /-- 1-based, in source order among the `target-config` tables; a table with
+  errors keeps its number. -/
+  index : Nat
+  /-- The table's position: its `[[target-config]]` header (column 0), or
+  the `{` of an inline table. -/
+  pos? : Option Toml.Pos
+  /-- `targets`: non-empty, only `pkg:` and `lib:` selectors, in a valid
+  policy. -/
+  targets : Array SelectorRef := #[]
+  /-- `except`: only `pkg:` and `lib:` selectors; possibly empty. -/
+  except : Array SelectorRef := #[]
+  /-- `load-plugin`: set in a valid policy. -/
+  loadPlugin? : Option PluginName := none
+  /-- `or-imports`: possibly empty. -/
+  orImports : Array SelectorRef := #[]
+  /-- `reason`: not blank in a valid policy. -/
+  reason : String := ""
+  deriving BEq, Repr, Inhabited
+
+/-- The rule's reference: `target-config` and its index. -/
+def TargetConfigRule.ref (r : TargetConfigRule) : RuleRef :=
+  ⟨.targetConfig, r.index⟩
+
+/-- "target-config rule 1". -/
+def TargetConfigRule.label (r : TargetConfigRule) : String :=
+  r.ref.label
+
 /-- One entry of `[layers]`'s `classify`: the packages `select` matches are
 in `layer`. -/
 structure LayerClass where
@@ -337,19 +398,22 @@ structure Policy where
   reachable : Array ReachableRule := #[]
   /-- The `[[co-reach]]` rules, in source order. -/
   coReach : Array CoReachRule := #[]
+  /-- The `[[target-config]]` rules, in source order. -/
+  targetConfig : Array TargetConfigRule := #[]
   /-- The `[[root]]` tables, in source order. Not rules. -/
   roots : Array RootDef := #[]
   deriving Repr, Inhabited
 
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets", "deny", "allow-only", "layers", "reachable", "co-reach", "root"]
+  #["sets", "deny", "allow-only", "layers", "reachable", "co-reach", "target-config", "root"]
 
 /-- The number of rules of every kind; `[layers]` is one rule. Declared roots
 are not rules. -/
 def Policy.ruleCount (p : Policy) : Nat :=
   p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0) + p.reachable.size +
-    p.coReach.size
+    p.coReach.size +
+    p.targetConfig.size
 
 /-- `<path>:<line>:<column>`, or `<path>` with no position. -/
 def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
@@ -402,6 +466,11 @@ def ReachableRule.refs (r : ReachableRule) : Array SelectorRef :=
 together, in source order. -/
 def CoReachRule.refs (r : CoReachRule) : Array SelectorRef :=
   (r.roots ++ r.ifReaches ++ r.mustReach).qsort fun a b => posLt a.pos? b.pos?
+
+/-- A target-config rule's selectors, `targets`, `except` and `or-imports`
+together, in source order. -/
+def TargetConfigRule.refs (r : TargetConfigRule) : Array SelectorRef :=
+  (r.targets ++ r.except ++ r.orImports).qsort fun a b => posLt a.pos? b.pos?
 
 /-- The set a selector names, if any: `set:n`, also inside `imports:`
 (`Selector.setName?`). -/
@@ -515,7 +584,7 @@ private def parseReason (e : Errors) (label : String) (x : Toml.LValue) : Errors
   | _ => (e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}", none)
 
 /-- A top-level array-of-tables key (`deny`, `allow-only`, `reachable`,
-`co-reach`, `root`): each table parsed by `parse` with its 1-based index and the tables parsed before
+`co-reach`, `target-config`, `root`): each table parsed by `parse` with its 1-based index and the tables parsed before
 it. -/
 private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LValue)
     (parse : Errors → Nat → Array α → Toml.LValue → Errors × α) : Errors × Array α :=
@@ -689,6 +758,70 @@ private def parseCoReach (e : Errors) (index : Nat) (v : Toml.LValue) : Errors �
         e :=
           e.add x.pos? <|
             s!"{label}: unknown key '{k}' (expected {", ".intercalate coReachKeys.toList})"
+    return (e, r)
+
+/-- The keys of a target-config table, in the order messages list them. -/
+private def targetConfigKeys : Array String :=
+  #["targets", "except", "load-plugin", "or-imports", "reason"]
+
+/-- Entry `index` (1-based) of the `target-config` array, as `parseDeny`.
+`targets` and `except` take only `pkg:` and `lib:` selectors; any other
+form is an error and is dropped. -/
+private def parseTargetConfig (e : Errors) (index : Nat) (v : Toml.LValue) :
+    Errors × TargetConfigRule :=
+  Id.run do
+    let label := s!"target-config rule {index}"
+    let base : TargetConfigRule := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in #["targets", "load-plugin", "reason"] do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k with
+      | "targets" | "except" | "or-imports" =>
+        let (e', refs?) :=
+          parseRuleSelectors e label (.rule "target-config" index k) k (k != "targets") x
+        e := e'
+        let some refs := refs? | continue
+        if k == "or-imports" then
+          r := { r with orImports := refs }
+          continue
+        let mut kept := #[]
+        for ref in refs do
+          match ref.sel with
+          | .pkg _ | .lib .. =>
+            kept := kept.push ref
+          | _ =>
+            e :=
+              e.add ref.pos? <|
+                s!"{label} ('{k}'): '{ref.text}' is not a target selector (expected \
+                  pkg:<package>, lib:<lib> or lib:<package>/<lib>)"
+        r := if k == "targets" then { r with targets := kept } else { r with except := kept }
+      | "load-plugin" =>
+        match x with
+        | .string _ s =>
+          match PluginName.parse? s with
+          | some n =>
+            r := { r with loadPlugin? := some n }
+          | none =>
+            e :=
+              e.add x.pos? <|
+                s!"{label}: 'load-plugin' must be a Lake target name, '<target>' or \
+                  '@<package>/<target>', found '{s}'"
+        | _ =>
+          e := e.add x.pos? s!"{label}: 'load-plugin' must be a string, found {x.kindName}"
+      | "reason" =>
+        let (e', reason?) := parseReason e label x
+        e := e'
+        if let some reason := reason? then
+          r := { r with reason }
+      | _ =>
+        e :=
+          e.add x.pos? <|
+            s!"{label}: unknown key '{k}' (expected {", ".intercalate targetConfigKeys.toList})"
     return (e, r)
 
 /-- The keys of `[layers]`, in the order messages list them. -/
@@ -970,7 +1103,8 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
 
 /-- Check that every `set:` in a rule names a set. `refs` holds each rule's
 selectors (`DenyRule.refs`, `AllowOnlyRule.refs`, `LayersRule.refs`,
-`ReachableRule.refs`, `CoReachRule.refs`), in rule order. -/
+`ReachableRule.refs`, `CoReachRule.refs`, `TargetConfigRule.refs`), in
+rule order. -/
 private def checkRuleRefs (e : Errors) (sets : Array SetDef) (refs : Array (Array SelectorRef)) :
     Errors :=
   Id.run do
@@ -997,6 +1131,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut layers? := none
     let mut reachable := #[]
     let mut coReach := #[]
+    let mut targetConfig := #[]
     let mut roots := #[]
     for (k, v) in entries do
       if k == "sets" then
@@ -1028,6 +1163,10 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         let (e', rs) := parseRuleArray e "co-reach" v fun e i _ x => parseCoReach e i x
         e := e'
         coReach := coReach ++ rs
+      else if k == "target-config" then
+        let (e', rs) := parseRuleArray e "target-config" v fun e i _ x => parseTargetConfig e i x
+        e := e'
+        targetConfig := targetConfig ++ rs
       else if k == "root" then
         let (e', rs) := parseRuleArray e "root" v parseRoot
         e := e'
@@ -1038,10 +1177,12 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let refs :=
       deny.map (·.refs) ++ allowOnly.map (·.refs) ++ (layers?.map (#[·.refs])).getD #[] ++
         reachable.map (·.refs) ++
-        coReach.map (·.refs)
+        coReach.map (·.refs) ++
+        targetConfig.map (·.refs)
     let errs := checkRuleRefs e' sets refs
     if errs.msgs.isEmpty then
-      return .ok { path, sets, order, deny, allowOnly, layers?, reachable, coReach, roots }
+      return .ok
+          { path, sets, order, deny, allowOnly, layers?, reachable, coReach, targetConfig, roots }
     return .error errs.msgs
 
 /-- Only the `[[root]]` tables of the parsed TOML document at `path`; every

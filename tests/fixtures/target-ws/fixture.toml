@@ -1,0 +1,5 @@
+# The target-config fixtures' workspace (tests/fixtures/target-config-*), also
+# the graph suite's (LeanDenyTest/Graph.lean): its own policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0

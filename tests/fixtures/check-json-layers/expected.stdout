@@ -1,5 +1,6 @@
 {"violations":
- [{"rule":
+ [{"target": null,
+   "rule":
    {"reason": null,
     "line": 7,
     "label": "layers",
@@ -21,7 +22,8 @@
      "file": "App.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": null,
     "line": 7,
     "label": "layers",
@@ -43,7 +45,8 @@
      "file": "App.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": null,
     "line": 7,
     "label": "layers",
@@ -65,7 +68,8 @@
      "file": "editor/Editor.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": null,
     "line": 7,
     "label": "layers",

@@ -1,0 +1,22 @@
+# Selectors of target-config rules that name no target, an except entry that
+# removes nothing (rule 1), an or-imports selector that matches nothing and
+# one that matches only modules outside the workspace (rule 2), and a rule
+# its except empties (rule 3). Every error is reported; no violation is.
+[[target-config]]
+targets = ["pkg:nope", "pkg:target-ws", "lib:Nope", "pkg:pkga"]
+except = "pkg:user"
+load-plugin = "@lint/lintShared"
+reason = "wrong in every selector"
+
+[[target-config]]
+targets = "pkg:pkga"
+except = "lib:pkgb/PkgB"
+load-plugin = "@lint/lintShared"
+or-imports = ["mod:Nope", "external:Init"]
+reason = "wrong or-imports"
+
+[[target-config]]
+targets = "lib:user/User"
+except = "pkg:user"
+load-plugin = "@lint/lintShared"
+reason = "checks nothing"

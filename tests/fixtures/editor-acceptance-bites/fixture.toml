@@ -1,4 +1,4 @@
-# The same policy over editor-broken-ws, where each of its eleven rules bites
+# The same policy over editor-broken-ws, where each of its twelve rules bites
 # (exit 1): one breaking import per rule of the first nine, a second for
 # allow-only rule 4 (the linked root imports Editor.Window.Real, which its
 # `except` excludes), and a second for deny rule 4 (Editor.Test.Fixture.Main
@@ -8,7 +8,9 @@
 # imports, outside Editor.Core's closure; and, for co-reach rule 1, the
 # fixture-harness root EditorSetFixtures, which reaches
 # Editor.Config.Elaborate through Editor.Headless but no longer imports the
-# config base Editor; as docs/editor-project-acceptance.md lists.
+# config base Editor; and, for target-config rule 1, the core's library
+# FilesApi, which loads no plugin and imports no Lint; as
+# docs/editor-project-acceptance.md lists.
 run = "direct"
 args = ["check", "--workspace", "../editor-broken-ws", "--config", "../editor-acceptance-holds/lean-deny.toml"]
 exit = 1

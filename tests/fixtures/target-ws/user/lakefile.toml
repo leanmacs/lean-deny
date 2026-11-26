@@ -1,0 +1,9 @@
+# A package written as a user's: no plugin, no import of Lint.
+name = "user"
+
+[[lean_lib]]
+name = "User"
+
+[[lean_exe]]
+name = "user-tool"
+root = "UserTool"

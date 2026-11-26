@@ -48,4 +48,6 @@ co-reach rule 1 (../editor-acceptance-holds/lean-deny.toml:101:0): the elaborato
   root/EditorSetFixtures.lean:1: EditorSetFixtures imports Editor.Test.Fixture.Main
   lean/Editor/Test/Fixture/Main.lean:1: Editor.Test.Fixture.Main imports Editor.Headless
   lean/Editor/Headless.lean:2: Editor.Headless imports Editor.Config.Elaborate
-lean-deny: 21 violations in 11 of 11 rules
+target-config rule 1 (../editor-acceptance-holds/lean-deny.toml:109:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/FilesApi does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
+  lean/lakefile.toml: lean_lib FilesApi
+lean-deny: 22 violations in 12 of 12 rules

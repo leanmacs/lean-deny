@@ -1,0 +1,15 @@
+# Two target-config rules over target-ws that bite. Rule 1: PkgBExtra loads
+# another plugin and pkgb-tool none, and neither imports Lint; PkgB loads the
+# plugin; user would bite too but for `except`. Rule 2: lib: picks the User
+# library alone, not the user-tool executable.
+[[target-config]]
+targets = ["pkg:pkgb", "pkg:user"]
+except = ["pkg:user"]
+load-plugin = "@lint/lintShared"
+or-imports = ["lib:lint/Lint", "mod:LintTest!"]
+reason = "a target that loads no plugin is never linted"
+
+[[target-config]]
+targets = "lib:user/User"
+load-plugin = "lint/lintShared"
+reason = "the user library loads the linters"

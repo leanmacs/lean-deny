@@ -1,0 +1,28 @@
+# target-config tables with shape mistakes, each reported at its line (exit
+# 2, before Lake runs).
+[[target-config]]
+except = "pkg:a"
+
+[[target-config]]
+targets = ["mod:X", "set:s", "keyword:k", "imports:pkg:a", "pkg:a"]
+except = []
+load-plugin = "@lint/Lint:shared"
+reason = "  "
+transitive = true
+
+[[target-config]]
+targets = "lib:a/A"
+except = "mod:Y!"
+load-plugin = "+Lint"
+reason = "r"
+
+[[target-config]]
+targets = "pkg:a"
+load-plugin = "a/b/c"
+or-imports = []
+reason = false
+
+[[target-config]]
+targets = 1
+load-plugin = 1
+reason = "r"

@@ -1,0 +1,7 @@
+target-config rule 1 (lean-deny.toml:5:0): a target that loads no plugin is never linted: lean_lib pkgb/PkgBExtra does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!
+  pkgb/lakefile.toml: lean_lib PkgBExtra
+target-config rule 1 (lean-deny.toml:5:0): a target that loads no plugin is never linted: lean_exe pkgb/pkgb-tool does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!
+  pkgb/lakefile.toml: lean_exe pkgb-tool
+target-config rule 2 (lean-deny.toml:12:0): the user library loads the linters: lean_lib user/User does not load lint/lintShared
+  user/lakefile.toml: lean_lib User
+lean-deny: 3 violations in 2 of 2 rules

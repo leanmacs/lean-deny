@@ -2,7 +2,11 @@
 # rule holds (exit 0), reachable rule 1 among them: every Editor.… module is
 # Editor.Core or imported by it; and co-reach rule 1: every listed root that
 # reaches Editor.Config.Elaborate (EditorSetRoot, EditorSetFixtures and
-# CompileTest.Linked, through Editor.Headless) also reaches Editor.
+# CompileTest.Linked, through Editor.Headless) also reaches Editor; and
+# target-config rule 1: every lean_lib and lean_exe of the six packages loads
+# the lint plugin (package-level in the packages, per target in the core) or,
+# for the core's Lint, LintTests and lint-test, imports Lint, lint-test
+# through LintTest.Wait.
 run = "direct"
 args = ["check", "--workspace", "../editor-ws", "--config", "lean-deny.toml"]
 exit = 0

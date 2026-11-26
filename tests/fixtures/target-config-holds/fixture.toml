@@ -1,0 +1,3 @@
+run = "direct"
+args = ["check", "--workspace", "../target-ws", "--config", "lean-deny.toml"]
+exit = 0

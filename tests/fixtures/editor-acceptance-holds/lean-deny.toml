@@ -104,6 +104,14 @@ if-reaches = "mod:Editor.Config.Elaborate!"
 must-reach = "mod:Editor!"
 reason = "the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3)"
 
+# Lint plugins: every lean_lib and lean_exe of the core and of every package loads the lint
+# plugin or imports the core's Lint.
+[[target-config]]
+targets = ["pkg:editor-core", "pkg:compile", "pkg:compile-api", "pkg:shell", "pkg:shell-api", "pkg:shipped-themes"]
+load-plugin = "@editor-core/lintShared"
+or-imports = "lib:editor-core/Lint"
+reason = "a target that loads no plugin is never linted (lint plugins)"
+
 # The two roots the package-set build generates, which no Lake target declares.
 # Here each is a checked-in stand-in in the workspace's root/ (no Lake build runs).
 [[root]]

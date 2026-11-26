@@ -1,0 +1,15 @@
+# Target-level plugins: PkgB loads the lint plugin, PkgBExtra another one,
+# and the pkgb-tool executable none.
+name = "pkgb"
+
+[[lean_lib]]
+name = "PkgB"
+plugins = ["@lint/lintShared"]
+
+[[lean_lib]]
+name = "PkgBExtra"
+plugins = ["@lint/other"]
+
+[[lean_exe]]
+name = "pkgb-tool"
+root = "PkgBTool"

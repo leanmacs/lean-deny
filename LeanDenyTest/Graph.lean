@@ -1,11 +1,13 @@
 import LeanDeny
 
 /-!
-Graph checks: load `tests/fixtures/spike-ws` and `tests/fixtures/graph-ws`
+Graph checks: load `tests/fixtures/spike-ws`, `tests/fixtures/graph-ws` and
+`tests/fixtures/target-ws`
 with `LeanDeny.Graph.load`, through the in-process Lake API and the header
 parser, and compare the in-memory graph with what is expected, exactly:
 every node, every edge with its keywords, file and line, the package
-metadata, and queries on the result. Also the no-manifest guard.
+metadata (each target's effective plugins among it), and queries on the
+result. Also the no-manifest guard.
 -/
 
 open Lean LeanDeny.Graph LeanDeny.Graph.LakeApi
@@ -44,10 +46,16 @@ def renderEdge (g : Graph) (e : Edge) : String :=
   s!"{name e.src} -> {name e.dst} [{",".intercalate kws}] {" ".intercalate flags} \
     {rel g e.file}:{(e.line?.map toString).getD "-"}"
 
-/-- A package as `name root? dir keywords requires libs exes`. -/
+/-- A target's plugins as `[text pkg/target, …]`, `-` for an absent part. -/
+def renderPlugins (ps : Array PluginRef) : String :=
+  let part (n? : Option Name) := (n?.map unescaped).getD "-"
+  s!"[{", ".intercalate (ps.map fun p => s!"{p.text} {part p.pkg?}/{part p.target?}").toList}]"
+
+/-- A package as `name root? dir keywords requires libs exes`, each library
+and executable with its plugins. -/
 def renderPackage (g : Graph) (p : PackageInfo) : String :=
-  let libs := p.libs.map fun l => s!"{l.name}{l.roots}{l.globs}"
-  let exes := p.exes.map fun x => s!"{unescaped x.name}:{x.root}"
+  let libs := p.libs.map fun l => s!"{l.name}{l.roots}{l.globs}{renderPlugins l.plugins}"
+  let exes := p.exes.map fun x => s!"{unescaped x.name}:{x.root}{renderPlugins x.plugins}"
   s!"{unescaped p.name} {if p.isRoot then "root" else "dep"} {rel g p.dir} \
     {rel g p.configFile} {p.keywords} {p.requires.map unescaped} {libs} {exes} {p.remoteUrl?}"
 
@@ -131,9 +139,18 @@ def graphWsEdges : Array String :=
     "Core.Types -> Core.Prim []  core/Core/Types.lean:3"]
 
 def graphWsPackages : Array String :=
-  #["graph-ws root . lakefile.toml #[] #[core] #[App#[App]#[App.*], AppTest#[AppTest]#[AppTest, App.Shared]] #[graph-app:Main] none",
-    "core dep core core/lakefile.toml #[kernel, api] #[base] #[Core#[Core]#[Core.+]] #[] none",
-    "base dep base base/lakefile.toml #[] #[] #[Base#[Base]#[Base]] #[] none"]
+  #["graph-ws root . lakefile.toml #[] #[core] #[App#[App]#[App.*][], AppTest#[AppTest]#[AppTest, App.Shared][]] #[graph-app:Main[]] none",
+    "core dep core core/lakefile.toml #[kernel, api] #[base] #[Core#[Core]#[Core.+][]] #[] none",
+    "base dep base base/lakefile.toml #[] #[] #[Base#[Base]#[Base][]] #[] none"]
+
+/-- `target-ws`'s packages: pkga's package-level plugin on its library and
+its executable, PkgB's and PkgBExtra's own, and none elsewhere. -/
+def targetWsPackages : Array String :=
+  #["target-ws root . lakefile.toml #[] #[lint, pkga, pkgb, user] #[] #[] none",
+    "user dep user user/lakefile.toml #[] #[] #[User#[User]#[User][]] #[user-tool:UserTool[]] none",
+    "pkgb dep pkgb pkgb/lakefile.toml #[] #[] #[PkgB#[PkgB]#[PkgB][@lint/lintShared lint/lintShared], PkgBExtra#[PkgBExtra]#[PkgBExtra][@lint/other lint/other]] #[pkgb-tool:PkgBTool[]] none",
+    "pkga dep pkga pkga/lakefile.toml #[] #[] #[PkgA#[PkgA]#[PkgA][@lint/lintShared lint/lintShared]] #[pkga-test:PkgATest[@lint/lintShared lint/lintShared]] none",
+    "lint dep lint lint/lakefile.toml #[] #[] #[Lint#[Lint]#[Lint.*][], LintTests#[LintTests]#[LintTest.+][]] #[lint-test:LintTest[]] none"]
 
 /-- The failures of `graph-ws`'s graph: the exact nodes, edges and
 packages, then queries on them. -/
@@ -232,6 +249,9 @@ def failureMessagesFailures : Array String :=
 def run (root : System.FilePath) : IO (Array String) := do
   return failureMessagesFailures ++ (← checkFixture root "spike-ws" spikeFailures) ++
       (← checkFixture root "graph-ws" graphWsFailures) ++
+      (←
+        checkFixture root "target-ws" fun g =>
+            compare "target-ws packages" (g.packages.map (renderPackage g)) targetWsPackages) ++
       (← noManifestFailures (root / "tests" / "fixtures" / "spike-ws"))
 
 end LeanDenyTest.Graph

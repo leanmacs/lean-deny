@@ -1,0 +1,7 @@
+lean-deny: error: lean-deny.toml:6:11: selector 'pkg:nope' in target-config rule 1 ('targets') matches no target: no package named 'nope' (packages: target-ws, user, pkgb, pkga, lint)
+lean-deny: error: lean-deny.toml:6:23: selector 'pkg:target-ws' in target-config rule 1 ('targets') matches no target: package 'target-ws' declares no lean_lib or lean_exe
+lean-deny: error: lean-deny.toml:6:40: selector 'lib:Nope' in target-config rule 1 ('targets') matches no target: no package has a lean_lib named 'Nope'
+lean-deny: error: lean-deny.toml:15:14: selector 'mod:Nope' in target-config rule 2 ('or-imports') matches no module: no workspace module is or is under 'Nope'
+lean-deny: error: lean-deny.toml:15:26: selector 'external:Init' in target-config rule 2 ('or-imports') matches only modules outside the workspace, which a rule about reach does not check
+lean-deny: error: lean-deny.toml:13:9: selector 'lib:pkgb/PkgB' in target-config rule 2 ('except') removes no target the rule selects
+lean-deny: error: lean-deny.toml:18:0: target-config rule 3: 'except' removes every target it selects, so it checks nothing

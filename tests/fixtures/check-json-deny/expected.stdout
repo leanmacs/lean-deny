@@ -1,5 +1,6 @@
 {"violations":
- [{"rule":
+ [{"target": null,
+   "rule":
    {"reason": "the app imports nothing of the core",
     "line": 2,
     "label": "deny rule 1",
@@ -21,7 +22,8 @@
      "file": "App.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "the executable reaches no kernel module",
     "line": 7,
     "label": "deny rule 2",

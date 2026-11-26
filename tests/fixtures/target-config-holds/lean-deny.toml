@@ -1,0 +1,16 @@
+# Two target-config rules over target-ws that hold. Rule 1: Lint and
+# LintTests import Lint.Wait directly, the lint-test root through
+# LintTest.Wait, pkga's library and executable load the plugin through the
+# package's `plugins`, and PkgB through its own; user would bite but for
+# `except`. Rule 2 names the plugin by its bare target name.
+[[target-config]]
+targets = ["pkg:lint", "pkg:pkga", "lib:pkgb/PkgB", "pkg:user"]
+except = ["pkg:user"]
+load-plugin = "@lint/lintShared"
+or-imports = "lib:lint/Lint"
+reason = "a target that loads no plugin is never linted"
+
+[[target-config]]
+targets = "pkg:pkga"
+load-plugin = "lintShared"
+reason = "pkga's targets load the linters"

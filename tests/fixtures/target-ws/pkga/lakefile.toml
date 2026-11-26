@@ -1,0 +1,10 @@
+# A package-level plugin, which Lake applies to every target of the package.
+name = "pkga"
+plugins = ["@lint/lintShared"]
+
+[[lean_lib]]
+name = "PkgA"
+
+[[lean_exe]]
+name = "pkga-test"
+root = "PkgATest"

@@ -1,4 +1,5 @@
 name = "shell"
+plugins = ["@editor-core/lintShared"]
 
 [[require]]
 name = "editor-core"

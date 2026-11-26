@@ -1,5 +1,6 @@
 {"violations":
- [{"rule":
+ [{"target": null,
+   "rule":
    {"reason": "the app's root holds the whole package",
     "line": 5,
     "label": "reachable rule 1",
@@ -13,7 +14,8 @@
    "the app's root holds the whole package: AppTest is outside the import closure of App",
    "detail": "AppTest is outside the import closure of App",
    "chain": []},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "the app's root holds the whole package",
     "line": 5,
     "label": "reachable rule 1",
@@ -27,7 +29,8 @@
    "the app's root holds the whole package: Main is outside the import closure of App",
    "detail": "Main is outside the import closure of App",
    "chain": []},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "the implementation holds the whole core",
     "line": 10,
     "label": "reachable rule 2",
@@ -41,7 +44,8 @@
    "the implementation holds the whole core: Core.Api is outside the import closure of Core.Impl",
    "detail": "Core.Api is outside the import closure of Core.Impl",
    "chain": []},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "the implementation holds the whole core",
     "line": 10,
     "label": "reachable rule 2",

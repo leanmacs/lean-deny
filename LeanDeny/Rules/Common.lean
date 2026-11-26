@@ -13,6 +13,24 @@ open Lean LeanDeny.Graph
 
 namespace LeanDeny
 
+/-- A Lake target a target-config rule checks: a `lean_lib` or a `lean_exe`,
+its package, the package's lakefile and the target's effective plugins. -/
+structure TargetRef where
+  pkg : Name
+  kind : TargetKind
+  name : Name
+  /-- The package's configuration file (Lake keeps no position for a
+  target). -/
+  configFile : System.FilePath
+  plugins : Array PluginRef
+  deriving BEq, Repr, Inhabited
+
+/-- "lean_lib" or "lean_exe". -/
+def TargetRef.kindText (t : TargetRef) : String :=
+  match t.kind with
+  | .lib => "lean_lib"
+  | .exe => "lean_exe"
+
 /-- One violation of any rule kind: the rule, its table position, its
 reason, what the violation is, and the chain of imports that breaks it. -/
 structure Violation where
@@ -21,15 +39,16 @@ structure Violation where
   /-- The rule's table. -/
   pos? : Option Toml.Pos
   /-- The rule's `reason` as written: always set for deny, allow-only,
-  reachable and co-reach, optional for `[layers]`. -/
+  reachable, co-reach and target-config, optional for `[layers]`. -/
   reason? : Option String
   /-- What this violation is, beyond the reason: for `[layers]`,
   "app (implementation) may not import plugin (implementation)"; for a
   reachable rule, "M is outside the import closure of R"; for a co-reach
-  rule, "R reaches T but not M". -/
+  rule, "R reaches T but not M"; for a target-config rule, "lean_lib p/L
+  does not load P". -/
   detail? : Option String := none
-  /-- At least one edge for every kind but reachable, whose chain is empty,
-  and co-reach, whose chain is the witness from its root to the
+  /-- At least one edge for every kind but reachable and target-config,
+  whose chain is empty, and co-reach, whose chain is the witness from its root to the
   `if-reaches` module it reaches (empty when the root is itself one);
   exactly one for a direct deny rule, an allow-only rule and `[layers]`;
   consecutive (`chain[i].dst = chain[i+1].src`). -/
@@ -40,10 +59,13 @@ structure Violation where
   /-- The `must-reach` modules a co-reach rule's root does not reach, in
   `displayOrder`; empty for the other kinds. -/
   missing : Array NodeId := #[]
+  /-- The target a target-config rule is broken for; `none` for the other
+  kinds. -/
+  target? : Option TargetRef := none
   deriving BEq, Repr, Inhabited
 
 /-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
-"co-reach rule 1": names the rule. -/
+"co-reach rule 1", "target-config rule 1": names the rule. -/
 def Violation.label (v : Violation) : String :=
   v.rule.label
 
@@ -107,13 +129,17 @@ def moduleLine (g : Graph) (n : NodeId) (path : System.FilePath → String := g.
 then one step per edge, indented two spaces, and, when the chain is empty and
 the violation has a module (a reachable rule's uncovered module, a co-reach
 rule's root that is itself in `if-reaches`), that module's line
-(`moduleLine`), indented two spaces. `policyPath` is
+(`moduleLine`), indented two spaces; for a target-config rule, the target's
+line, `<lakefile>: lean_lib <name>`, indented two spaces. `policyPath` is
 the policy's; `path` writes each file (as in `chainLine`). -/
 def Violation.render (g : Graph) (policyPath : String) (v : Violation)
     (path : System.FilePath → String := g.relPath) : Array String :=
   #[s!"{v.label} ({Policy.posText policyPath v.pos?}): {v.message}"] ++
     v.chain.map (fun e => s!"  {chainLine g e path}") ++
     (if v.chain.isEmpty then (v.module?.map fun m => #[s!"  {moduleLine g m path}"]).getD #[]
-    else #[])
+    else #[]) ++
+    (v.target?.map fun t =>
+          #[s!"  {path t.configFile}: {t.kindText} {t.name.toString (escape := false)}"]).getD
+      #[]
 
 end LeanDeny

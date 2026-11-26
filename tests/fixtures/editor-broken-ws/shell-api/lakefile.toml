@@ -1,5 +1,6 @@
 name = "shell-api"
 keywords = ["editor-interface"]
+plugins = ["@editor-core/lintShared"]
 
 [[require]]
 name = "editor-core"

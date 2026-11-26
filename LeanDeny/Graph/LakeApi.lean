@@ -14,7 +14,9 @@ workspace library with an existing file, is fetched too, owned by that
 library (`ws.findModule?`, as Lake's `module?`), repeated until no new module
 appears (`collectAll`). The policy's declared roots (`[[root]]`) are read
 from their files the way Lake reads any module's header (`readRoot`), and
-their imports seed that search. Nothing is built; the only files
+their imports seed that search. Each library's and executable's effective
+`plugins` (the package's then the target's, as Lake applies them) are
+copied as build keys, never fetched (`pluginRef`). Nothing is built; the only files
 Lake may write are the cached configuration oleans under
 `<workspace>/.lake/config/` for packages configured with `lakefile.lean`.
 
@@ -211,7 +213,32 @@ def collectAll (ws : Workspace) (roots : Array RawRoot) : IO (Array (Except Log 
     frontier := new
   return rows
 
-/-- A package's metadata. -/
+/-- A package name as a build key holds it, without the numeric suffix Lake
+may add (as `PartialBuildKey.toString` strips it); `none` when elided. -/
+def keyPackage? (p : Name) : Option Name :=
+  match p with
+  | .anonymous | .num .anonymous _ => none
+  | .num p _ => some p
+  | p => some p
+
+/-- One entry of a `plugins` list. A plugin is never fetched (only the
+`setup` facets fetch plugins), so its key need not resolve. -/
+def pluginRef (t : Target Lake.Dynlib) : PluginRef :=
+  match t.key with
+  | .packageTarget p tgt =>
+    let pkg? := keyPackage? p
+    let tgtText := tgt.toString (escape := false)
+    { pkg?, target? := some tgt
+      text :=
+        match pkg? with
+        | some pkg => s!"@{pkg.toString (escape := false)}/{tgtText}"
+        | none => tgtText }
+  | k => { text := k.toString }
+
+/-- A package's metadata. Each target's plugins are its effective ones:
+`LeanLib.plugins` (the package's, then the library's), and for an executable
+those of its root module's library (`LeanExe.root`), the package's then the
+executable's. -/
 def packageInfo (ws : Workspace) (pkg : Package) : PackageInfo :=
   { name := pkg.baseName
     dir := pkg.dir
@@ -221,8 +248,12 @@ def packageInfo (ws : Workspace) (pkg : Package) : PackageInfo :=
     requires := pkg.depConfigs.map (·.name)
     libs :=
       pkg.leanLibs.map fun lib =>
-        { name := lib.name, roots := lib.roots, globs := lib.config.globs.map toString }
-    exes := pkg.leanExes.map fun exe => { name := exe.name, root := exe.config.root }
+        { name := lib.name, roots := lib.roots, globs := lib.config.globs.map toString
+          plugins := lib.plugins.map pluginRef }
+    exes :=
+      pkg.leanExes.map fun exe =>
+        { name := exe.name, root := exe.config.root
+          plugins := exe.root.lib.plugins.map pluginRef }
     isRoot := pkg.baseName == ws.root.baseName }
 
 /-- The messages to report for failed fetches, each failure given as its

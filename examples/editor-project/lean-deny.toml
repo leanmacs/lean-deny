@@ -1,7 +1,7 @@
-# editor-project's four import rules as a lean-deny policy: the core,
-# package, host and layer imports checks (tools/*-imports-check.sh at
-# editor-project 78d9d9ea, deleted at d51fe135; .agents/rules/structure.md
-# states them now). Mapping, runs and gaps: docs/editor-project-acceptance.md.
+# editor-project's four import rules and its lint-plugins rule as a lean-deny policy: the
+# core, package, host and layer imports checks (tools/*-imports-check.sh at editor-project
+# 78d9d9ea, deleted at d51fe135; .agents/rules/structure.md states them now), and lint
+# plugins (target-config rule 1). Mapping, runs and gaps: docs/editor-project-acceptance.md.
 #
 # The workspace is packages/, the default package set: it requires the core
 # (../lean, Lake package editor-core) and every default package by path.
@@ -277,6 +277,64 @@ roots = [
 if-reaches = "mod:Editor.Config.Elaborate!"
 must-reach = "mod:Editor!"
 reason = "the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3)"
+
+# Lint plugins (.agents/rules/structure.md, "Lint plugins"): every lean_lib and lean_exe of
+# the core and of every package loads the build's linters as a plugin (the core's
+# lintPlugin, a package's package-level `plugins`), or imports the core's Lint, directly
+# or not. The packages are listed, since 'targets' takes only pkg: and lib: selectors:
+# the core and the 43 packages of the set, the interface packages included. default-set
+# declares no target. docs/packages/word-count, a package written as a user's and exempt,
+# is not in this workspace.
+[[target-config]]
+targets = [
+  "pkg:editor-core",
+  "pkg:at-point",
+  "pkg:at-point-api",
+  "pkg:binding-search",
+  "pkg:binding-search-api",
+  "pkg:buffers",
+  "pkg:buffers-api",
+  "pkg:compile",
+  "pkg:compile-api",
+  "pkg:completion",
+  "pkg:completion-api",
+  "pkg:evil",
+  "pkg:evil-api",
+  "pkg:ex",
+  "pkg:ex-api",
+  "pkg:execute-command",
+  "pkg:execute-command-api",
+  "pkg:files",
+  "pkg:frame-commands",
+  "pkg:frame-commands-api",
+  "pkg:languages",
+  "pkg:menu",
+  "pkg:minibuffer",
+  "pkg:minibuffer-api",
+  "pkg:mode-line",
+  "pkg:package-set",
+  "pkg:project-api",
+  "pkg:project-search",
+  "pkg:project-search-api",
+  "pkg:restore",
+  "pkg:shell",
+  "pkg:shell-api",
+  "pkg:shipped-themes",
+  "pkg:tab-commands",
+  "pkg:tab-commands-api",
+  "pkg:themes",
+  "pkg:themes-api",
+  "pkg:vc-api",
+  "pkg:version-control",
+  "pkg:window-commands",
+  "pkg:window-commands-api",
+  "pkg:working-set",
+  "pkg:working-set-api",
+  "pkg:workspace",
+]
+load-plugin = "@editor-core/lintShared"
+or-imports = "lib:editor-core/Lint"
+reason = "a target that loads no plugin is never linted (lint plugins)"
 
 # The two roots the package-set build generates (the setRoot and fixturesRoot facets of
 # lean/lakefile.lean), which no Lake target declares. lean-deny reads them from the build

@@ -13,7 +13,7 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]` and `[[co-reach]]` rules of
+> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]` and `[[target-config]]` rules of
 > `lean-deny.toml`, checks that every selector matches, and exits 1 with
 > the violations when a rule is broken. Any other top-level key is an
 > error, never silently ignored. `lean-deny explain` lists the modules a
@@ -60,6 +60,7 @@ imports.
 | `layers` | Every package is in one layer, chosen by selectors such as `pkg:` or `keyword:`; every import between two packages must be an allowed (importer layer, imported layer) pair. | none |
 | `reachable` | Every module in B is a module of A or imported by one, directly or not: nothing in B lies outside A's import closure. | none |
 | `co-reach` | Every root in R whose import closure holds a module of A also holds every module of B. | none |
+| `target-config` | Every `lean_lib` and `lean_exe` of a set of packages loads a given Lake plugin, or has a module whose import closure holds a module of A. | none |
 
 ### Selectors
 
@@ -651,6 +652,98 @@ Each of these is an error (exit 2), reported at the policy's
 
 When the policy has any error, no violation is reported.
 
+### target-config
+
+A `[[target-config]]` rule is about Lake targets rather than imports: every
+`lean_lib` and `lean_exe` it selects loads a given plugin (Lake's `plugins`
+option), or has a module that imports a given module, directly or not. This
+is editor-project's "Lint plugins" rule: every library and executable of the
+core and of every package loads the build's linters as a plugin, or imports
+the core's `Lint`, so that no target goes unlinted.
+
+```toml
+[[target-config]]
+targets = ["pkg:editor-core", "pkg:compile", "pkg:compile-api"]
+load-plugin = "@editor-core/lintShared"
+or-imports = "lib:editor-core/Lint"
+reason = "a target that loads no plugin is never linted"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `targets` | yes | a `pkg:<package>`, `lib:<lib>` or `lib:<package>/<lib>` selector, or a non-empty array of them: the targets checked |
+| `except` | no | the same forms: targets left out |
+| `load-plugin` | yes | a Lake target name: `<target>`, `<package>/<target>` or `@<package>/<target>` |
+| `or-imports` | no | a selector or a non-empty array of selectors, any form: a target that imports one of these modules passes too |
+| `reason` | yes | a non-blank string, printed with every violation |
+
+Rules are numbered `target-config rule 1`, `target-config rule 2`, … in the
+order they are written, apart from the other kinds' numbers. Both
+`[[target-config]]` tables and an inline `target-config = [{ … }, …]` work.
+
+**The targets** of `pkg:p` are every `lean_lib` and every `lean_exe` of
+package `p`; those of `lib:` are that one library, even one with no modules.
+`except` removes targets the same way. A module selector (`mod:`,
+`keyword:`, `external:`, `set:`, `imports:`) is an error in `targets` and
+`except`: a target is not a module.
+
+**A target's plugins** are the ones Lake applies to it: its package's
+`plugins` (a package-level `plugins = [...]` in `lakefile.toml`, as
+editor-project's packages write it), then its own. A plugin **is**
+`load-plugin` when it is a package target with that target name and, when
+`load-plugin` names a package, that package. A facet key such as
+`@editor-core/Lint:shared` never matches, and `load-plugin` is not looked up
+in the workspace: Lake fetches a plugin only when it builds, which lean-deny
+never does. Plugins given through `moreLeanArgs` (`--plugin`) are not seen.
+
+**A target imports** an `or-imports` module when one of its modules has that
+module in its import closure, through at least one import of any kind
+(directly or not; a module does not import itself). A library's modules are
+the modules it owns; an executable's is its root module alone, the only one
+Lake elaborates with the executable's plugins.
+
+**What is checked:** each selected target that neither loads the plugin nor
+imports an `or-imports` module is one violation, naming its package, its
+kind and name, and the reason, and pointing at the package's lakefile (Lake
+keeps no line for a target). Violations come after the other kinds', by
+package in Lake's order, then libraries, then executables, each in lakefile
+order. From `tests/fixtures/target-config-bites`:
+
+```
+target-config rule 1 (lean-deny.toml:5:0): a target that loads no plugin is never linted: lean_lib pkgb/PkgBExtra does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!
+  pkgb/lakefile.toml: lean_lib PkgBExtra
+target-config rule 1 (lean-deny.toml:5:0): a target that loads no plugin is never linted: lean_exe pkgb/pkgb-tool does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!
+  pkgb/lakefile.toml: lean_exe pkgb-tool
+target-config rule 2 (lean-deny.toml:12:0): the user library loads the linters: lean_lib user/User does not load lint/lintShared
+  user/lakefile.toml: lean_lib User
+lean-deny: 3 violations in 2 of 2 rules
+```
+
+In `--format json` the violation's `target` holds the package, the kind, the
+name, the lakefile and the target's plugins
+([docs/check-json.md](docs/check-json.md)); in `--format github` it is a
+file-level annotation on the lakefile, with no line.
+
+Each of these is an error (exit 2), reported at the policy's
+`file:line:column`:
+
+- a malformed rule: `target-config` not an array of tables, a missing
+  `targets`, `load-plugin` or `reason`, an empty selector array, a blank
+  `reason`, an unknown key, a value of the wrong kind, or a malformed
+  selector;
+- a selector in `targets` or `except` that is not `pkg:` or `lib:`;
+- a `load-plugin` that is not a target name (a facet `:`, a module `+`, an
+  empty part, more than one `/`);
+- a `set:` that names no set;
+- a `targets` or `except` selector that names no package, a package with no
+  `lean_lib` or `lean_exe`, or no library; a `lib:<lib>` two packages declare;
+- an `or-imports` selector that matches no module, or only modules outside
+  the workspace;
+- an `except` entry that removes no selected target, or an `except` that
+  removes every one, so the rule checks nothing.
+
+When the policy has any error, no violation is reported.
+
 ## A policy, sketched
 
 ```toml
@@ -708,7 +801,7 @@ lean-deny: 1 violation in 1 of 4 rules
 
 [docs/editor-project-acceptance.md](docs/editor-project-acceptance.md)
 writes editor-project's four import checks (core, package, host and layer
-imports) as one policy,
+imports) and its lint-plugins rule as one policy,
 [`examples/editor-project/lean-deny.toml`](examples/editor-project/lean-deny.toml),
 runs it over a copy of editor-project with
 [`examples/editor-project/acceptance.sh`](examples/editor-project/acceptance.sh),
@@ -765,7 +858,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable" and "co-reach"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
+| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach" and "target-config"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a selector that names a set (`set:x`, `imports:set:x`), and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
@@ -775,8 +868,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable` or `co-reach` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach` or `target-config` violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With
@@ -847,7 +940,6 @@ its schema is versioned and documented in
 Possible later checks, beyond import rules:
 
 - coverage: every module matching a selector is reached from a given root
-- target configuration: every library and executable loads a given plugin
 - licences: an SPDX allowlist over the workspace's packages
 - sources: allowed git hosts, pinned revisions, no stray path dependencies
 - toolchain consistency: every dependency's `lean-toolchain` matches the root's
@@ -865,14 +957,15 @@ queries on hand-written graphs (`query`); of the module, lib and package
 views on a hand-written graph (`view`); of what selectors and sets match
 on a hand-written graph (`resolve`); of `deny` rules on hand-written
 graphs, from the policy's text to what `check` prints (`deny`), and of
-`allow-only` rules, `[layers]`, `[[reachable]]` and `[[co-reach]]` rules the
-same way (`allow-only`, `layers`, `reachable`, `co-reach`); of the
+`allow-only` rules, `[layers]`, `[[reachable]]`, `[[co-reach]]` and
+`[[target-config]]` rules the same way (`allow-only`, `layers`, `reachable`,
+`co-reach`, `target-config`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 of the check report's JSON and GitHub renderings, including the golden
 `tests/fixtures/check-json-deny/expected.stdout` (`report`);
-exact checks of the graph loaded for `tests/fixtures/spike-ws` and
-`tests/fixtures/graph-ws` (`graph`); the fixture runner's own checks
+exact checks of the graph loaded for `tests/fixtures/spike-ws`,
+`tests/fixtures/graph-ws` and `tests/fixtures/target-ws` (`graph`); the fixture runner's own checks
 (`harness`); and every fixture under `tests/fixtures/`. `lake test -- <name>...` runs only the named fixtures.
 
 A fixture is a directory holding a `fixture.toml`:
@@ -904,7 +997,7 @@ broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
 `allow-only-*` for `allow-only`, over the `tier-ws` workspace; `layers-*`
 for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces;
 `reachable-*` for `reachable` and `co-reach-*` for `co-reach`, over
-`graph-ws`);
+`graph-ws`; `target-config-*` for `target-config`, over `target-ws`);
 `check-json-*` and `check-github-*` for `--format json` and `github` (over
 the same workspaces), and `lake-lint-github` for
 `lake lint -- --format github`. The `editor-acceptance-*` fixtures run a

@@ -1,0 +1,22 @@
+# The target-config fixtures' workspace (tests/fixtures/target-config-*,
+# LeanDenyTest/Graph.lean): a root package with no target and four packages
+# joined by path `require`s, whose targets load plugins at package level, at
+# target level, a different plugin, or none. A plugin is never fetched, so
+# `@lint/lintShared` names a target no package declares. Never built.
+name = "target-ws"
+
+[[require]]
+name = "lint"
+path = "lint"
+
+[[require]]
+name = "pkga"
+path = "pkga"
+
+[[require]]
+name = "pkgb"
+path = "pkgb"
+
+[[require]]
+name = "user"
+path = "user"

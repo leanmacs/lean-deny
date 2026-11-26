@@ -1,5 +1,6 @@
 {"violations":
- [{"rule":
+ [{"target": null,
+   "rule":
    {"reason": "no library imports a test double",
     "line": 5,
     "label": "deny rule 1",
@@ -21,7 +22,8 @@
      "file": "leaky/Leaky.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "the feature imports the core's API alone",
     "line": 10,
     "label": "allow-only rule 1",
@@ -43,7 +45,8 @@
      "file": "Feat/Util.lean",
      "exported": true,
      "all": false}]},
-  {"rule":
+  {"target": null,
+   "rule":
    {"reason": "the feature imports the core's API alone",
     "line": 10,
     "label": "allow-only rule 1",

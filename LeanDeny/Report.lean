@@ -203,6 +203,17 @@ private def moduleJson (g : Graph) : Option NodeId → Json
       [("name", Json.str (nodeName g m)),
         ("file", jOptStr ((g.nodes[m]? >>= (·.file?)).map g.relPath))]
 
+/-- A target-config violation's target: its package, kind (`lib`, `exe`),
+name, package lakefile (relative to the workspace root when under it,
+otherwise as is) and effective plugins; `null` for the other kinds. -/
+private def targetJson (g : Graph) : Option TargetRef → Json
+  | none => .null
+  | some t =>
+    Json.mkObj
+      [("package", Json.str (plainName t.pkg)), ("kind", Json.str (toString t.kind)),
+        ("name", Json.str (plainName t.name)), ("file", Json.str (g.relPath t.configFile)),
+        ("plugins", Json.arr (t.plugins.map (Json.str ·.text)))]
+
 private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
   Json.mkObj
     [("rule",
@@ -213,7 +224,8 @@ private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
             ("reason", jOptStr v.reason?)]),
       ("message", Json.str v.message), ("detail", jOptStr v.detail?),
       ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?),
-      ("missing", Json.arr (v.missing.map (moduleJson g ∘ some)))]
+      ("missing", Json.arr (v.missing.map (moduleJson g ∘ some))),
+      ("target", targetJson g v.target?)]
 
 private def diagnosticJson (d : Diagnostic) : Json :=
   Json.mkObj
@@ -239,7 +251,8 @@ def toJsonCheck (ctx : ReportCtx) (r : CheckResult) : Json :=
 /-- The result as GitHub workflow commands: one `::error` annotation per
 violation, on the import that starts its chain (when the chain is empty, as
 for a reachable rule or a co-reach rule whose root is itself in
-`if-reaches`, on the file of the violation's module, with no line), or per
+`if-reaches`, on the file of the violation's module, with no line; for a
+target-config rule, on the target's package lakefile, with no line), or per
 error; then the summary line.
 Ends in one newline. -/
 def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
@@ -252,7 +265,10 @@ def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
         let file? :=
           match e? with
           | some e => some e.file
-          | none => v.module? >>= fun m => g.nodes[m]? >>= (·.file?)
+          | none =>
+            match v.target? with
+            | some t => some t.configFile
+            | none => v.module? >>= fun m => g.nodes[m]? >>= (·.file?)
         let props :=
           (file?.map fun f => ("file", rel f)).toList ++
             ((e? >>= (·.line?)).map fun l => ("line", toString l)).toList ++

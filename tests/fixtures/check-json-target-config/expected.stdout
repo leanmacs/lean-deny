@@ -1,0 +1,71 @@
+{"violations":
+ [{"target":
+   {"plugins": ["@lint/other"],
+    "package": "pkgb",
+    "name": "PkgBExtra",
+    "kind": "lib",
+    "file": "pkgb/lakefile.toml"},
+   "rule":
+   {"reason": "a target that loads no plugin is never linted",
+    "line": 5,
+    "label": "target-config rule 1",
+    "kind": "target-config",
+    "index": 1,
+    "file": "../target-config-bites/lean-deny.toml",
+    "column": 0},
+   "module": null,
+   "missing": [],
+   "message":
+   "a target that loads no plugin is never linted: lean_lib pkgb/PkgBExtra does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
+   "detail":
+   "lean_lib pkgb/PkgBExtra does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
+   "chain": []},
+  {"target":
+   {"plugins": [],
+    "package": "pkgb",
+    "name": "pkgb-tool",
+    "kind": "exe",
+    "file": "pkgb/lakefile.toml"},
+   "rule":
+   {"reason": "a target that loads no plugin is never linted",
+    "line": 5,
+    "label": "target-config rule 1",
+    "kind": "target-config",
+    "index": 1,
+    "file": "../target-config-bites/lean-deny.toml",
+    "column": 0},
+   "module": null,
+   "missing": [],
+   "message":
+   "a target that loads no plugin is never linted: lean_exe pkgb/pkgb-tool does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
+   "detail":
+   "lean_exe pkgb/pkgb-tool does not load @lint/lintShared and imports no module of lib:lint/Lint or mod:LintTest!",
+   "chain": []},
+  {"target":
+   {"plugins": [],
+    "package": "user",
+    "name": "User",
+    "kind": "lib",
+    "file": "user/lakefile.toml"},
+   "rule":
+   {"reason": "the user library loads the linters",
+    "line": 12,
+    "label": "target-config rule 2",
+    "kind": "target-config",
+    "index": 2,
+    "file": "../target-config-bites/lean-deny.toml",
+    "column": 0},
+   "module": null,
+   "missing": [],
+   "message":
+   "the user library loads the linters: lean_lib user/User does not load lint/lintShared",
+   "detail": "lean_lib user/User does not load lint/lintShared",
+   "chain": []}],
+ "summary": "lean-deny: 3 violations in 2 of 2 rules",
+ "schemaVersion": 1,
+ "rules": 2,
+ "policy": "../target-config-bites/lean-deny.toml",
+ "outcome": "violation",
+ "ok": false,
+ "errors": [],
+ "brokenRules": 2}
