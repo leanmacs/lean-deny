@@ -10,7 +10,7 @@ import LeanDeny.Policy.Resolve
 
 List the modules a selector matches, for authoring a policy. The policy is
 read in full only for a `set:` selector; for any other selector only its
-`[[root]]` tables are read (`loadRoots`), so a policy whose rules are half
+`[[root]]` tables are read (`loadDeclaredRoots`), so a policy whose rules are half
 written cannot stop anyone from exploring, and a policy that is not valid
 TOML only warns. A selector that matches nothing is an error (exit 2), as it
 is in a policy.
@@ -27,19 +27,18 @@ def runExplain (opts : ExplainOpts) : IO Outcome := do
   let ws := opts.workspace
   if let .error msgs← checkWorkspaceDir ws then
     return ← fail msgs
-  let policyPath := opts.config?.getD (defaultPolicyPath ws)
   let (policy?, roots) ←
     match opts.selector with
     | .set _ =>
+      let policyPath := opts.config?.getD (defaultPolicyPath ws)
       match ← loadPolicy policyPath with
       | .ok p =>
-        pure (some p, p.roots)
+        pure (some p, rootDecls policyPath.toString p.roots)
       | .error msgs =>
         return ← fail msgs
     | _ =>
-      match ← loadRoots policyPath opts.config?.isSome with
-      | .ok (roots, warnings) =>
-        warnings.forM printWarning
+      match ← loadDeclaredRoots ws opts.config? with
+      | .ok roots =>
         pure (none, roots)
       | .error msgs =>
         return ← fail msgs
@@ -48,7 +47,7 @@ def runExplain (opts : ExplainOpts) : IO Outcome := do
     if (p.findSet? n).isNone then
       return ← fail #[p.unknownSet n]
   let g ←
-    match ← loadGraph ws (rootDecls policyPath.toString roots) with
+    match ← loadGraph ws roots with
     | .ok g =>
       pure g
     | .error msgs =>

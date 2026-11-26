@@ -1,0 +1,4 @@
+bans = 1
+
+[[root]]
+module = "Gen"

@@ -1,0 +1,5 @@
+# A declared root in DOT: in no package cluster, a plain box (no style), its
+# group root/<Module> at lib level with counted edges.
+run = "direct"
+args = ["graph", "--workspace", "../root-ws", "--format", "dot", "--level", "lib"]
+exit = 0

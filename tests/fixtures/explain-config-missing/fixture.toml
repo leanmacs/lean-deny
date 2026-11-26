@@ -1,0 +1,5 @@
+# explain (not set:) reads an explicit --config for its [[root]] tables, so a
+# missing one is an error, as for graph and check.
+run = "direct"
+args = ["explain", "--config", "x", "mod:App"]
+exit = 2

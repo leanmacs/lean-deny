@@ -1,0 +1,6 @@
+# explain (not set:) reads the policy's [[root]] tables: a TOML-valid policy
+# whose root table is bad is an error, as for graph. (Its other keys are not
+# read: the unknown key is not reported.)
+run = "direct"
+args = ["explain", "--workspace", "../root-ws", "--config", "lean-deny.toml", "mod:App!"]
+exit = 2

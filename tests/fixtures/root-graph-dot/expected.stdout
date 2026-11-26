@@ -1,0 +1,14 @@
+digraph "lean-deny" {
+  node [shape=box];
+  subgraph "cluster_root-ws" {
+    label="root-ws";
+    "root-ws/lib/App";
+  }
+  "root/Gen";
+  "external/Init" [style=dashed];
+  "external/Lean" [style=dashed];
+  "root-ws/lib/App" -> "external/Init" [label="6", style=dotted];
+  "root/Gen" -> "root-ws/lib/App" [label="2"];
+  "root/Gen" -> "external/Init" [label="2", style=dotted];
+  "root/Gen" -> "external/Lean" [label="1"];
+}

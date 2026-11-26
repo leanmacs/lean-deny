@@ -47,4 +47,18 @@ def loadGraph (ws : FilePath) (roots : Array Graph.RootDecl := #[]) :
   catch e =>
     return .error ((toString e).splitOn "\n").toArray
 
+/-- The declared roots of the workspace at `ws`, for `graph` and `explain`
+(non-`set:`): read from `config?`, or the workspace's default policy file,
+with `loadRoots` (only the `[[root]]` tables). Any warnings are printed
+here; errors are returned for the caller to print. -/
+def loadDeclaredRoots (ws : FilePath) (config? : Option FilePath) :
+    IO (Except (Array String) (Array Graph.RootDecl)) := do
+  let policyPath := config?.getD (defaultPolicyPath ws)
+  match ← loadRoots policyPath config?.isSome with
+  | .ok (roots, warnings) =>
+    warnings.forM printWarning
+    return .ok (rootDecls policyPath.toString roots)
+  | .error msgs =>
+    return .error msgs
+
 end LeanDeny
