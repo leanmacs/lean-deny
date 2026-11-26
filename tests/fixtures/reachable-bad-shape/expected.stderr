@@ -1,0 +1,8 @@
+lean-deny: error: lean-deny.toml:3:0: reachable rule 1 has no 'must-cover'
+lean-deny: error: lean-deny.toml:3:0: reachable rule 1 has no 'reason'
+lean-deny: error: lean-deny.toml:7:7: reachable rule 2: 'from' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:8:13: reachable rule 2: 'must-cover' is empty
+lean-deny: error: lean-deny.toml:9:9: reachable rule 2: 'reason' is empty
+lean-deny: error: lean-deny.toml:10:13: reachable rule 2: unknown key 'transitive' (expected from, must-cover, reason)
+lean-deny: error: lean-deny.toml:14:26: reachable rule 3 ('must-cover'): expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:15:9: reachable rule 3: 'reason' must be a string, found a boolean

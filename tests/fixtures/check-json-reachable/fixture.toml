@@ -1,0 +1,4 @@
+# --format json of reachable violations; the policy is reachable-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../reachable-bites/lean-deny.toml", "--format", "json"]
+exit = 1

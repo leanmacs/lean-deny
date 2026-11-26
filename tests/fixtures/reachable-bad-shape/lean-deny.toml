@@ -1,0 +1,15 @@
+# reachable tables with shape mistakes, each reported at its line (exit 2,
+# before Lake runs).
+[[reachable]]
+from = "mod:App!"
+
+[[reachable]]
+from = 1
+must-cover = []
+reason = "  "
+transitive = true
+
+[[reachable]]
+from = "mod:App!"
+must-cover = ["pkg:core", 2]
+reason = false

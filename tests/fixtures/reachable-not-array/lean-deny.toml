@@ -1,0 +1,2 @@
+# `reachable` must be an array of tables.
+reachable = 1

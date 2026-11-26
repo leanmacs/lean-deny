@@ -121,9 +121,10 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
     -- Unknown top-level keys.
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
       .error
-        #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, root)"]),
+        #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, root)"]),
     ("foo = 1", "foo = 1\n",
-      .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers, root)"]),
+      .error
+        #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers, reachable, root)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -197,7 +198,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
         #["p.toml:3:4: set 'b' is empty",
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external, set or imports)",
-          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, root)",
+          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, root)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/

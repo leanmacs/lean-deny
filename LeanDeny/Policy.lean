@@ -4,7 +4,7 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows five top-level keys:
+`lean-deny.toml`. This version knows six top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
@@ -16,6 +16,8 @@ import LeanDeny.Policy.Selector
 - `[layers]`: one table with `classify` entries (`layer`, `select`),
   `default`, `allow` pairs of layers, `same-package` and `reason`
   (`LeanDeny.Rules.Layers` evaluates it);
+- `[[reachable]]`: coverage rules, each with `from`, `must-cover` and
+  `reason` (`LeanDeny.Rules.Reachable` evaluates them);
 - `[[root]]`: declared roots, each a `module` and its file's `path`
   relative to the workspace directory: a module no Lake target declares,
   read from its file into the graph (`LeanDeny.Graph.LakeApi`). Roots are
@@ -93,13 +95,15 @@ inductive RuleKind where
   | deny
   | allowOnly
   | layers
+  | reachable
   deriving BEq, Repr, Inhabited, DecidableEq
 
-/-- As the policy writes it: "deny", "allow-only", "layers". -/
+/-- As the policy writes it: "deny", "allow-only", "layers", "reachable". -/
 def RuleKind.toString : RuleKind → String
   | .deny => "deny"
   | .allowOnly => "allow-only"
   | .layers => "layers"
+  | .reachable => "reachable"
 
 instance : ToString RuleKind :=
   ⟨RuleKind.toString⟩
@@ -111,12 +115,13 @@ structure RuleRef where
   index : Nat
   deriving BEq, Repr, Inhabited
 
-/-- "deny rule 1", "allow-only rule 2", "layers". -/
+/-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1". -/
 def RuleRef.label (r : RuleRef) : String :=
   match r.kind with
   | .deny => s!"deny rule {r.index}"
   | .allowOnly => s!"allow-only rule {r.index}"
   | .layers => "layers"
+  | .reachable => s!"reachable rule {r.index}"
 
 /-- One `[[deny]]` table: no module of `sources` may import a module of
 `targets`, directly or (with `transitive`) through others, unless the
@@ -174,6 +179,31 @@ def AllowOnlyRule.ref (r : AllowOnlyRule) : RuleRef :=
 
 /-- "allow-only rule 1". -/
 def AllowOnlyRule.label (r : AllowOnlyRule) : String :=
+  r.ref.label
+
+/-- One `[[reachable]]` table: every module of `mustCover` is a module of
+`sources` or imported by one, directly or not. -/
+structure ReachableRule where
+  /-- 1-based, in source order among the `reachable` tables; a table with
+  errors keeps its number. -/
+  index : Nat
+  /-- The table's position: its `[[reachable]]` header (column 0), or the
+  `{` of an inline table. -/
+  pos? : Option Toml.Pos
+  /-- `from`: non-empty in a valid policy. -/
+  sources : Array SelectorRef := #[]
+  /-- `must-cover`: non-empty in a valid policy. -/
+  mustCover : Array SelectorRef := #[]
+  /-- `reason`: not blank in a valid policy. -/
+  reason : String := ""
+  deriving BEq, Repr, Inhabited
+
+/-- The rule's reference: `reachable` and its index. -/
+def ReachableRule.ref (r : ReachableRule) : RuleRef :=
+  ⟨.reachable, r.index⟩
+
+/-- "reachable rule 1". -/
+def ReachableRule.label (r : ReachableRule) : String :=
   r.ref.label
 
 /-- One entry of `[layers]`'s `classify`: the packages `select` matches are
@@ -269,18 +299,20 @@ structure Policy where
   allowOnly : Array AllowOnlyRule := #[]
   /-- The `[layers]` table, if any (TOML allows at most one). -/
   layers? : Option LayersRule := none
+  /-- The `[[reachable]]` rules, in source order. -/
+  reachable : Array ReachableRule := #[]
   /-- The `[[root]]` tables, in source order. Not rules. -/
   roots : Array RootDef := #[]
   deriving Repr, Inhabited
 
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets", "deny", "allow-only", "layers", "root"]
+  #["sets", "deny", "allow-only", "layers", "reachable", "root"]
 
 /-- The number of rules of every kind; `[layers]` is one rule. Declared roots
 are not rules. -/
 def Policy.ruleCount (p : Policy) : Nat :=
-  p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0)
+  p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0) + p.reachable.size
 
 /-- `<path>:<line>:<column>`, or `<path>` with no position. -/
 def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
@@ -323,6 +355,11 @@ def DenyRule.refs (r : DenyRule) : Array SelectorRef :=
 source order. -/
 def AllowOnlyRule.refs (r : AllowOnlyRule) : Array SelectorRef :=
   (r.sources ++ r.except ++ r.allow).qsort fun a b => posLt a.pos? b.pos?
+
+/-- A reachable rule's selectors, `from` and `must-cover` together, in source
+order. -/
+def ReachableRule.refs (r : ReachableRule) : Array SelectorRef :=
+  (r.sources ++ r.mustCover).qsort fun a b => posLt a.pos? b.pos?
 
 /-- The set a selector names, if any: `set:n`, also inside `imports:`
 (`Selector.setName?`). -/
@@ -435,7 +472,8 @@ private def parseReason (e : Errors) (label : String) (x : Toml.LValue) : Errors
     else (e, some s)
   | _ => (e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}", none)
 
-/-- A top-level array-of-tables key (`deny`, `allow-only`, `root`): each
+/-- A top-level array-of-tables key (`deny`, `allow-only`, `reachable`,
+`root`): each
 table parsed by `parse` with its 1-based index and the tables parsed before
 it. -/
 private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LValue)
@@ -539,6 +577,40 @@ private def parseAllowOnly (e : Errors) (index : Nat) (v : Toml.LValue) : Errors
         e :=
           e.add x.pos? <|
             s!"{label}: unknown key '{k}' (expected {", ".intercalate allowOnlyKeys.toList})"
+    return (e, r)
+
+/-- The keys of a reachable table, in the order messages list them. -/
+private def reachableKeys : Array String :=
+  #["from", "must-cover", "reason"]
+
+/-- Entry `index` (1-based) of the `reachable` array, as `parseDeny`. -/
+private def parseReachable (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × ReachableRule :=
+  Id.run do
+    let label := s!"reachable rule {index}"
+    let base : ReachableRule := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in reachableKeys do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k with
+      | "from" | "must-cover" =>
+        let (e', refs?) := parseRuleSelectors e label (.rule "reachable" index k) k false x
+        e := e'
+        let some refs := refs? | continue
+        r := if k == "from" then { r with sources := refs } else { r with mustCover := refs }
+      | "reason" =>
+        let (e', reason?) := parseReason e label x
+        e := e'
+        if let some reason := reason? then
+          r := { r with reason }
+      | _ =>
+        e :=
+          e.add x.pos? <|
+            s!"{label}: unknown key '{k}' (expected {", ".intercalate reachableKeys.toList})"
     return (e, r)
 
 /-- The keys of `[layers]`, in the order messages list them. -/
@@ -819,8 +891,8 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
     return (w.errs, w.order)
 
 /-- Check that every `set:` in a rule names a set. `refs` holds each rule's
-selectors (`DenyRule.refs`, `AllowOnlyRule.refs`, `LayersRule.refs`), in
-rule order. -/
+selectors (`DenyRule.refs`, `AllowOnlyRule.refs`, `LayersRule.refs`,
+`ReachableRule.refs`), in rule order. -/
 private def checkRuleRefs (e : Errors) (sets : Array SetDef) (refs : Array (Array SelectorRef)) :
     Errors :=
   Id.run do
@@ -845,6 +917,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut deny := #[]
     let mut allowOnly := #[]
     let mut layers? := none
+    let mut reachable := #[]
     let mut roots := #[]
     for (k, v) in entries do
       if k == "sets" then
@@ -868,6 +941,10 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         let (e', r?) := parseLayers e v
         e := e'
         layers? := r?
+      else if k == "reachable" then
+        let (e', rs) := parseRuleArray e "reachable" v fun e i _ x => parseReachable e i x
+        e := e'
+        reachable := reachable ++ rs
       else if k == "root" then
         let (e', rs) := parseRuleArray e "root" v parseRoot
         e := e'
@@ -875,10 +952,12 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
       else
         e := e.add v.pos? s!"unknown key '{k}' (known keys: {", ".intercalate knownKeys.toList})"
     let (e', order) := checkRefs e sets
-    let refs := deny.map (·.refs) ++ allowOnly.map (·.refs) ++ (layers?.map (#[·.refs])).getD #[]
+    let refs :=
+      deny.map (·.refs) ++ allowOnly.map (·.refs) ++ (layers?.map (#[·.refs])).getD #[] ++
+        reachable.map (·.refs)
     let errs := checkRuleRefs e' sets refs
     if errs.msgs.isEmpty then
-      return .ok { path, sets, order, deny, allowOnly, layers?, roots }
+      return .ok { path, sets, order, deny, allowOnly, layers?, reachable, roots }
     return .error errs.msgs
 
 /-- Only the `[[root]]` tables of the parsed TOML document at `path`; every

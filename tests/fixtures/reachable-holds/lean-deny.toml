@@ -1,0 +1,12 @@
+# Two reachable rules over graph-ws that hold. Rule 1: the executable's root
+# reaches every module of the core package, Core.Prim through Core.Types.
+# Rule 2: the closure is reflexive, so App covers itself.
+[[reachable]]
+from = "mod:Main!"
+must-cover = "pkg:core"
+reason = "the app uses all of its core"
+
+[[reachable]]
+from = "mod:App!"
+must-cover = "mod:App"
+reason = "the app's root holds the whole app"

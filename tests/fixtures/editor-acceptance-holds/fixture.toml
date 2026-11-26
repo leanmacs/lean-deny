@@ -1,5 +1,6 @@
 # The editor-project acceptance policy, cut down, over editor-ws, where every
-# rule holds (exit 0).
+# rule holds (exit 0), reachable rule 1 among them: every Editor.… module is
+# Editor.Core or imported by it.
 run = "direct"
 args = ["check", "--workspace", "../editor-ws", "--config", "lean-deny.toml"]
 exit = 0

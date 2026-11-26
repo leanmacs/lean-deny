@@ -1,9 +1,11 @@
-# The same policy over editor-broken-ws, where each of its nine rules bites
-# (exit 1): one breaking import per rule, a second for allow-only rule 4
-# (the linked root imports Editor.Window.Real, which its `except` excludes),
-# and a second for deny rule 4 (Editor.Test.Fixture.Main imports
-# ShippedThemes.EditorPackage, an entry module only the declared roots name,
-# as the acceptance edit host-shipped-themes does), as
+# The same policy over editor-broken-ws, where each of its ten rules bites
+# (exit 1): one breaking import per rule of the first nine, a second for
+# allow-only rule 4 (the linked root imports Editor.Window.Real, which its
+# `except` excludes), and a second for deny rule 4 (Editor.Test.Fixture.Main
+# imports ShippedThemes.EditorPackage, an entry module only the declared
+# roots name, as the acceptance edit host-shipped-themes does); and, for
+# reachable rule 1, the module Editor.Test.Shell, which only a package test
+# imports, outside Editor.Core's closure, as
 # docs/editor-project-acceptance.md lists.
 run = "direct"
 args = ["check", "--workspace", "../editor-broken-ws", "--config", "../editor-acceptance-holds/lean-deny.toml"]

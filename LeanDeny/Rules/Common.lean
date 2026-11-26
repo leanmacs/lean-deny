@@ -20,18 +20,24 @@ structure Violation where
   rule : RuleRef
   /-- The rule's table. -/
   pos? : Option Toml.Pos
-  /-- The rule's `reason` as written: always set for deny and allow-only,
-  optional for `[layers]`. -/
+  /-- The rule's `reason` as written: always set for deny, allow-only and
+  reachable, optional for `[layers]`. -/
   reason? : Option String
   /-- What this violation is, beyond the reason: for `[layers]`,
-  "app (implementation) may not import plugin (implementation)". -/
+  "app (implementation) may not import plugin (implementation)"; for a
+  reachable rule, "M is outside the import closure of R". -/
   detail? : Option String := none
-  /-- At least one edge, exactly one for a direct deny rule, an allow-only
-  rule and `[layers]`; consecutive (`chain[i].dst = chain[i+1].src`). -/
+  /-- At least one edge for every kind but reachable, whose chain is empty;
+  exactly one for a direct deny rule, an allow-only rule and `[layers]`;
+  consecutive (`chain[i].dst = chain[i+1].src`). -/
   chain : Array Edge
+  /-- The module a reachable rule does not reach; `none` for the other
+  kinds. -/
+  module? : Option NodeId := none
   deriving BEq, Repr, Inhabited
 
-/-- "deny rule 1", "allow-only rule 2", "layers": names the rule. -/
+/-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1": names
+the rule. -/
 def Violation.label (v : Violation) : String :=
   v.rule.label
 
@@ -84,12 +90,21 @@ def chainLine (g : Graph) (e : Edge) (path : System.FilePath → String := g.rel
   let pos := path e.file ++ ((e.line?.map (s!":{·}")).getD "")
   s!"{pos}: {nodeName g e.src} imports {nodeName g e.dst}{if e.implicit then " (implicit)" else ""}"
 
+/-- The line naming module `n` and its file: `<file>: <module>`, the file
+through `path`; just the name for a node with no file. -/
+def moduleLine (g : Graph) (n : NodeId) (path : System.FilePath → String := g.relPath) : String :=
+  match g.nodes[n]? >>= (·.file?) with
+  | some f => s!"{path f}: {nodeName g n}"
+  | none => nodeName g n
+
 /-- A violation as a block: `<label> (<path>:<line>:<column>): <message>`,
-then one step per edge, indented two spaces. `policyPath` is the policy's;
-`path` writes each step's file (as in `chainLine`). -/
+then one step per edge, indented two spaces, and, for a reachable rule, the
+uncovered module's line (`moduleLine`), indented two spaces. `policyPath` is
+the policy's; `path` writes each file (as in `chainLine`). -/
 def Violation.render (g : Graph) (policyPath : String) (v : Violation)
     (path : System.FilePath → String := g.relPath) : Array String :=
   #[s!"{v.label} ({Policy.posText policyPath v.pos?}): {v.message}"] ++
-    v.chain.map fun e => s!"  {chainLine g e path}"
+    v.chain.map (fun e => s!"  {chainLine g e path}") ++
+    (v.module?.map fun m => #[s!"  {moduleLine g m path}"]).getD #[]
 
 end LeanDeny

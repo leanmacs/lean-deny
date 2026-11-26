@@ -1,0 +1,4 @@
+# --format github of reachable violations, file-level annotations with no line; the policy is reachable-bites' (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../graph-ws", "--config", "../reachable-bites/lean-deny.toml", "--format", "github"]
+exit = 1

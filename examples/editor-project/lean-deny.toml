@@ -146,6 +146,8 @@ entry-modules = { select = ["set:root-imports"], except = ["mod:Editor"] }
 host-roots = { select = ["set:root-imports"], except = ["set:entry-modules"] }
 # The feature modules: the entry modules and every module they import directly.
 feature-modules = ["set:entry-modules", "imports:set:entry-modules"]
+# The core's modules: every Editor.… module (the config base Editor is not one).
+core-modules = { select = ["mod:Editor"], except = ["mod:Editor!"] }
 
 # Core imports, rule 1 (standing form): the core imports no package.
 [[deny]]
@@ -206,6 +208,12 @@ default = "implementation"
 allow = [["interface", "core"], ["implementation", "core"], ["implementation", "interface"], ["interface", "interface"]]
 same-package = "allow"
 reason = "three layers (layer imports check)"
+
+# Core imports, rule 2: every Editor.… module the build reaches is the core's root or imported by it.
+[[reachable]]
+from = "mod:Editor.Core!"
+must-cover = "set:core-modules"
+reason = "the core's root holds the whole core (core imports check, rule 2)"
 
 # The two roots the package-set build generates (the setRoot and fixturesRoot facets of
 # lean/lakefile.lean), which no Lake target declares. lean-deny reads them from the build

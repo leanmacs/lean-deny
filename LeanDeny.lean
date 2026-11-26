@@ -22,4 +22,5 @@ import LeanDeny.Rules.AllowOnly
 import LeanDeny.Rules.Common
 import LeanDeny.Rules.Deny
 import LeanDeny.Rules.Layers
+import LeanDeny.Rules.Reachable
 import LeanDeny.Version

@@ -1,0 +1,13 @@
+# Two reachable rules over graph-ws that bite. Rule 1: App reaches neither
+# the test module nor the executable's root, both importers of it. Rule 2:
+# Core.Impl reaches Core.Types and Core.Prim, not Core.Api (its importer) or
+# Core.Macros (a sibling).
+[[reachable]]
+from = "mod:App!"
+must-cover = "pkg:graph-ws"
+reason = "the app's root holds the whole package"
+
+[[reachable]]
+from = "mod:Core.Impl!"
+must-cover = "pkg:core"
+reason = "the implementation holds the whole core"

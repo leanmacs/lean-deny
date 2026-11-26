@@ -15,11 +15,13 @@
 # so the script generates them in the copy first.
 #
 # It checks the policy (examples/editor-project/lean-deny.toml) over the copy's
-# packages/ workspace and the core policy (lean-deny.core.toml) over its lean/
+# packages/ workspace, expecting exactly one violation (editor-project's
+# finding: reachable rule 1 reports Editor.Test.Shell, outside Editor.Core's
+# closure), and the core policy (lean-deny.core.toml) over its lean/
 # workspace, expecting exit 0; then, for each breaking edit, starts again from
 # the pristine copy, adds one import line, and expects exit 1 with violations
-# of exactly the named rules and no other (or exit 0 for a control edit), and
-# exactly the named summary line. Every lean-deny output is printed with the
+# of exactly the named rules and no other (or, for a control edit, only the
+# baseline's), and exactly the named summary line. Every lean-deny output is printed with the
 # work directory written as <work>. It exits 0 when every expectation held and
 # nothing under <editor-project dir> changed during the run, and 1 otherwise.
 set -eu
@@ -58,7 +60,7 @@ run() {
     echo "MISMATCH: expected exit $expect_exit"
     failed=1
   fi
-  got=$(printf '%s\n' "$out" | sed -nE 's/^(deny rule [0-9]+|allow-only rule [0-9]+|layers) \(.*/\1/p' | sort -u)
+  got=$(printf '%s\n' "$out" | sed -nE 's/^(deny rule [0-9]+|allow-only rule [0-9]+|layers|reachable rule [0-9]+) \(.*/\1/p' | sort -u)
   want=$(printf '%s\n' "$expect_rules" | tr , '\n' | sed '/^$/d' | sort -u)
   if [ "$got" != "$want" ]; then
     echo "MISMATCH: expected violations of exactly {$expect_rules}, got {$(printf '%s' "$got" | tr '\n' ,)}"
@@ -105,24 +107,20 @@ missing() {
   failed=1
 }
 
-# Every Editor module a build reaches must be in Editor.Core's closure
-# (editor-project's core rule 2). At 4df216a8 Editor.Test.Shell is not. The
-# baseline adds the import that rule prescribes, as editor-project's fix would.
-core=$work/pristine/lean/Editor/Core.lean
-if [ ! -f "$core" ]; then
-  missing lean/Editor/Core.lean "the baseline fix"
-elif ! grep -qx 'import Editor.Test.Shell' "$core"; then
-  echo "== baseline: Editor.Core imports Editor.Test.Shell"
-  awk '{ print } $0 == "import Editor.Test.Restore" { print "import Editor.Test.Shell" }' "$core" > "$core.new"
-  mv "$core.new" "$core"
-  grep -qx 'import Editor.Test.Shell' "$core" || { echo "MISMATCH: Editor.Core has no import Editor.Test.Restore to add it after"; failed=1; }
-fi
-
+# Every Editor.… module a build reaches must be in Editor.Core's closure
+# (editor-project's core rule 2, reachable rule 1). Editor.Test.Shell is not:
+# only a package test imports it. The baseline expects exactly that violation,
+# and every packages/ edit below carries it too.
 echo "== baseline: packages/"
-expect_exit=0 expect_rules= expect_summary='lean-deny: ok (9 rules)'
+expect_exit=1 expect_rules='reachable rule 1' expect_summary='lean-deny: 1 violation in 1 of 10 rules'
 run check --workspace "$work/pristine/packages" --config "$policy"
+shell_line="  $work/pristine/lean/Editor/Test/Shell.lean: Editor.Test.Shell"
+if ! printf '%s\n' "$out" | grep -qxF "$shell_line"; then
+  echo "MISMATCH: expected the line: $(printf '%s' "$shell_line" | sed "s|$work|<work>|g")"
+  failed=1
+fi
 echo "== baseline: lean/"
-expect_summary='lean-deny: ok (2 rules)'
+expect_exit=0 expect_rules= expect_summary='lean-deny: ok (2 rules)'
 run check --workspace "$work/pristine/lean" --config "$core_policy"
 
 # id | workspace | file | module imported | exit | rules that bite | summary line
@@ -141,24 +139,24 @@ while IFS='|' read -r id ws file imported expect_exit expect_rules expect_summar
   if [ "$ws" = lean ]; then config=$core_policy; else config=$policy; fi
   run check --workspace "$work/edit/$ws" --config "$config"
 done <<'EDITS'
-core-1|packages|lean/ModelTest/Editor/Bound.lean|CompileApi|1|deny rule 1,layers|lean-deny: 3 violations in 2 of 9 rules
-core-4|packages|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 2|lean-deny: 2 violations in 1 of 9 rules
+core-1|packages|lean/ModelTest/Editor/Bound.lean|CompileApi|1|deny rule 1,layers,reachable rule 1|lean-deny: 4 violations in 3 of 10 rules
+core-4|packages|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 2,reachable rule 1|lean-deny: 3 violations in 2 of 10 rules
 core-4-lean|lean|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 1|lean-deny: 2 violations in 1 of 2 rules
-core-5|packages|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 3|lean-deny: 1 violation in 1 of 9 rules
+core-5|packages|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 3,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
 core-5-lean|lean|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 2|lean-deny: 1 violation in 1 of 2 rules
-host|packages|lean/Editor/Main.lean|Compile.Compiled|1|deny rule 4,deny rule 1,layers|lean-deny: 4 violations in 3 of 9 rules
-host-shipped-themes|packages|lean/Editor/Main.lean|ShippedThemes.EditorPackage|1|deny rule 4,deny rule 1,layers|lean-deny: 4 violations in 3 of 9 rules
-package-library|packages|packages/compile/Compile.lean|Editor.Loop|1|allow-only rule 1|lean-deny: 1 violation in 1 of 9 rules
-package-library-double|packages|packages/compile/Compile.lean|Editor.Text.Model|1|allow-only rule 1|lean-deny: 1 violation in 1 of 9 rules
-package-test|packages|packages/compile/CompileTest/Compile.lean|Editor.Test.Linked.Rig|1|allow-only rule 2|lean-deny: 1 violation in 1 of 9 rules
-package-linked|packages|packages/compile/CompileTest/Linked/Compile.lean|Editor.Headless|1|allow-only rule 3|lean-deny: 1 violation in 1 of 9 rules
-package-linked-root|packages|packages/compile/CompileTest/Linked.lean|Editor.Ffi.Text|1|allow-only rule 4|lean-deny: 1 violation in 1 of 9 rules
-package-linked-root-window|packages|packages/compile/CompileTest/Linked.lean|Editor.Window.Real|1|allow-only rule 4|lean-deny: 1 violation in 1 of 9 rules
-package-linked-root-window-check|packages|packages/compile/CompileTest/Linked.lean|Editor.WindowCheck.Real|1|allow-only rule 4|lean-deny: 1 violation in 1 of 9 rules
-layers|packages|packages/compile/Compile.lean|Shell|1|layers|lean-deny: 1 violation in 1 of 9 rules
-control-test-double|packages|packages/compile/CompileTest/Compile.lean|Editor.Text.Model|0||lean-deny: ok (9 rules)
-control-test-fake|packages|packages/compile/CompileTest/Compile.lean|Editor.Job.Fake|0||lean-deny: ok (9 rules)
-control-linked-root-real|packages|packages/compile/CompileTest/Linked.lean|Editor.Text.Real|0||lean-deny: ok (9 rules)
+host|packages|lean/Editor/Main.lean|Compile.Compiled|1|deny rule 4,deny rule 1,layers,reachable rule 1|lean-deny: 5 violations in 4 of 10 rules
+host-shipped-themes|packages|lean/Editor/Main.lean|ShippedThemes.EditorPackage|1|deny rule 4,deny rule 1,layers,reachable rule 1|lean-deny: 5 violations in 4 of 10 rules
+package-library|packages|packages/compile/Compile.lean|Editor.Loop|1|allow-only rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+package-library-double|packages|packages/compile/Compile.lean|Editor.Text.Model|1|allow-only rule 1,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+package-test|packages|packages/compile/CompileTest/Compile.lean|Editor.Test.Linked.Rig|1|allow-only rule 2,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+package-linked|packages|packages/compile/CompileTest/Linked/Compile.lean|Editor.Headless|1|allow-only rule 3,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+package-linked-root|packages|packages/compile/CompileTest/Linked.lean|Editor.Ffi.Text|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+package-linked-root-window|packages|packages/compile/CompileTest/Linked.lean|Editor.Window.Real|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+package-linked-root-window-check|packages|packages/compile/CompileTest/Linked.lean|Editor.WindowCheck.Real|1|allow-only rule 4,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+layers|packages|packages/compile/Compile.lean|Shell|1|layers,reachable rule 1|lean-deny: 2 violations in 2 of 10 rules
+control-test-double|packages|packages/compile/CompileTest/Compile.lean|Editor.Text.Model|1|reachable rule 1|lean-deny: 1 violation in 1 of 10 rules
+control-test-fake|packages|packages/compile/CompileTest/Compile.lean|Editor.Job.Fake|1|reachable rule 1|lean-deny: 1 violation in 1 of 10 rules
+control-linked-root-real|packages|packages/compile/CompileTest/Linked.lean|Editor.Text.Real|1|reachable rule 1|lean-deny: 1 violation in 1 of 10 rules
 EDITS
 
 # Anywhere under the source, .git/ included, but for .git/worktrees/: it holds

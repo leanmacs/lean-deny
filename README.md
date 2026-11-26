@@ -13,7 +13,7 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table and the `[[deny]]`, `[[allow-only]]` and `[layers]` rules of
+> table and the `[[deny]]`, `[[allow-only]]`, `[layers]` and `[[reachable]]` rules of
 > `lean-deny.toml`, checks that every selector matches, and exits 1 with
 > the violations when a rule is broken. Any other top-level key is an
 > error, never silently ignored. `lean-deny explain` lists the modules a
@@ -58,6 +58,7 @@ imports.
 | `deny` | Modules in A must not import modules in B, directly or (with `transitive = true`) through others. `wrappers` name the modules allowed to. | `bans.deny` with `wrappers` |
 | `allow-only` | What a module of A imports from outside its own package must be in a listed set. Nested rules give tiers, such as a library versus its tests: the most specific rule covering a module applies. | none |
 | `layers` | Every package is in one layer, chosen by selectors such as `pkg:` or `keyword:`; every import between two packages must be an allowed (importer layer, imported layer) pair. | none |
+| `reachable` | Every module in B is a module of A or imported by one, directly or not: nothing in B lies outside A's import closure. | none |
 
 ### Selectors
 
@@ -490,6 +491,85 @@ Each of these is an error (exit 2), reported at the policy's
 
 When the policy has any error, no violation is reported.
 
+### reachable
+
+A `[[reachable]]` rule says every module of `must-cover` is a module of
+`from` or imported by one, directly or not. This is editor-project's core
+imports rule 2: every `Editor.…` module the build reaches is the core's
+root or imported by it, so a rule about the root is a rule about every core
+module.
+
+```toml
+[sets]
+core-modules = { select = ["mod:Editor"], except = ["mod:Editor!"] }
+
+[[reachable]]
+from = "mod:Editor.Core!"
+must-cover = "set:core-modules"
+reason = "the core's root holds the whole core"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `from` | yes | a selector or a non-empty array of selectors (their union): the roots |
+| `must-cover` | yes | a selector or a non-empty array of selectors (their union): the modules the roots must reach |
+| `reason` | yes | a non-blank string, printed with every violation |
+
+Rules are numbered `reachable rule 1`, `reachable rule 2`, … in the order
+they are written, apart from the other kinds' numbers. Both `[[reachable]]`
+tables and an inline `reachable = [{ … }, …]` work.
+
+**The closure** of a rule is the modules of `from` and every module they
+import, directly or not, through every kind of import (plain, `meta`,
+`import all`, and Lean's implicit `Init` imports). It is reflexive: a `from`
+module covers itself, so `from` and `must-cover` may overlap.
+
+**What is checked:** every module of `must-cover` in the loaded graph, which
+is what the build reaches: the libraries' modules, the executables' roots
+(a package's test executables among them), the declared roots
+(`[[root]]`), and a library's modules that its roots do not reach but
+other modules import.
+Each one outside the closure is one violation, in the order `graph` lists
+modules. Modules outside the workspace that `must-cover` matches are
+ignored: they have no file, and are not the build's to cover. Violations
+come after the other kinds', and each names the uncovered module and its
+file instead of a chain. From `tests/fixtures/reachable-bites`:
+
+```
+reachable rule 1 (lean-deny.toml:5:0): the app's root holds the whole package: AppTest is outside the import closure of App
+  AppTest.lean: AppTest
+reachable rule 1 (lean-deny.toml:5:0): the app's root holds the whole package: Main is outside the import closure of App
+  Main.lean: Main
+reachable rule 2 (lean-deny.toml:10:0): the implementation holds the whole core: Core.Api is outside the import closure of Core.Impl
+  core/Core/Api.lean: Core.Api
+reachable rule 2 (lean-deny.toml:10:0): the implementation holds the whole core: Core.Macros is outside the import closure of Core.Impl
+  core/Core/Macros.lean: Core.Macros
+lean-deny: 4 violations in 2 of 2 rules
+```
+
+The header names the `from` modules when there are at most three, and
+otherwise counts them (`'from' (5 modules)`). In `--format json` the
+violation's `chain` is empty and its `module` names the module and its file
+([docs/check-json.md](docs/check-json.md)); in `--format github` it is a
+file-level annotation on that file, with no line.
+
+Each of these is an error (exit 2), reported at the policy's
+`file:line:column`:
+
+- a malformed rule: `reachable` not an array of tables, a missing `from`,
+  `must-cover` or `reason`, an empty selector array, a blank `reason`, an
+  unknown key, a value of the wrong kind, or a malformed selector;
+- a `set:` that names no set;
+- a selector that matches no module;
+- a `from` selector that matches only modules outside the workspace, which
+  import nothing in the graph;
+- a `must-cover` selector that matches only modules outside the workspace,
+  which the rule does not check;
+- a rule every workspace module of whose `must-cover` is in `from`, so it
+  checks nothing.
+
+When the policy has any error, no violation is reported.
+
 ## A policy, sketched
 
 ```toml
@@ -604,7 +684,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only" and "layers"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
+| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers" and "reachable"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a selector that names a set (`set:x`, `imports:set:x`), and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
@@ -614,8 +694,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken (a `deny`, `allow-only` or `layers` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers` or `reachable` violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With
@@ -704,7 +784,8 @@ queries on hand-written graphs (`query`); of the module, lib and package
 views on a hand-written graph (`view`); of what selectors and sets match
 on a hand-written graph (`resolve`); of `deny` rules on hand-written
 graphs, from the policy's text to what `check` prints (`deny`), and of
-`allow-only` rules and `[layers]` the same way (`allow-only`, `layers`); of the
+`allow-only` rules, `[layers]` and `[[reachable]]` rules the same way
+(`allow-only`, `layers`, `reachable`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 of the check report's JSON and GitHub renderings, including the golden
@@ -740,13 +821,14 @@ runs with the fixture directory as its working directory.
 Each rule kind is tested by fixtures where the rule holds and where it is
 broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
 `allow-only-*` for `allow-only`, over the `tier-ws` workspace; `layers-*`
-for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces);
+for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces;
+`reachable-*` for `reachable`, over `graph-ws`);
 `check-json-*` and `check-github-*` for `--format json` and `github` (over
 the same workspaces), and `lake-lint-github` for
 `lake lint -- --format github`. The `editor-acceptance-*` fixtures run a
 cut-down copy of the editor-project policy (`examples/editor-project/`) over
 `editor-ws`, a miniature editor-project, where it holds, and
-`editor-broken-ws`, where each rule bites once. After
+`editor-broken-ws`, where each rule bites. After
 `lake build --wfail && lake test`, `git status --porcelain` must print
 nothing; CI checks that too.
 

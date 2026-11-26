@@ -7,6 +7,7 @@
     "index": 1,
     "file": "lean-deny.toml",
     "column": 0},
+   "module": null,
    "message": "the app imports nothing of the core",
    "detail": null,
    "chain":
@@ -27,6 +28,7 @@
     "index": 2,
     "file": "lean-deny.toml",
     "column": 0},
+   "module": null,
    "message": "the executable reaches no kernel module",
    "detail": null,
    "chain":

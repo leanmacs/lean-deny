@@ -1,0 +1,5 @@
+::error file=../graph-ws/AppTest.lean,title=lean-deny%3A reachable rule 1::reachable rule 1 (../reachable-bites/lean-deny.toml:5:0): the app's root holds the whole package: AppTest is outside the import closure of App%0A  ../graph-ws/AppTest.lean: AppTest
+::error file=../graph-ws/Main.lean,title=lean-deny%3A reachable rule 1::reachable rule 1 (../reachable-bites/lean-deny.toml:5:0): the app's root holds the whole package: Main is outside the import closure of App%0A  ../graph-ws/Main.lean: Main
+::error file=../graph-ws/core/Core/Api.lean,title=lean-deny%3A reachable rule 2::reachable rule 2 (../reachable-bites/lean-deny.toml:10:0): the implementation holds the whole core: Core.Api is outside the import closure of Core.Impl%0A  ../graph-ws/core/Core/Api.lean: Core.Api
+::error file=../graph-ws/core/Core/Macros.lean,title=lean-deny%3A reachable rule 2::reachable rule 2 (../reachable-bites/lean-deny.toml:10:0): the implementation holds the whole core: Core.Macros is outside the import closure of Core.Impl%0A  ../graph-ws/core/Core/Macros.lean: Core.Macros
+lean-deny: 4 violations in 2 of 2 rules

@@ -1,0 +1,12 @@
+# Selectors of reachable rules that match nothing or only modules outside the
+# workspace (rule 1), and a rule whose 'must-cover' lies inside its 'from'
+# (rule 2). Every error is reported; no violation is.
+[[reachable]]
+from = ["mod:Nope", "external:Lean"]
+must-cover = ["lib:Nope", "external:Init"]
+reason = "wrong in every selector"
+
+[[reachable]]
+from = "mod:Core.Types!"
+must-cover = "mod:Core.Types!"
+reason = "checks nothing"

@@ -192,6 +192,15 @@ private def jOptNat (n? : Option Nat) : Json :=
 private def jOptStr (s? : Option String) : Json :=
   (s?.map Json.str).getD .null
 
+/-- A reachable violation's module: its name and file (relative to the
+workspace root when under it, otherwise as is); `null` for the other kinds. -/
+private def moduleJson (g : Graph) : Option NodeId → Json
+  | none => .null
+  | some m =>
+    Json.mkObj
+      [("name", Json.str (nodeName g m)),
+        ("file", jOptStr ((g.nodes[m]? >>= (·.file?)).map g.relPath))]
+
 private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
   Json.mkObj
     [("rule",
@@ -201,7 +210,7 @@ private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
             ("line", jOptNat (v.pos?.map (·.line))), ("column", jOptNat (v.pos?.map (·.column))),
             ("reason", jOptStr v.reason?)]),
       ("message", Json.str v.message), ("detail", jOptStr v.detail?),
-      ("chain", Json.arr (v.chain.map (importJson g)))]
+      ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?)]
 
 private def diagnosticJson (d : Diagnostic) : Json :=
   Json.mkObj
@@ -225,8 +234,9 @@ def toJsonCheck (ctx : ReportCtx) (r : CheckResult) : Json :=
       ("errors", Json.arr errors), ("summary", Json.str r.summary)]
 
 /-- The result as GitHub workflow commands: one `::error` annotation per
-violation, on the import that starts its chain, or per error; then the
-summary line. Ends in one newline. -/
+violation, on the import that starts its chain (for a reachable rule, on the
+uncovered module's file, with no line), or per error; then the summary line.
+Ends in one newline. -/
 def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
   let rel (f : System.FilePath) : String := githubFile ctx.cwd f.toString
   let cmds : Array String :=
@@ -234,8 +244,12 @@ def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
     | .checked g p vs =>
       vs.map fun (v : Violation) =>
         let e? := v.chain[0]?
+        let file? :=
+          match e? with
+          | some e => some e.file
+          | none => v.module? >>= fun m => g.nodes[m]? >>= (·.file?)
         let props :=
-          (e?.map fun e => ("file", rel e.file)).toList ++
+          (file?.map fun f => ("file", rel f)).toList ++
             ((e? >>= (·.line?)).map fun l => ("line", toString l)).toList ++
             [("title", s!"lean-deny: {v.label}")]
         githubCommand "error" props ("\n".intercalate (v.render g p.path rel).toList)
