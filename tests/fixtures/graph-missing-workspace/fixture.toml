@@ -1,0 +1,3 @@
+run = "direct"
+args = ["graph", "--workspace", "does-not-exist"]
+exit = 2

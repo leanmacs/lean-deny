@@ -1,0 +1,4 @@
+# graph never reads the policy, so it takes no --config.
+run = "direct"
+args = ["graph", "--config", "x"]
+exit = 2

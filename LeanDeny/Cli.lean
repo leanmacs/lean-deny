@@ -1,4 +1,6 @@
 import LeanDeny.Version
+import LeanDeny.Graph.View
+import LeanDeny.Graph.Render
 
 /-!
 # Command line
@@ -20,11 +22,20 @@ structure CheckOpts where
   config? : Option FilePath := none
   deriving BEq, Repr, Inhabited
 
+/-- Options of `lean-deny graph`. -/
+structure GraphOpts where
+  /-- The Lake workspace to read. -/
+  workspace : FilePath := "."
+  format : Graph.Format := .text
+  level : Graph.Level := .module
+  deriving BEq, Repr, Inhabited
+
 /-- What the command line asks for. -/
 inductive Command where
   | help
   | version
   | check (opts : CheckOpts)
+  | graph (opts : GraphOpts)
   deriving BEq, Repr, Inhabited
 
 /-- A bad command line. -/
@@ -38,25 +49,33 @@ s!"lean-deny {version}: dependency policy checks for Lean 4 / Lake workspaces
 
 Usage:
   lean-deny check [--workspace <dir>] [--config <file>]
+  lean-deny graph [--workspace <dir>] [--format text|json|dot]
+                  [--level module|lib|package]
   lean-deny --help | --version
 
 Commands:
   check    Check the workspace's module graph against its policy
+  graph    Print the workspace's module graph
 
 Options for check:
   --workspace <dir>   The Lake workspace to check (default: .)
   --config <file>     The policy file (default: <dir>/lean-deny.toml)
 
+Options for graph:
+  --workspace <dir>   The Lake workspace to read (default: .)
+  --format <fmt>      text, json or dot (default: text)
+  --level <level>     module, lib or package (default: module)
+
 Loading the workspace elaborates its and its dependencies' lakefile.lean
-files, so check runs their code, as lake does (lakefile.toml is not run).
-Do not point it at a workspace you would not run `lake build` in.
+files, so check and graph run their code, as lake does (lakefile.toml is
+not run). Do not point them at a workspace you would not run `lake build` in.
 
 Global options:
   -h, --help          Print this help
   -V, --version       Print the version
 
 Exit codes:
-  0  every rule holds
+  0  every rule holds (check), or the graph was printed (graph)
   1  at least one rule is broken
   2  the command line, the policy or the workspace is bad
 "
@@ -106,6 +125,23 @@ private def parseCheck (args : List String) : Except UsageError Command := do
   | none => return .help
   | some o => return .check o
 
+/-- `graph`'s options. -/
+private def graphSpecs : List (OptSpec GraphOpts) := [
+  ("--workspace", fun o v => .ok { o with workspace := v }),
+  ("--format", fun o v => match Graph.Format.parse? v with
+    | some f => .ok { o with format := f }
+    | none => .error ⟨s!"invalid value '{v}' for option '--format' (expected text, json or dot)"⟩),
+  ("--level", fun o v => match Graph.Level.parse? v with
+    | some l => .ok { o with level := l }
+    | none => .error ⟨s!"invalid value '{v}' for option '--level' (expected module, lib or package)"⟩)
+]
+
+/-- Parse the arguments after `graph`. -/
+private def parseGraph (args : List String) : Except UsageError Command := do
+  match ← parseOpts "graph" graphSpecs [] {} args with
+  | none => return .help
+  | some o => return .graph o
+
 /-- Parse lean-deny's command line (without the program name). -/
 def parseArgs : List String → Except UsageError Command
   | [] => .error ⟨"no command given"⟩
@@ -115,6 +151,7 @@ def parseArgs : List String → Except UsageError Command
       | [] => .ok (if isHelp a then .help else .version)
       | b :: _ => .error ⟨s!"unexpected argument '{b}'"⟩
     else if a == "check" then parseCheck rest
+    else if a == "graph" then parseGraph rest
     else if a.startsWith "-" then .error ⟨s!"unknown option '{(splitEq a).1}'"⟩
     else .error ⟨s!"unknown command '{a}'"⟩
 

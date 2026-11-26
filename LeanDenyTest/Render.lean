@@ -38,7 +38,41 @@ def formatFailures : Array String :=
   (#["", "xml", "JSON", "svg"].filterMap fun s =>
     if (LeanDeny.Graph.Format.parse? s).isNone then none else some s!"Format.parse? accepts {repr s}")
 
-def run (_root : System.FilePath) : IO (Array String) :=
-  return dotFailures ++ directiveFailures ++ formatFailures
+/-- The failures of the golden JSON (`tests/fixtures/graph-json-module`,
+graph-ws at module level), whose bytes the fixture checks against the
+binary: it is canonical `Json.pretty` output of schema version 1, every edge
+joins two of its nodes and counts its imports, and the imports add up to
+graph-ws's 31 (`LeanDenyTest.Graph.graphWsEdges`). -/
+def goldenFailures (golden : String) : Array String := Id.run do
+  let j ← match Json.parse golden with
+    | .ok j => pure j
+    | .error e => return #[s!"golden JSON does not parse: {e}"]
+  let mut fs := #[]
+  unless j.pretty ++ "\n" == golden do
+    fs := fs.push "golden JSON is not in Json.pretty's layout"
+  unless (j.getObjValAs? Nat "schemaVersion").toOption == some jsonSchemaVersion && jsonSchemaVersion == 1 do
+    fs := fs.push "golden JSON: schemaVersion is not 1"
+  let arr (x : Json) (k : String) : Array Json := ((x.getObjVal? k).bind (·.getArr?)).toOption.getD #[]
+  let ids := (arr j "nodes").filterMap fun n => (n.getObjValAs? String "id").toOption
+  let mut total := 0
+  for e in arr j "edges" do
+    let ends := ["from", "to"].map fun k => (e.getObjValAs? String k).toOption
+    unless ends.all fun x? => x?.any ids.contains do
+      fs := fs.push s!"golden JSON: an edge with an unknown end: {e.compress}"
+    let count := (e.getObjValAs? Nat "count").toOption.getD 0
+    unless count == (arr e "imports").size do
+      fs := fs.push s!"golden JSON: count {count} disagrees with the imports of {e.compress}"
+    total := total + count
+  unless total == 31 do fs := fs.push s!"golden JSON: {total} imports in all, expected 31"
+  unless ids.size == 13 && (arr j "edges").size == 22 do
+    fs := fs.push s!"golden JSON: {ids.size} nodes and {(arr j "edges").size} edges, expected 13 and 22"
+  return fs
+
+def run (root : System.FilePath) : IO (Array String) := do
+  let golden := root / "tests" / "fixtures" / "graph-json-module" / "expected.stdout"
+  let goldenFs ← match ← (IO.FS.readFile golden).toBaseIO with
+    | .ok s => pure (goldenFailures s)
+    | .error e => pure #[s!"reading {golden}: {e}"]
+  return dotFailures ++ directiveFailures ++ formatFailures ++ goldenFs
 
 end LeanDenyTest.Render

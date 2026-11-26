@@ -1,0 +1,66 @@
+nodes (7):
+  base/lib/Base: 1 module
+    Base
+  core/lib/Core: 5 modules
+    Core.Api
+    Core.Impl
+    Core.Macros
+    Core.Prim
+    Core.Types
+  graph-ws/exe/graph-app: 1 module
+    Main
+  graph-ws/lib/App: 2 modules
+    App
+    App.Shared
+  graph-ws/lib/AppTest: 2 modules
+    App.Shared
+    AppTest
+  external/Init: 1 module
+    Init
+  external/Lean: 2 modules
+    Lean.Data.Json
+    Lean.Elab.Command
+
+edges (13):
+  base/lib/Base -> external/Init (2 imports)
+    base/Base.lean: Base: import Init (implicit)
+    base/Base.lean: Base: meta import Init (implicit)
+  core/lib/Core -> base/lib/Base (1 import)
+    core/Core/Api.lean:8: Core.Api: meta import Base
+  core/lib/Core -> external/Init (8 imports)
+    core/Core/Api.lean: Core.Api: import Init (implicit)
+    core/Core/Api.lean: Core.Api: meta import Init (implicit)
+    core/Core/Impl.lean: Core.Impl: import Init (implicit)
+    core/Core/Impl.lean: Core.Impl: meta import Init (implicit)
+    core/Core/Macros.lean: Core.Macros: import Init (implicit)
+    core/Core/Macros.lean: Core.Macros: meta import Init (implicit)
+    core/Core/Types.lean: Core.Types: import Init (implicit)
+    core/Core/Types.lean: Core.Types: meta import Init (implicit)
+  core/lib/Core -> external/Lean (1 import)
+    core/Core/Macros.lean:3: Core.Macros: public import Lean.Elab.Command
+  graph-ws/exe/graph-app -> graph-ws/lib/App (1 import)
+    Main.lean:4: Main: import App
+  graph-ws/exe/graph-app -> external/Init (2 imports)
+    Main.lean: Main: import Init (implicit)
+    Main.lean: Main: meta import Init (implicit)
+  graph-ws/lib/App -> core/lib/Core (1 import)
+    App.lean:2: App: import Core.Api
+  graph-ws/lib/App -> graph-ws/lib/AppTest (1 import)
+    App.lean:1: App: import App.Shared
+  graph-ws/lib/App -> external/Init (4 imports)
+    App.lean: App: import Init (implicit)
+    App.lean: App: meta import Init (implicit)
+    App/Shared.lean: App.Shared: import Init (implicit)
+    App/Shared.lean: App.Shared: meta import Init (implicit)
+  graph-ws/lib/App -> external/Lean (1 import)
+    App/Shared.lean:1: App.Shared: import Lean.Data.Json
+  graph-ws/lib/AppTest -> graph-ws/lib/App (2 imports)
+    AppTest.lean:1: AppTest: import App
+    AppTest.lean:2: AppTest: import App.Shared
+  graph-ws/lib/AppTest -> external/Init (4 imports)
+    App/Shared.lean: App.Shared: import Init (implicit)
+    App/Shared.lean: App.Shared: meta import Init (implicit)
+    AppTest.lean: AppTest: import Init (implicit)
+    AppTest.lean: AppTest: meta import Init (implicit)
+  graph-ws/lib/AppTest -> external/Lean (1 import)
+    App/Shared.lean:1: App.Shared: import Lean.Data.Json

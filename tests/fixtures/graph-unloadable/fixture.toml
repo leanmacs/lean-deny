@@ -1,0 +1,4 @@
+# The same two diagnostics check gives for this workspace.
+run = "direct"
+args = ["graph", "--workspace", "../unloadable-workspace"]
+exit = 2

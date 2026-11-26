@@ -5,6 +5,7 @@ import LeanDeny.Lake.Toml
 import LeanDeny.Policy
 import LeanDeny.Load
 import LeanDeny.Check
+import LeanDeny.GraphCmd
 import LeanDeny.Graph.LakeApi
 import LeanDeny.Graph.Model
 import LeanDeny.Graph.Raw

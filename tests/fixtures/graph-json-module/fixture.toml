@@ -1,0 +1,4 @@
+# The golden JSON (docs/graph-json.md); LeanDenyTest/Render.lean also checks it.
+run = "direct"
+args = ["graph", "--workspace", "../graph-ws", "--format", "json", "--level", "module"]
+exit = 0

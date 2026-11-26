@@ -1,0 +1,15 @@
+digraph "lean-deny" {
+  node [shape=box];
+  "base";
+  "core";
+  "graph-ws";
+  "external/Init" [style=dashed];
+  "external/Lean" [style=dashed];
+  "base" -> "external/Init" [label="2", style=dotted];
+  "core" -> "base" [label="1"];
+  "core" -> "external/Init" [label="8", style=dotted];
+  "core" -> "external/Lean" [label="1"];
+  "graph-ws" -> "core" [label="1"];
+  "graph-ws" -> "external/Init" [label="8", style=dotted];
+  "graph-ws" -> "external/Lean" [label="1"];
+}

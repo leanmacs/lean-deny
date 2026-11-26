@@ -1,0 +1,32 @@
+digraph "lean-deny" {
+  node [shape=box];
+  subgraph "cluster_graph-ws" {
+    label="graph-ws";
+    "graph-ws/exe/graph-app";
+    "graph-ws/lib/App";
+    "graph-ws/lib/AppTest";
+  }
+  subgraph "cluster_core" {
+    label="core";
+    "core/lib/Core";
+  }
+  subgraph "cluster_base" {
+    label="base";
+    "base/lib/Base";
+  }
+  "external/Init" [style=dashed];
+  "external/Lean" [style=dashed];
+  "base/lib/Base" -> "external/Init" [label="2", style=dotted];
+  "core/lib/Core" -> "base/lib/Base" [label="1"];
+  "core/lib/Core" -> "external/Init" [label="8", style=dotted];
+  "core/lib/Core" -> "external/Lean" [label="1"];
+  "graph-ws/exe/graph-app" -> "graph-ws/lib/App" [label="1"];
+  "graph-ws/exe/graph-app" -> "external/Init" [label="2", style=dotted];
+  "graph-ws/lib/App" -> "core/lib/Core" [label="1"];
+  "graph-ws/lib/App" -> "graph-ws/lib/AppTest" [label="1"];
+  "graph-ws/lib/App" -> "external/Init" [label="4", style=dotted];
+  "graph-ws/lib/App" -> "external/Lean" [label="1"];
+  "graph-ws/lib/AppTest" -> "graph-ws/lib/App" [label="2"];
+  "graph-ws/lib/AppTest" -> "external/Init" [label="4", style=dotted];
+  "graph-ws/lib/AppTest" -> "external/Lean" [label="1"];
+}

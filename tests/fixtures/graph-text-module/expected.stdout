@@ -1,0 +1,69 @@
+nodes (13):
+  App (App.lean): graph-ws/lib/App
+  App.Shared (App/Shared.lean): graph-ws/lib/App, graph-ws/lib/AppTest
+  AppTest (AppTest.lean): graph-ws/lib/AppTest
+  Base (base/Base.lean): base/lib/Base; module
+  Core.Api (core/Core/Api.lean): core/lib/Core; module
+  Core.Impl (core/Core/Impl.lean): core/lib/Core; module
+  Core.Macros (core/Core/Macros.lean): core/lib/Core; module
+  Core.Prim (core/Core/Prim.lean): core/lib/Core; module, prelude
+  Core.Types (core/Core/Types.lean): core/lib/Core; module
+  Main (Main.lean): graph-ws/exe/graph-app
+  Init: external
+  Lean.Data.Json: external
+  Lean.Elab.Command: external
+
+edges (22):
+  App -> App.Shared (1 import)
+    App.lean:1: App: import App.Shared
+  App -> Core.Api (1 import)
+    App.lean:2: App: import Core.Api
+  App -> Init (2 imports)
+    App.lean: App: import Init (implicit)
+    App.lean: App: meta import Init (implicit)
+  App.Shared -> Init (2 imports)
+    App/Shared.lean: App.Shared: import Init (implicit)
+    App/Shared.lean: App.Shared: meta import Init (implicit)
+  App.Shared -> Lean.Data.Json (1 import)
+    App/Shared.lean:1: App.Shared: import Lean.Data.Json
+  AppTest -> App (1 import)
+    AppTest.lean:1: AppTest: import App
+  AppTest -> App.Shared (1 import)
+    AppTest.lean:2: AppTest: import App.Shared
+  AppTest -> Init (2 imports)
+    AppTest.lean: AppTest: import Init (implicit)
+    AppTest.lean: AppTest: meta import Init (implicit)
+  Base -> Init (2 imports)
+    base/Base.lean: Base: import Init (implicit)
+    base/Base.lean: Base: meta import Init (implicit)
+  Core.Api -> Base (1 import)
+    core/Core/Api.lean:8: Core.Api: meta import Base
+  Core.Api -> Core.Impl (1 import)
+    core/Core/Api.lean:5: Core.Api: import all Core.Impl
+  Core.Api -> Core.Macros (1 import)
+    core/Core/Api.lean:6: Core.Api: public meta import Core.Macros
+  Core.Api -> Core.Types (1 import)
+    core/Core/Api.lean:5: Core.Api: public import Core.Types
+  Core.Api -> Init (2 imports)
+    core/Core/Api.lean: Core.Api: import Init (implicit)
+    core/Core/Api.lean: Core.Api: meta import Init (implicit)
+  Core.Impl -> Core.Types (1 import)
+    core/Core/Impl.lean:3: Core.Impl: import Core.Types
+  Core.Impl -> Init (2 imports)
+    core/Core/Impl.lean: Core.Impl: import Init (implicit)
+    core/Core/Impl.lean: Core.Impl: meta import Init (implicit)
+  Core.Macros -> Init (2 imports)
+    core/Core/Macros.lean: Core.Macros: import Init (implicit)
+    core/Core/Macros.lean: Core.Macros: meta import Init (implicit)
+  Core.Macros -> Lean.Elab.Command (1 import)
+    core/Core/Macros.lean:3: Core.Macros: public import Lean.Elab.Command
+  Core.Types -> Core.Prim (1 import)
+    core/Core/Types.lean:3: Core.Types: import Core.Prim
+  Core.Types -> Init (2 imports)
+    core/Core/Types.lean: Core.Types: import Init (implicit)
+    core/Core/Types.lean: Core.Types: meta import Init (implicit)
+  Main -> App (1 import)
+    Main.lean:4: Main: import App
+  Main -> Init (2 imports)
+    Main.lean: Main: import Init (implicit)
+    Main.lean: Main: meta import Init (implicit)

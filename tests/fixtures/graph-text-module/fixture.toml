@@ -1,0 +1,4 @@
+# The default format (text) and level (module).
+run = "direct"
+args = ["graph", "--workspace", "../graph-ws"]
+exit = 0

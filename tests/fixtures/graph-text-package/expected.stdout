@@ -1,0 +1,50 @@
+nodes (5):
+  base: 1 module
+    Base
+  core: 5 modules; keywords kernel, api
+    Core.Api
+    Core.Impl
+    Core.Macros
+    Core.Prim
+    Core.Types
+  graph-ws: 4 modules
+    App
+    App.Shared
+    AppTest
+    Main
+  external/Init: 1 module
+    Init
+  external/Lean: 2 modules
+    Lean.Data.Json
+    Lean.Elab.Command
+
+edges (7):
+  base -> external/Init (2 imports)
+    base/Base.lean: Base: import Init (implicit)
+    base/Base.lean: Base: meta import Init (implicit)
+  core -> base (1 import)
+    core/Core/Api.lean:8: Core.Api: meta import Base
+  core -> external/Init (8 imports)
+    core/Core/Api.lean: Core.Api: import Init (implicit)
+    core/Core/Api.lean: Core.Api: meta import Init (implicit)
+    core/Core/Impl.lean: Core.Impl: import Init (implicit)
+    core/Core/Impl.lean: Core.Impl: meta import Init (implicit)
+    core/Core/Macros.lean: Core.Macros: import Init (implicit)
+    core/Core/Macros.lean: Core.Macros: meta import Init (implicit)
+    core/Core/Types.lean: Core.Types: import Init (implicit)
+    core/Core/Types.lean: Core.Types: meta import Init (implicit)
+  core -> external/Lean (1 import)
+    core/Core/Macros.lean:3: Core.Macros: public import Lean.Elab.Command
+  graph-ws -> core (1 import)
+    App.lean:2: App: import Core.Api
+  graph-ws -> external/Init (8 imports)
+    App.lean: App: import Init (implicit)
+    App.lean: App: meta import Init (implicit)
+    App/Shared.lean: App.Shared: import Init (implicit)
+    App/Shared.lean: App.Shared: meta import Init (implicit)
+    AppTest.lean: AppTest: import Init (implicit)
+    AppTest.lean: AppTest: meta import Init (implicit)
+    Main.lean: Main: import Init (implicit)
+    Main.lean: Main: meta import Init (implicit)
+  graph-ws -> external/Lean (1 import)
+    App/Shared.lean:1: App.Shared: import Lean.Data.Json

@@ -1,0 +1,47 @@
+digraph "lean-deny" {
+  node [shape=box];
+  subgraph "cluster_graph-ws" {
+    label="graph-ws";
+    "App";
+    "App.Shared";
+    "AppTest";
+    "Main";
+  }
+  subgraph "cluster_core" {
+    label="core";
+    "Core.Api";
+    "Core.Impl";
+    "Core.Macros";
+    "Core.Prim";
+    "Core.Types";
+  }
+  subgraph "cluster_base" {
+    label="base";
+    "Base";
+  }
+  "Init" [style=dashed];
+  "Lean.Data.Json" [style=dashed];
+  "Lean.Elab.Command" [style=dashed];
+  "App" -> "App.Shared";
+  "App" -> "Core.Api";
+  "App" -> "Init" [style=dotted];
+  "App.Shared" -> "Init" [style=dotted];
+  "App.Shared" -> "Lean.Data.Json";
+  "AppTest" -> "App";
+  "AppTest" -> "App.Shared";
+  "AppTest" -> "Init" [style=dotted];
+  "Base" -> "Init" [style=dotted];
+  "Core.Api" -> "Base";
+  "Core.Api" -> "Core.Impl";
+  "Core.Api" -> "Core.Macros";
+  "Core.Api" -> "Core.Types";
+  "Core.Api" -> "Init" [style=dotted];
+  "Core.Impl" -> "Core.Types";
+  "Core.Impl" -> "Init" [style=dotted];
+  "Core.Macros" -> "Init" [style=dotted];
+  "Core.Macros" -> "Lean.Elab.Command";
+  "Core.Types" -> "Core.Prim";
+  "Core.Types" -> "Init" [style=dotted];
+  "Main" -> "App";
+  "Main" -> "Init" [style=dotted];
+}

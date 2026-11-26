@@ -1,0 +1,2 @@
+lean-deny: error: invalid value 'crate' for option '--level' (expected module, lib or package)
+Run 'lean-deny --help' for usage.

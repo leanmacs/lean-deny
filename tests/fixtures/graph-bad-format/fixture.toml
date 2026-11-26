@@ -1,0 +1,3 @@
+run = "direct"
+args = ["graph", "--format", "xml"]
+exit = 2

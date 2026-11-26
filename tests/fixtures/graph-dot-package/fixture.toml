@@ -1,0 +1,3 @@
+run = "direct"
+args = ["graph", "--workspace", "../graph-ws", "--format", "dot", "--level", "package"]
+exit = 0

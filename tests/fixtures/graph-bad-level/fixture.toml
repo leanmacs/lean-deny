@@ -1,0 +1,3 @@
+run = "direct"
+args = ["graph", "--level", "crate"]
+exit = 2
