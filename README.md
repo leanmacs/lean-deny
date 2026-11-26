@@ -14,7 +14,8 @@ build hold it.
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. No rule kinds exist yet,
 > so the only policy it accepts is an empty one; any key in
-> `lean-deny.toml` is an error, never silently ignored. The rule syntax below
+> `lean-deny.toml` is an error, never silently ignored. `lean-deny graph`
+> prints the graph it loads, as text, JSON or DOT. The rule syntax below
 > is a draft and will change. The plan lives in the rdm project `lean-deny`
 > (roadmaps `foundation` and `policy-rules`).
 
@@ -172,18 +173,40 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Command | Status | Does |
 |---|---|---|
 | `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
+| `lean-deny graph [--workspace <dir>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--format text`, `--level module`. Does not read the policy. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny check --format text\|json\|github` | planned | `github` prints annotations for pull requests. |
-| `lean-deny graph [--format text\|json\|dot] [--level module\|lib\|package]` | planned | Print the resolved graph. |
 | `lean-deny explain <selector>` | planned | List the modules a selector matches. |
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | Every rule holds. |
+| 0 | Every rule holds (`check`), or the graph was printed (`graph`). |
 | 1 | At least one rule is broken. Reserved for rule violations; with no rule kinds yet, nothing produces it. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load (later also a selector that matches nothing, or an unused wrapper). Any internal error is also 2, never 1. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load (later also a selector that matches nothing, or an unused wrapper). The same for `graph`, minus the policy. Any internal error is also 2, never 1. |
+
+### Seeing the graph
+
+`lean-deny graph` prints the graph the rules will see, grouped at one of
+three levels:
+
+- `module`: every module, and one edge per (importer, imported) pair.
+- `lib`: one node per `lean_lib` and per `lean_exe` (`<pkg>/lib/<lib>`,
+  `<pkg>/exe/<exe>`). A module listed by two libraries counts in both, as
+  `lib:` selectors will see it; an executable's root module is its own
+  `exe` node.
+- `package`: one node per package.
+
+Above module level, modules from outside the workspace collapse to their
+first name component (`external/Lean` holds `Lean.Data.Json`); these are
+direct import targets only. Imports inside one node are not drawn as an
+edge. Every edge lists the imports behind it (its witnesses), with file and
+line, including Lean's implicit `Init` imports, so it is clear why the edge
+exists. Paths are relative to the workspace. `--format json` is for tools;
+its schema is versioned and documented in
+[`docs/graph-json.md`](docs/graph-json.md). `--format dot` is for Graphviz
+(`lean-deny graph --level lib --format dot | dot -Tsvg > graph.svg`).
 
 ## Later
 
@@ -204,10 +227,12 @@ lake build --wfail && lake test
 This is also the project's `rdm verify` command, and what CI runs. `lake
 test` runs `lean-deny-test`: unit tests of the command-line parser (`cli`),
 of the import-line parser (`header`), and of the graph builder and its
-queries on hand-written graphs (`query`); exact checks of the graph loaded
-for `tests/fixtures/spike-ws` and `tests/fixtures/graph-ws` (`graph`); the
-fixture runner's own checks (`harness`); and every fixture under
-`tests/fixtures/`. `lake test -- <name>...` runs only the named fixtures.
+queries on hand-written graphs (`query`); of the module, lib and package
+views on a hand-written graph (`view`); of the renderings, including the
+golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
+exact checks of the graph loaded for `tests/fixtures/spike-ws` and
+`tests/fixtures/graph-ws` (`graph`); the fixture runner's own checks
+(`harness`); and every fixture under `tests/fixtures/`. `lake test -- <name>...` runs only the named fixtures.
 
 A fixture is a directory holding a `fixture.toml`:
 
