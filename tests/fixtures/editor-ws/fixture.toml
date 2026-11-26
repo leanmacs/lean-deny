@@ -2,7 +2,8 @@
 # every rule of the acceptance policy holds (tests/fixtures/editor-acceptance-*),
 # with a fixture support module, CompileTest.FixtureSupport, that the
 # fixture-harness root EditorSetFixtures imports last, as editor-project's
-# generator writes it: its own policy has no rules.
+# generator writes it, and docs/design/packages.md, a miniature of
+# editor-project's module map: its own policy has no rules.
 run = "direct"
 args = ["check"]
 exit = 0

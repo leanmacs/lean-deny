@@ -3,10 +3,13 @@
 # 78d9d9ea, deleted at d51fe135; .agents/rules/structure.md states them now), and lint
 # plugins (target-config rule 1). The host rules (deny rules 4 to 6) follow structure.md's
 # "Host imports" at editor-project acfed133, whose fixture support wording dates from
-# 5c64af98. Mapping, runs and gaps: docs/editor-project-acceptance.md.
+# 5c64af98. Leave-out (require-backed rule 1) and the module map (doc-modules rule 1,
+# doc-packages rule 1) follow structure.md's "Leave-out" and "Module map" at 1101b206.
+# Mapping, runs and gaps: docs/editor-project-acceptance.md.
 #
 # The workspace is packages/, the default package set: it requires the core
-# (../lean, Lake package editor-core) and every default package by path.
+# (../lean, Lake package editor-core) and every default package by path. The module map
+# rules read docs/design/packages.md from editor-project's tree, outside packages/.
 #
 #   lean-deny check --workspace packages --config <this file>
 
@@ -354,6 +357,35 @@ targets = [
 load-plugin = "@editor-core/lintShared"
 or-imports = "lib:editor-core/Lint"
 reason = "a target that loads no plugin is never linted (lint plugins)"
+
+# Leave-out (.agents/rules/structure.md): every implementation package can be dropped from
+# a set's requires and the set still builds. Statically: the Three layers rule ([layers])
+# plus this one: every cross-package import of a default-set package is backed by a
+# direct require, so dropping one package cannot drop an interface package another imports.
+[[require-backed]]
+packages = "set:packages"
+reason = "a set may drop any implementation package and still build: every package requires what it imports (leave-out)"
+
+# Module map, bullet 2: "The core's modules" names every Editor.… module and no others.
+[[doc-modules]]
+file = "../docs/design/packages.md"
+section = "The core's modules"
+prefix = "Editor."
+modules = "set:core-modules"
+reason = "the module map names every module under lean/Editor/ and no other (module map)"
+
+# Module map, bullet 3: each default-set package has a row with its layer (and, columns
+# 4 and 5, its registrations and reads, which need elaborated Lean: not checked). The
+# section's second table (agents-api, acp, not in the default set) is not read.
+[[doc-packages]]
+file = "../docs/design/packages.md"
+section = "The packages"
+package-column = "Package"
+layer-column = "Layer"
+requires-column = "Requires, beside the core"
+packages = "set:packages"
+requires-except = "editor-core"
+reason = "the module map has one row per default-set package, with its layer and what it requires beside the core (module map)"
 
 # The two roots the package-set build generates (the setRoot and fixturesRoot facets of
 # lean/lakefile.lean), which no Lake target declares. lean-deny reads them from the build

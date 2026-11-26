@@ -1,4 +1,4 @@
-# The same policy over editor-broken-ws, where each of its fourteen rules bites
+# The same policy over editor-broken-ws, where each of its seventeen rules bites
 # (exit 1): one breaking import per rule of the first eleven (deny rule 5:
 # Shell.EditorPackage imports Std.Data.HashMap; deny rule 6:
 # Compile.EditorPackage imports the fixture support module
@@ -14,8 +14,13 @@
 # fixture-harness root EditorSetFixtures, which reaches
 # Editor.Config.Elaborate through Editor.Headless but no longer imports the
 # config base Editor; and, for target-config rule 1, the core's library
-# FilesApi, which loads no plugin and imports no Lint; as
-# docs/editor-project-acceptance.md lists.
+# FilesApi, which loads no plugin and imports no Lint; and, for require-backed
+# rule 1, compile's library imports ShellApi, which compile reaches only
+# through compile-api (its import of Shell breaks it too); and, for
+# doc-modules rule 1, Editor.Test.Shell, which docs/design/packages.md does
+# not list; and, for doc-packages rule 1, that file's row for shell-api,
+# whose layer cell says implementation; as docs/editor-project-acceptance.md
+# lists.
 run = "direct"
 args = ["check", "--workspace", "../editor-broken-ws", "--config", "../editor-acceptance-holds/lean-deny.toml"]
 exit = 1

@@ -59,4 +59,15 @@ co-reach rule 1 (../editor-acceptance-holds/lean-deny.toml:118:0): the elaborato
   lean/Editor/Headless.lean:2: Editor.Headless imports Editor.Config.Elaborate
 target-config rule 1 (../editor-acceptance-holds/lean-deny.toml:126:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/FilesApi does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   lean/lakefile.toml: lean_lib FilesApi
-lean-deny: 26 violations in 14 of 14 rules
+require-backed rule 1 (../editor-acceptance-holds/lean-deny.toml:133:0): a set may drop any implementation package and still build: every package requires what it imports (leave-out): Compile (package compile) imports package shell, which compile does not require directly
+  compile/Compile.lean:5: Compile imports Shell
+  compile/lakefile.toml: compile requires editor-core, compile-api
+require-backed rule 1 (../editor-acceptance-holds/lean-deny.toml:133:0): a set may drop any implementation package and still build: every package requires what it imports (leave-out): Compile (package compile) imports package shell-api, which compile does not require directly
+  compile/Compile.lean:6: Compile imports ShellApi
+  compile/lakefile.toml: compile requires editor-core, compile-api
+doc-modules rule 1 (../editor-acceptance-holds/lean-deny.toml:140:0): the module map names every module under lean/Editor/ and no other (module map): Editor.Test.Shell is not listed in section 'The core's modules' of docs/design/packages.md
+  lean/Editor/Test/Shell.lean: Editor.Test.Shell
+  docs/design/packages.md:8: section 'The core's modules'
+doc-packages rule 1 (../editor-acceptance-holds/lean-deny.toml:149:0): the module map has one row per default-set package, with its layer and what it requires beside the core (module map): section 'The packages' of docs/design/packages.md gives shell-api layer implementation, but [layers] puts it in interface
+  docs/design/packages.md:36: shell-api
+lean-deny: 30 violations in 17 of 17 rules

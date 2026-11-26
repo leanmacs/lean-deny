@@ -6,8 +6,11 @@
 # Editor.Test.Shell, that only a package test imports, outside the core
 # root's closure, and a fixture-harness root, EditorSetFixtures, that reaches
 # the config elaborator without importing the config base, and a core
-# library, FilesApi, that loads no lint plugin
-# (tests/fixtures/editor-acceptance-*): its own policy has no rules.
+# library, FilesApi, that loads no lint plugin, a library import of ShellApi
+# that compile does not require directly, and a module map
+# (docs/design/packages.md) that leaves Editor.Test.Shell out and gives
+# shell-api the layer implementation (tests/fixtures/editor-acceptance-*):
+# its own policy has no rules.
 run = "direct"
 args = ["check"]
 exit = 0

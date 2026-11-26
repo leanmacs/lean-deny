@@ -12,7 +12,11 @@
 # target-config rule 1: every lean_lib and lean_exe of the six packages loads
 # the lint plugin (package-level in the packages, per target in the core) or,
 # for the core's Lint, LintTests and lint-test, imports Lint, lint-test
-# through LintTest.Wait.
+# through LintTest.Wait; and require-backed rule 1: every cross-package import
+# is backed by a direct require; and doc-modules rule 1 and doc-packages rule
+# 1: docs/design/packages.md, a miniature of editor-project's module map,
+# lists every Editor.… module, and has a row for each of the five packages
+# with its layer and requires (its second table, acp's, is not read).
 run = "direct"
 args = ["check", "--workspace", "../editor-ws", "--config", "lean-deny.toml"]
 exit = 0

@@ -2,17 +2,24 @@
 
 ## What this is
 
-This is the acceptance test of the `policy-rules` and
-`editor-project-parity` roadmaps: editor-project's in-scope structure rules
-(its four import checks, every bullet of "Host imports", and its
-lint-plugins rule), written as one lean-deny policy of fourteen rules, run
+This is the acceptance test of the `policy-rules`,
+`editor-project-parity` and `editor-project-module-map-leave-out`
+roadmaps: editor-project's in-scope structure rules (its four import
+checks, every bullet of "Host imports", its lint-plugins rule,
+"Leave-out", and "Module map": columns 1 to 3 of "The packages", and "The
+core's modules"), written as one lean-deny policy of seventeen rules, run
 over editor-project, and each rule seen to bite on an edit that should
 break it ("Section by section" lists them).
 
-- editor-project revision: `acfed1331a1f` (its HEAD on 2026-11-26). The run
+- editor-project revision: `1101b2069f1e` (its HEAD on 2026-11-26). The run
   under "The runs" is at that revision: the script archives editor-project's
-  HEAD and prints it, and the recorded output starts with that line. Figures
-  pinned to an earlier revision (`4df216a8`, `0e608324`) say so.
+  HEAD and prints it, and the recorded output starts with that line. The
+  fourteen earlier rules give the same results as at `acfed133`, the
+  revision recorded before: between the two, only a comment line of
+  `packages/lakefile.toml` differs under `lean/` and `packages/`. Figures
+  pinned to an earlier revision (`4df216a8`, `0e608324`, `acfed133`) say so.
+- "Leave-out" and "Module map" (require-backed rule 1, doc-modules rule 1,
+  doc-packages rule 1) follow `.agents/rules/structure.md` at `1101b206`.
 - The host rules (deny rules 4 to 6) follow `.agents/rules/structure.md`'s
   "Host imports" at `acfed133`. Its fixture support wording dates from
   `5c64af98`, an ancestor of `0e608324`; `acfed133` added the default set's
@@ -34,9 +41,9 @@ The files:
 
 | File | What |
 |---|---|
-| [`examples/editor-project/lean-deny.toml`](../examples/editor-project/lean-deny.toml) | The policy over editor-project's `packages/` workspace: fourteen rules. |
+| [`examples/editor-project/lean-deny.toml`](../examples/editor-project/lean-deny.toml) | The policy over editor-project's `packages/` workspace: seventeen rules. |
 | [`examples/editor-project/lean-deny.core.toml`](../examples/editor-project/lean-deny.core.toml) | Core rules 4 and 5 over the `lean/` workspace alone: two rules. |
-| [`examples/editor-project/acceptance.sh`](../examples/editor-project/acceptance.sh) | The run: copies editor-project's HEAD out (`git archive`), checks both baselines and every breaking edit, and checks that nothing under editor-project changed. |
+| [`examples/editor-project/acceptance.sh`](../examples/editor-project/acceptance.sh) | The run: copies editor-project's HEAD out (`git archive` of `lean/`, `packages/` and `docs/design/packages.md`), checks both baselines and every breaking edit, and checks that nothing under editor-project changed. |
 | `tests/fixtures/editor-ws`, `editor-broken-ws`, `editor-acceptance-holds`, `editor-acceptance-bites` | A miniature editor-project and the policy cut down to it, so that `lake test` shows every rule biting (see "The fixtures"). |
 
 ## Loading editor-project
@@ -102,7 +109,7 @@ that library, so `Editor.Test.Shell` is a module of `editor-core/lib/Editor`
 
 It is still an editor-project finding: core rule 2 ("every `Editor.…` module
 the build reaches is in `Editor.Core`'s closure") is broken at `4df216a8`,
-at `0e608324` and at `acfed133`. The deleted script would not have caught it either: its
+at `0e608324`, at `acfed133` and at `1101b206`. The deleted script would not have caught it either: its
 roots were the core's test executables and the two generated roots, not the
 packages' tests. Over all 282 `Editor.*` files, `Editor.Test.Shell` is the
 only one outside `Editor.Core`'s closure.
@@ -172,6 +179,14 @@ resolves imports across the whole workspace, so `import Compile.Compiled` in
 rule and `[layers]` all see it. (Lake itself refuses that import when the
 core builds alone in `lean/`.)
 
+**The module map is outside both workspaces.** The two doc rules read
+`docs/design/packages.md`, which is in neither `lean/` nor `packages/`.
+lean-deny reads a doc rule's `file` relative to the workspace directory
+(only an absolute path is refused), so from `packages/` the policy writes
+`file = "../docs/design/packages.md"`, and the violation lines print that
+path as written (`../docs/design/packages.md:3313: …`). That is why the
+script archives that one file beside `lean/` and `packages/`.
+
 **Paths outside the workspace directory print absolute.** The workspace is
 `packages/` and the core is `../lean`, outside it. lean-deny prints a path
 outside the workspace directory as it is, so every chain step in the core
@@ -199,6 +214,12 @@ no other label moved:
 | reachable rule 1 | core imports, rule 2 |
 | co-reach rule 1 | core imports, rule 3 |
 | target-config rule 1 | lint plugins (`.agents/rules/structure.md`, "Lint plugins") |
+| require-backed rule 1 | `structure.md` "Leave-out", with `layers` |
+| doc-modules rule 1 | `structure.md` "Module map", bullet 2: "The core's modules" |
+| doc-packages rule 1 | `structure.md` "Module map", bullet 3: "The packages", columns 1 to 3 |
+
+The three Leave-out and Module map rules come after the earlier kinds, so
+no earlier label moved.
 
 In `lean-deny.core.toml`, deny rule 1 is core rule 4 and deny rule 2 is
 core rule 5.
@@ -343,6 +364,31 @@ but import `Lint`'s modules, `lint-test`'s root only through
 `word-count` is not in the `packages/` workspace, and `agents-api` and
 `acp` are not in the default set, so none of the three is checked.
 
+**Leave-out.** `structure.md` ("Leave-out") says every implementation
+package can be dropped from a set's `[[require]]`s and the set still
+builds, and that it follows from the three-layer rule. Its check by hand
+is a `lake update` and a build; the policy states it statically, from the
+graph: `layers` (no package imports an implementation package) and
+require-backed rule 1 over `set:packages`, every cross-package import of a
+default-set package backed by a direct `[[require]]` of the importing
+package. Together they mean no package reaches what it imports only
+through an implementation package another set could drop. The core is
+left out: it requires nothing and imports no package (deny rule 1).
+
+**Module map.** `structure.md` ("Module map") asks that "The core's
+modules" in `docs/design/packages.md` name every `Editor.…` module and no
+others (doc-modules rule 1: `prefix = "Editor."`, `modules =
+"set:core-modules"`, the modules under `lean/Editor/`, 283 at `1101b206`,
+equal to `find lean/Editor -name '*.lean' | wc -l` in the copy and to the
+sum of the table's counts), and that each package of the default set have
+a row with its layer, registrations and reads (doc-packages rule 1 over
+"The packages": a row for each of `set:packages`'s 43 packages, its
+`Layer` cell equal to the layer `[layers]` gives it, and its `Requires,
+beside the core` cell equal to its direct requires but `editor-core`). The
+core's `lean-deny.core.toml` has no doc rule: over `lean/` alone
+`Editor.Test.Shell` is not loaded, so doc-modules would report it as a
+name the table has and the workspace lacks.
+
 ## Rule by rule
 
 | Script | Rule (the script's numbering) | lean-deny rule | Fidelity |
@@ -363,6 +409,9 @@ but import `Lint`'s modules, `lint-test`'s root only through
 | layer imports | no package imports an implementation package | `layers` | Exact: `implementation` is the default layer, so a misspelt keyword makes a package more refused, never less, as in the script. |
 | layer imports | an import within one package is allowed | `layers` | `same-package = "allow"`. |
 | layer imports | everything else is allowed | `layers` | The four pairs, interface → interface included: two such imports exist at `4df216a8`. |
+| Leave-out (`structure.md` only) | every implementation package can be dropped from a set's requires and the set still builds | `layers` + require-backed rule 1 | Static, from the graph, as `structure.md` says it follows from the three layers: no `lake update` or build. Every import kind and every module of a package (its tests included) counts. `set:packages` is enumerated (task `workspace-selector`). Holds at `1101b206`. |
+| Module map (`structure.md` only) | bullet 2: "The core's modules" names every `Editor.…` module and no others | doc-modules rule 1 | Exact: 283 modules at `1101b206`. Holds at `1101b206`. |
+| Module map (`structure.md` only) | bullet 3: each default-set package has a row with its layer, registrations and reads | doc-packages rule 1 | Columns 1 to 3: the package, its layer as `[layers]` puts it, its requires beside `editor-core`. Columns 4 and 5 (registrations and reads) are not checked: they need elaborated Lean, a non-goal of the roadmap. The section's second table (`agents-api`, `acp`) is not read: the rule reads the first table with the three columns, and `structure.md` asks only for the default set's rows. Holds at `1101b206`. |
 | lint plugins | every `lean_lib` and `lean_exe` of the core and of every package loads the lint plugin or imports `Lint` | target-config rule 1 | Exact for `plugins`: each target's effective plugins, its package's included, as Lake applies them; `or-imports` read directly or not (`lint-test`'s root imports `Lint` only through `LintTest.Lint.*`). A plugin given as a facet key (`@editor-core/Lint:shared`) or through `moreLeanArgs` (`--plugin`) is not seen; editor-project uses neither. The packages are enumerated (task `workspace-selector`). `word-count` is not in the workspace; `agents-api` and `acp` are not in the default set. Holds at `0e608324` and `acfed133`. |
 
 The scripts exited 2 when a rule would hold of nothing, so that they could
@@ -396,8 +445,12 @@ rule that bites beside the main one).
 | What a package may import | the four tiers: library, tests, linked test, linked test's root | allow-only rules 1 to 4 | `package-library`, `package-library-double` (1); `package-test`, `fixture-support-test` (2); `package-linked` (3); `package-linked-root`, `package-linked-root-window`, `package-linked-root-window-check` (4); the controls `control-test-double`, `control-test-fake`, `control-linked-root-real` hold |
 | Three layers | core, interface, implementation | `layers` | `layers` (also `core-1`, `host`, `host-shipped-themes`) |
 | Lint plugins | every `lean_lib` and `lean_exe` loads the lint plugin or imports `Lint` | target-config rule 1 | `lint-plugin-package`, `lint-plugin-core` |
+| Leave-out | every implementation package can be dropped from a set's requires | `layers`, require-backed rule 1 | `require-backed`; `layers` bites both |
+| Module map | 1: update the map in the same change | what bullets 2 and 3 check | (bullets 2 and 3) |
+| Module map | 2: "The core's modules" names every `Editor.…` module and no others | doc-modules rule 1 | `doc-modules` |
+| Module map | 3: each default-set package has a row with its layer (columns 1 to 3) | doc-packages rule 1 | `doc-packages` |
 
-Every one of the fourteen rules of the `packages/` policy, and both of the
+Every one of the seventeen rules of the `packages/` policy, and both of the
 core policy, has an edit that adds a violation of it beyond the baseline's.
 
 ## The host check and selectors
@@ -471,23 +524,27 @@ examples/editor-project/acceptance.sh /path/to/editor-project /path/to/work-dir
 The script reads editor-project's HEAD with `git --no-optional-locks
 rev-parse --verify HEAD` (it needs a git checkout, else it exits 2),
 prints it as `editor-project: <sha>`, and extracts that one revision's
-`lean/` and `packages/` with `git --no-optional-locks archive <sha> lean
-packages | tar -x` into `<work dir>/pristine`: committed files only, so
+`lean/`, `packages/` and `docs/design/packages.md` with `git
+--no-optional-locks archive <sha> lean packages docs/design/packages.md |
+tar -x` into `<work dir>/pristine`: committed files only, so
 nothing uncommitted or untracked, and no `.lake/` or `target/`, and a HEAD
 that moves meanwhile cannot split the run. It then checks that both
-lakefiles arrived (POSIX `sh` has no `pipefail`). It never points
+lakefiles and the module map arrived (POSIX `sh` has no `pipefail`). It never points
 lean-deny, or any command that writes, at editor-project itself. It generates
 the two declared roots in the copy (see "Loading editor-project"; a root
 that is not written is a `MISMATCH`), and every edit's copy carries them. It
 prints the as-is load (its exit is printed, not asserted), checks both
 baselines (the `packages/` one expecting exactly reachable rule 1's
-`Editor.Test.Shell` violation and its module line, so no co-reach
-violation), then, for each edit, starts from a fresh copy of the
+`Editor.Test.Shell` violation and its module line, so no co-reach,
+require-backed, doc-modules or doc-packages violation), then, for each edit, starts from a fresh copy of the
 pristine tree, prepends one `import` line to one file, and runs `check`;
 then, for each sed edit, starts again from a fresh copy, applies one
-`sed` script to one file (a lakefile, or the core's root), and runs
-`check` (an edit whose file is gone,
-or whose script changes nothing, is a `MISMATCH`). For
+`sed` script to one file (a lakefile, the core's root, or the module map),
+and runs `check` (an edit whose file is gone,
+or whose script changes nothing, is a `MISMATCH`); then, for the
+new-module edit, starts again from a fresh copy, creates one empty module
+file and prepends an import of it to one file, and runs `check` (a module
+file that already exists is a `MISMATCH`, so the edit cannot add nothing). For
 each run it asserts three things: the exit code; that the rules whose
 violations are printed are exactly the expected ones, so no other rule
 bites; and the summary line, matched as a whole line. At the end it fails if
@@ -545,7 +602,8 @@ table leaves out; a control edit's exit is 1 for that violation alone.
 | package-linked-root | package: even the linked root may not import a raw binding | `packages/compile/CompileTest/Linked.lean` | `Editor.Ffi.Text` | 1 | allow-only rule 4 |
 | package-linked-root-window | package: the linked root may not import the window binding, excepted from its extras | `packages/compile/CompileTest/Linked.lean` | `Editor.Window.Real` | 1 | allow-only rule 4 |
 | package-linked-root-window-check | the same, for the window check's binding | `packages/compile/CompileTest/Linked.lean` | `Editor.WindowCheck.Real` | 1 | allow-only rule 4 |
-| layers | layers: no package imports an implementation package | `packages/compile/Compile.lean` | `Shell` | 1 | `layers` |
+| layers | layers: no package imports an implementation package | `packages/compile/Compile.lean` | `Shell` | 1 | `layers`, require-backed rule 1 |
+| require-backed | Leave-out: a package imports an interface package it reaches only transitively | `packages/version-control/VersionControl/Log.lean` | `CompileApi` | 1 | require-backed rule 1 (`version-control` requires `project-api`, which requires `compile-api`) |
 | control-test-double | control: a test may import a double | `packages/compile/CompileTest/Compile.lean` | `Editor.Text.Model` | 1 | none |
 | control-test-fake | control: a test may import a fake | `packages/compile/CompileTest/Compile.lean` | `Editor.Job.Fake` | 1 | none |
 | control-linked-root-real | control: the linked root may import a real binding | `packages/compile/CompileTest/Linked.lean` | `Editor.Text.Real` | 1 | none |
@@ -560,11 +618,22 @@ violation at HEAD is the baseline's, so `core-2` is its breaking edit.
 | lint-plugin-package | lint plugins, through a package-level `plugins` (TOML) | `packages/compile/lakefile.toml` | `/^plugins = \["@editor-core\/lintShared"\]$/d` | target-config rule 1 ×3 (`Compile`, `CompileTest`, `compile-test`) |
 | lint-plugin-core | lint plugins, through a target's `plugins` (Lean DSL) | `lean/lakefile.lean` | `s/^lean_lib ExtensionFixture where plugins := lintPlugin$/lean_lib ExtensionFixture/` | target-config rule 1 (`ExtensionFixture`, which imports only `Editor.…` modules) |
 | core-2 | core 2: import a new core module from the root | `lean/Editor/Core.lean` | `/^import Editor\.Test\.Linked\.Frames$/d` | reachable rule 1 (`Editor.Test.Linked.Frames`, still imported by `ThemesTest.Linked.Themes`), 2 violations against the baseline's 1 |
+| doc-packages | Module map 3: a package's row gives its layer | `docs/design/packages.md` | `/^. .shell-api. /s/ interface / implementation /` (the table is `\|`-delimited, so `.` stands for `\|` and the backticks) | doc-packages rule 1 (`shell-api`'s row, line 3423) |
+
+The new-module edit adds an empty module file and prepends an import of it
+to one file (exit 1, beyond the baseline's violation):
+
+| id | Breaks | New file (in the copy) | Importing file | New module | Rules that bite (beyond the baseline's) |
+|---|---|---|---|---|---|
+| doc-modules | Module map 2: "The core's modules" names every `Editor.…` module | `lean/Editor/Unlisted.lean` (empty) | `lean/Editor/Core.lean`, so reachable rule 1 stays at the baseline's | `Editor.Unlisted` | doc-modules rule 1 |
 
 Every edit that breaks one script rule bites only that rule's lean-deny
 rule, except where the edit necessarily breaks more: `core-1`, `host` and
 `host-shipped-themes` add an import from the core to a package, which
-`layers` refuses too, and the two host edits' import is in `Editor.Main`,
+`layers` refuses too; `layers` adds an import of an implementation
+package, and no implementation package requires another, so
+require-backed rule 1 bites too (Leave-out needs both rules, and any
+`layers` edit of that shape breaks both); and the two host edits' import is in `Editor.Main`,
 which `Editor.Core` reaches, so deny rule 1 bites as well; and
 `host-entry-core` breaks host bullets 1 and 2 at once, by design (see "The
 host check and selectors"). With the old
@@ -581,14 +650,14 @@ policy, both of those edits hold, so it is the `except` that bites.
 The output of one real run follows, as the script printed it, block by
 block. The work directory is written `<work>`; core paths print absolute
 (see "Loading editor-project"), and the `lean/` runs print paths relative to
-`lean/`. Every `packages/` run ends with the baseline's reachable rule 1
+`lean/`. Every `packages/` run reports the baseline's reachable rule 1
 violation, since no edit imports `Editor.Test.Shell`.
 
 The run begins with the revision line, the HEAD the script read and
 archived:
 
 ```
-editor-project: acfed1331a1f17497b283ddf043f2dcc2c54696e
+editor-project: 1101b2069f1e047544f4ecd2fecc6b04463d6fa3
 ```
 
 ### load the packages/ workspace as it is
@@ -606,12 +675,15 @@ The unmodified `packages/` breaks exactly one rule, once: reachable rule 1
 reports `Editor.Test.Shell`, outside `Editor.Core`'s closure (editor-project's
 core rule 2 finding). The script also asserts the module line. Co-reach rule
 1 holds: every listed root that reaches the elaborator reaches the base.
+Leave-out and the module map hold too: require-backed rule 1, doc-modules
+rule 1 and doc-packages rule 1 report nothing at `1101b206`, so this run
+adds no finding for editor-project's task `lean-structure-rules-tool`.
 
 ```
 == baseline: packages/
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/pristine/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 1 violation in 1 of 14 rules
+lean-deny: 1 violation in 1 of 17 rules
 exit 1
 ```
 
@@ -631,16 +703,16 @@ A core module (the model tests') imports an interface package: the core imports 
 
 ```
 == core-1: lean/ModelTest/Editor/Bound.lean imports CompileApi
-deny rule 1 (examples/editor-project/lean-deny.toml:158:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (examples/editor-project/lean-deny.toml:161:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   <work>/edit/lean/ModelTest.lean:16: ModelTest imports ModelTest.Editor.Bound
   <work>/edit/lean/ModelTest/Editor/Bound.lean:1: ModelTest.Editor.Bound imports CompileApi
-deny rule 1 (examples/editor-project/lean-deny.toml:158:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (examples/editor-project/lean-deny.toml:161:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   <work>/edit/lean/ModelTest/Editor/Bound.lean:1: ModelTest.Editor.Bound imports CompileApi
-layers (examples/editor-project/lean-deny.toml:221:0): three layers (layer imports check): editor-core (core) may not import compile-api (interface)
+layers (examples/editor-project/lean-deny.toml:224:0): three layers (layer imports check): editor-core (core) may not import compile-api (interface)
   <work>/edit/lean/ModelTest/Editor/Bound.lean:1: ModelTest.Editor.Bound imports CompileApi
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 4 violations in 3 of 14 rules
+lean-deny: 4 violations in 3 of 17 rules
 exit 1
 ```
 
@@ -650,11 +722,11 @@ The contract tests' root, an executable root that reaches neither the config ela
 
 ```
 == core-3: lean/ContractTest.lean imports Editor.Config.Elaborate
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-co-reach rule 1 (examples/editor-project/lean-deny.toml:242:0): the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3): ContractTest reaches Editor.Config.Elaborate but not Editor
+co-reach rule 1 (examples/editor-project/lean-deny.toml:245:0): the elaborator imports the config base's modules at runtime, so every executable root that reaches it links the base (core imports check, rule 3): ContractTest reaches Editor.Config.Elaborate but not Editor
   <work>/edit/lean/ContractTest.lean:1: ContractTest imports Editor.Config.Elaborate
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -664,7 +736,7 @@ The base's module `Editor.Bound`, which `Editor` and `ModelTest` both reach, imp
 
 ```
 == core-4: lean/Editor/Bound.lean imports Lean.Data.Json
-deny rule 2 (examples/editor-project/lean-deny.toml:165:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
+deny rule 2 (examples/editor-project/lean-deny.toml:168:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
   <work>/edit/lean/Editor.lean:5: Editor imports Editor.Jumps.Go
   <work>/edit/lean/Editor/Jumps/Go.lean:2: Editor.Jumps.Go imports FilesApi
   <work>/edit/lean/FilesApi.lean:1: FilesApi imports Editor.Extension
@@ -672,13 +744,13 @@ deny rule 2 (examples/editor-project/lean-deny.toml:165:0): the config base and 
   <work>/edit/lean/Editor/Setup.lean:21: Editor.Setup imports Editor.Window
   <work>/edit/lean/Editor/Window.lean:1: Editor.Window imports Editor.Bound
   <work>/edit/lean/Editor/Bound.lean:1: Editor.Bound imports Lean.Data.Json
-deny rule 2 (examples/editor-project/lean-deny.toml:165:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
+deny rule 2 (examples/editor-project/lean-deny.toml:168:0): the config base and the model tests' root are plain Lean (core imports check, rule 4)
   <work>/edit/lean/ModelTest.lean:16: ModelTest imports ModelTest.Editor.Bound
   <work>/edit/lean/ModelTest/Editor/Bound.lean:1: ModelTest.Editor.Bound imports Editor.Bound
   <work>/edit/lean/Editor/Bound.lean:1: Editor.Bound imports Lean.Data.Json
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 3 violations in 2 of 14 rules
+lean-deny: 3 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -710,12 +782,12 @@ A module `ModelTest` reaches imports a raw binding.
 
 ```
 == core-5: lean/ModelTest/Editor/Bound.lean imports Editor.Ffi.Text
-deny rule 3 (examples/editor-project/lean-deny.toml:172:0): model-test links no Rust library (core imports check, rule 5)
+deny rule 3 (examples/editor-project/lean-deny.toml:175:0): model-test links no Rust library (core imports check, rule 5)
   <work>/edit/lean/ModelTest.lean:16: ModelTest imports ModelTest.Editor.Bound
   <work>/edit/lean/ModelTest/Editor/Bound.lean:1: ModelTest.Editor.Bound imports Editor.Ffi.Text
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -738,18 +810,18 @@ A host module imports a feature module; it is also a core module importing a pac
 
 ```
 == host: lean/Editor/Main.lean imports Compile.Compiled
-deny rule 1 (examples/editor-project/lean-deny.toml:158:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (examples/editor-project/lean-deny.toml:161:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   <work>/edit/lean/Editor/Core.lean:23: Editor.Core imports Editor.Main
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports Compile.Compiled
-deny rule 1 (examples/editor-project/lean-deny.toml:158:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (examples/editor-project/lean-deny.toml:161:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports Compile.Compiled
-deny rule 4 (examples/editor-project/lean-deny.toml:179:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (examples/editor-project/lean-deny.toml:182:0): the host is handed its packages as a value and names none of them (host imports check)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports Compile.Compiled
-layers (examples/editor-project/lean-deny.toml:221:0): three layers (layer imports check): editor-core (core) may not import compile (implementation)
+layers (examples/editor-project/lean-deny.toml:224:0): three layers (layer imports check): editor-core (core) may not import compile (implementation)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports Compile.Compiled
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 5 violations in 4 of 14 rules
+lean-deny: 5 violations in 4 of 17 rules
 exit 1
 ```
 
@@ -759,18 +831,18 @@ A host module imports the entry module the old hand-written list lacked; the der
 
 ```
 == host-shipped-themes: lean/Editor/Main.lean imports ShippedThemes.EditorPackage
-deny rule 1 (examples/editor-project/lean-deny.toml:158:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (examples/editor-project/lean-deny.toml:161:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   <work>/edit/lean/Editor/Core.lean:23: Editor.Core imports Editor.Main
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports ShippedThemes.EditorPackage
-deny rule 1 (examples/editor-project/lean-deny.toml:158:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
+deny rule 1 (examples/editor-project/lean-deny.toml:161:0): a package may depend on the core, and the core on no package (core imports check, rule 1)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports ShippedThemes.EditorPackage
-deny rule 4 (examples/editor-project/lean-deny.toml:179:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (examples/editor-project/lean-deny.toml:182:0): the host is handed its packages as a value and names none of them (host imports check)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports ShippedThemes.EditorPackage
-layers (examples/editor-project/lean-deny.toml:221:0): three layers (layer imports check): editor-core (core) may not import shipped-themes (implementation)
+layers (examples/editor-project/lean-deny.toml:224:0): three layers (layer imports check): editor-core (core) may not import shipped-themes (implementation)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports ShippedThemes.EditorPackage
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 5 violations in 4 of 14 rules
+lean-deny: 5 violations in 4 of 17 rules
 exit 1
 ```
 
@@ -784,22 +856,22 @@ times).
 
 ```
 == host-entry-core: packages/compile/Compile/EditorPackage.lean imports Editor.Text
-deny rule 4 (examples/editor-project/lean-deny.toml:179:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (examples/editor-project/lean-deny.toml:182:0): the host is handed its packages as a value and names none of them (host imports check)
   <work>/edit/lean/Editor.lean:7: Editor imports Editor.Text.Word
   <work>/edit/lean/Editor/Text/Word.lean:1: Editor.Text.Word imports Editor.Text
-deny rule 4 (examples/editor-project/lean-deny.toml:179:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (examples/editor-project/lean-deny.toml:182:0): the host is handed its packages as a value and names none of them (host imports check)
   <work>/edit/lean/Editor/Main.lean:1: Editor.Main imports Editor.Command.Append
   <work>/edit/lean/Editor/Command/Append.lean:1: Editor.Command.Append imports Editor.Text.Model
   <work>/edit/lean/Editor/Text/Model.lean:1: Editor.Text.Model imports Editor.Text
-deny rule 4 (examples/editor-project/lean-deny.toml:179:0): the host is handed its packages as a value and names none of them (host imports check)
+deny rule 4 (examples/editor-project/lean-deny.toml:182:0): the host is handed its packages as a value and names none of them (host imports check)
   <work>/edit/lean/Editor/Test/Fixture/Main.lean:1: Editor.Test.Fixture.Main imports Editor.InputScheme
   <work>/edit/lean/Editor/InputScheme.lean:5: Editor.InputScheme imports Editor.Scene
   <work>/edit/lean/Editor/Scene.lean:2: Editor.Scene imports Editor.Text
-deny rule 5 (examples/editor-project/lean-deny.toml:187:0): an entry module imports package modules and nothing else (host imports)
+deny rule 5 (examples/editor-project/lean-deny.toml:190:0): an entry module imports package modules and nothing else (host imports)
   compile/Compile/EditorPackage.lean:1: Compile.EditorPackage imports Editor.Text
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 5 violations in 3 of 14 rules
+lean-deny: 5 violations in 3 of 17 rules
 exit 1
 ```
 
@@ -809,11 +881,11 @@ An entry module imports a toolchain module, which is no package module.
 
 ```
 == host-entry-lean: packages/compile/Compile/EditorPackage.lean imports Lean.Data.Json
-deny rule 5 (examples/editor-project/lean-deny.toml:187:0): an entry module imports package modules and nothing else (host imports)
+deny rule 5 (examples/editor-project/lean-deny.toml:190:0): an entry module imports package modules and nothing else (host imports)
   compile/Compile/EditorPackage.lean:1: Compile.EditorPackage imports Lean.Data.Json
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -824,13 +896,13 @@ editor's root links it (through the entry module `Workspace.EditorPackage`).
 
 ```
 == host-fixture-support: packages/workspace/Workspace/Compiled.lean imports WorkspaceTest.FixtureSupport
-deny rule 6 (examples/editor-project/lean-deny.toml:193:0): a fixture support module is a test module: the fixture harness's root imports it, never the editor's (host imports)
+deny rule 6 (examples/editor-project/lean-deny.toml:196:0): a fixture support module is a test module: the fixture harness's root imports it, never the editor's (host imports)
   .lake/build/root/EditorSetRoot.lean:14: EditorSetRoot imports Workspace.EditorPackage
   workspace/Workspace/EditorPackage.lean:1: Workspace.EditorPackage imports Workspace.Compiled
   workspace/Workspace/Compiled.lean:1: Workspace.Compiled imports WorkspaceTest.FixtureSupport
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -841,11 +913,11 @@ a test module may", and a test module outside a linked test may not.
 
 ```
 == fixture-support-test: packages/workspace/WorkspaceTest/FixtureSupport.lean imports Editor.Test.Linked.Rig
-allow-only rule 2 (examples/editor-project/lean-deny.toml:205:0): a package's tests may also import the core's test doubles (package imports check)
+allow-only rule 2 (examples/editor-project/lean-deny.toml:208:0): a package's tests may also import the core's test doubles (package imports check)
   workspace/WorkspaceTest/FixtureSupport.lean:1: WorkspaceTest.FixtureSupport imports Editor.Test.Linked.Rig
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -855,11 +927,11 @@ A package's library imports an internal module of the core (the loop).
 
 ```
 == package-library: packages/compile/Compile.lean imports Editor.Loop
-allow-only rule 1 (examples/editor-project/lean-deny.toml:200:0): a package's library imports the core's API alone (package imports check)
+allow-only rule 1 (examples/editor-project/lean-deny.toml:203:0): a package's library imports the core's API alone (package imports check)
   compile/Compile.lean:1: Compile imports Editor.Loop
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -869,11 +941,11 @@ A package's library imports a test double, which only its tests may.
 
 ```
 == package-library-double: packages/compile/Compile.lean imports Editor.Text.Model
-allow-only rule 1 (examples/editor-project/lean-deny.toml:200:0): a package's library imports the core's API alone (package imports check)
+allow-only rule 1 (examples/editor-project/lean-deny.toml:203:0): a package's library imports the core's API alone (package imports check)
   compile/Compile.lean:1: Compile imports Editor.Text.Model
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -883,11 +955,11 @@ A package's test module, outside its linked test, imports the linked test kit.
 
 ```
 == package-test: packages/compile/CompileTest/Compile.lean imports Editor.Test.Linked.Rig
-allow-only rule 2 (examples/editor-project/lean-deny.toml:205:0): a package's tests may also import the core's test doubles (package imports check)
+allow-only rule 2 (examples/editor-project/lean-deny.toml:208:0): a package's tests may also import the core's test doubles (package imports check)
   compile/CompileTest/Compile.lean:1: CompileTest.Compile imports Editor.Test.Linked.Rig
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -897,11 +969,11 @@ A module under the linked test's root imports the headless host, which only the 
 
 ```
 == package-linked: packages/compile/CompileTest/Linked/Compile.lean imports Editor.Headless
-allow-only rule 3 (examples/editor-project/lean-deny.toml:210:0): a package's linked test may also import the linked test kit (package imports check)
+allow-only rule 3 (examples/editor-project/lean-deny.toml:213:0): a package's linked test may also import the linked test kit (package imports check)
   compile/CompileTest/Linked/Compile.lean:1: CompileTest.Linked.Compile imports Editor.Headless
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -911,11 +983,11 @@ The linked test's root imports a raw binding, which no module of a package may.
 
 ```
 == package-linked-root: packages/compile/CompileTest/Linked.lean imports Editor.Ffi.Text
-allow-only rule 4 (examples/editor-project/lean-deny.toml:215:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+allow-only rule 4 (examples/editor-project/lean-deny.toml:218:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
   compile/CompileTest/Linked.lean:1: CompileTest.Linked imports Editor.Ffi.Text
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -925,11 +997,11 @@ The linked test's root imports the window binding, a real binding its extras exc
 
 ```
 == package-linked-root-window: packages/compile/CompileTest/Linked.lean imports Editor.Window.Real
-allow-only rule 4 (examples/editor-project/lean-deny.toml:215:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+allow-only rule 4 (examples/editor-project/lean-deny.toml:218:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
   compile/CompileTest/Linked.lean:1: CompileTest.Linked imports Editor.Window.Real
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -939,25 +1011,49 @@ The same, for the window check's binding.
 
 ```
 == package-linked-root-window-check: packages/compile/CompileTest/Linked.lean imports Editor.WindowCheck.Real
-allow-only rule 4 (examples/editor-project/lean-deny.toml:215:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
+allow-only rule 4 (examples/editor-project/lean-deny.toml:218:0): a linked test's root may also import the real bindings, the headless host and the config base (package imports check)
   compile/CompileTest/Linked.lean:1: CompileTest.Linked imports Editor.WindowCheck.Real
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
 ### layers: packages/compile/Compile.lean imports Shell
 
-An implementation package imports another implementation package.
+An implementation package imports another implementation package, which
+it does not require: `layers` and require-backed rule 1 both bite.
 
 ```
 == layers: packages/compile/Compile.lean imports Shell
-layers (examples/editor-project/lean-deny.toml:221:0): three layers (layer imports check): compile (implementation) may not import shell (implementation)
+layers (examples/editor-project/lean-deny.toml:224:0): three layers (layer imports check): compile (implementation) may not import shell (implementation)
   compile/Compile.lean:1: Compile imports Shell
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 2 of 14 rules
+require-backed rule 1 (examples/editor-project/lean-deny.toml:365:0): a set may drop any implementation package and still build: every package requires what it imports (leave-out): Compile (package compile) imports package shell, which compile does not require directly
+  compile/Compile.lean:1: Compile imports Shell
+  compile/lakefile.toml: compile requires minibuffer-api, compile-api, shell-api, editor-core
+lean-deny: 3 violations in 3 of 17 rules
+exit 1
+```
+
+### require-backed: packages/version-control/VersionControl/Log.lean imports CompileApi
+
+A package imports an interface package it reaches only transitively:
+`version-control` requires `project-api`, `vc-api`, `buffers-api` and
+`editor-core`, and `project-api` requires `compile-api`. Nothing else
+bites: `compile-api` is in `set:packages`, and `layers` allows an
+interface import. The script also asserts the requires line and the
+module and package named.
+
+```
+== require-backed: packages/version-control/VersionControl/Log.lean imports CompileApi
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+  <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
+require-backed rule 1 (examples/editor-project/lean-deny.toml:365:0): a set may drop any implementation package and still build: every package requires what it imports (leave-out): VersionControl.Log (package version-control) imports package compile-api, which version-control does not require directly
+  version-control/VersionControl/Log.lean:1: VersionControl.Log imports CompileApi
+  version-control/lakefile.toml: version-control requires project-api, vc-api, buffers-api, editor-core
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -967,9 +1063,9 @@ Control: a package's test imports a test double. Only the baseline's violation i
 
 ```
 == control-test-double: packages/compile/CompileTest/Compile.lean imports Editor.Text.Model
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 1 violation in 1 of 14 rules
+lean-deny: 1 violation in 1 of 17 rules
 exit 1
 ```
 
@@ -979,9 +1075,9 @@ Control: a package's test imports a fake. Only the baseline's violation is repor
 
 ```
 == control-test-fake: packages/compile/CompileTest/Compile.lean imports Editor.Job.Fake
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 1 violation in 1 of 14 rules
+lean-deny: 1 violation in 1 of 17 rules
 exit 1
 ```
 
@@ -991,9 +1087,9 @@ Control: the linked test's root imports a real binding. Only the baseline's viol
 
 ```
 == control-linked-root-real: packages/compile/CompileTest/Linked.lean imports Editor.Text.Real
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 1 violation in 1 of 14 rules
+lean-deny: 1 violation in 1 of 17 rules
 exit 1
 ```
 
@@ -1004,15 +1100,15 @@ libraries and its executable load no plugin, and none imports `Lint`.
 
 ```
 == lint-plugin-package: packages/compile/lakefile.toml, sed '/^plugins = \["@editor-core\/lintShared"\]$/d'
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-target-config rule 1 (examples/editor-project/lean-deny.toml:307:0): a target that loads no plugin is never linted (lint plugins): lean_lib compile/Compile does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
+target-config rule 1 (examples/editor-project/lean-deny.toml:310:0): a target that loads no plugin is never linted (lint plugins): lean_lib compile/Compile does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   compile/lakefile.toml: lean_lib Compile
-target-config rule 1 (examples/editor-project/lean-deny.toml:307:0): a target that loads no plugin is never linted (lint plugins): lean_lib compile/CompileTest does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
+target-config rule 1 (examples/editor-project/lean-deny.toml:310:0): a target that loads no plugin is never linted (lint plugins): lean_lib compile/CompileTest does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   compile/lakefile.toml: lean_lib CompileTest
-target-config rule 1 (examples/editor-project/lean-deny.toml:307:0): a target that loads no plugin is never linted (lint plugins): lean_exe compile/compile-test does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
+target-config rule 1 (examples/editor-project/lean-deny.toml:310:0): a target that loads no plugin is never linted (lint plugins): lean_exe compile/compile-test does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   compile/lakefile.toml: lean_exe compile-test
-lean-deny: 4 violations in 2 of 14 rules
+lean-deny: 4 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -1024,11 +1120,11 @@ empty; it imports only `Editor.…` modules.
 
 ```
 == lint-plugin-core: lean/lakefile.lean, sed 's/^lean_lib ExtensionFixture where plugins := lintPlugin$/lean_lib ExtensionFixture/'
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-target-config rule 1 (examples/editor-project/lean-deny.toml:307:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/ExtensionFixture does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
+target-config rule 1 (examples/editor-project/lean-deny.toml:310:0): a target that loads no plugin is never linted (lint plugins): lean_lib editor-core/ExtensionFixture does not load @editor-core/lintShared and imports no module of lib:editor-core/Lint
   <work>/edit/lean/lakefile.lean: lean_lib ExtensionFixture
-lean-deny: 2 violations in 2 of 14 rules
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -1042,11 +1138,47 @@ build reaches it outside `Editor.Core`'s closure, beside the baseline's
 
 ```
 == core-2: lean/Editor/Core.lean, sed '/^import Editor\.Test\.Linked\.Frames$/d'
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Linked.Frames is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Linked.Frames is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Linked/Frames.lean: Editor.Test.Linked.Frames
-reachable rule 1 (examples/editor-project/lean-deny.toml:232:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
   <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
-lean-deny: 2 violations in 1 of 14 rules
+lean-deny: 2 violations in 1 of 17 rules
+exit 1
+```
+
+### doc-packages: docs/design/packages.md
+
+The module map's row for `shell-api` (line 3423, in the first table of
+"The packages") gets the layer `implementation`; its lakefile declares the
+keyword `editor-interface`, so `[layers]` puts it in `interface`. The
+script also asserts the text of the violation. The path prints as the
+rule's `file` gives it, relative to `packages/`.
+
+```
+== doc-packages: docs/design/packages.md, sed '/^. .shell-api. /s/ interface / implementation /'
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+  <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
+doc-packages rule 1 (examples/editor-project/lean-deny.toml:380:0): the module map has one row per default-set package, with its layer and what it requires beside the core (module map): section 'The packages' of ../docs/design/packages.md gives shell-api layer implementation, but [layers] puts it in interface
+  ../docs/design/packages.md:3423: shell-api
+lean-deny: 2 violations in 2 of 17 rules
+exit 1
+```
+
+### doc-modules: lean/Editor/Core.lean imports Editor.Unlisted, a new lean/Editor/Unlisted.lean
+
+A new, empty module `Editor.Unlisted` under `lean/Editor/`, imported from
+the core's root so that the build loads it and reachable rule 1 stays at
+the baseline's, and left out of "The core's modules". The script also
+asserts the module line and the text of the violation.
+
+```
+== doc-modules: lean/Editor/Core.lean imports Editor.Unlisted, a new lean/Editor/Unlisted.lean
+reachable rule 1 (examples/editor-project/lean-deny.toml:235:0): the core's root holds the whole core (core imports check, rule 2): Editor.Test.Shell is outside the import closure of Editor.Core
+  <work>/edit/lean/Editor/Test/Shell.lean: Editor.Test.Shell
+doc-modules rule 1 (examples/editor-project/lean-deny.toml:370:0): the module map names every module under lean/Editor/ and no other (module map): Editor.Unlisted is not listed in section 'The core's modules' of ../docs/design/packages.md
+  <work>/edit/lean/Editor/Unlisted.lean: Editor.Unlisted
+  ../docs/design/packages.md:3313: section 'The core's modules'
+lean-deny: 2 violations in 2 of 17 rules
 exit 1
 ```
 
@@ -1110,10 +1242,28 @@ it part of `lake test`:
   `root/EditorSetFixtures.lean` drops `import Editor`, so the fixture-harness
   root reaches `Editor.Config.Elaborate` (through
   `Editor.Test.Fixture.Main` and `Editor.Headless`) without the base. For
-  target-config rule 1 the core's `FilesApi` library loads no plugin.
+  target-config rule 1 the core's `FilesApi` library loads no plugin. For
+  require-backed rule 1, compile's library module `Compile` imports
+  `ShellApi`, which `compile` reaches only through `compile-api`, mirroring
+  the `require-backed` edit (its import of `Shell`, for `layers`, breaks it
+  too). For doc-modules rule 1, its `docs/design/packages.md` does not list
+  `Editor.Test.Shell`, the module it adds, mirroring the `doc-modules`
+  edit; for doc-packages rule 1, the same file gives `shell-api` the layer
+  `implementation`, mirroring the `doc-packages` edit.
+- Both workspaces hold `docs/design/packages.md`, a miniature of
+  editor-project's module map: "The core's modules" names the 15 `Editor.…`
+  modules of `editor-ws` in a table shaped like editor-project's (its
+  prose names paths such as `lean/Editor/`, which the rule ignores), and
+  "The packages" has a row for each of the five packages, with its layer
+  and requires beside the core, then a second table of the same shape with
+  a row for `acp`, a package outside the workspace, which the rule must not
+  read (as editor-project's agents table).
 - `tests/fixtures/editor-acceptance-holds` runs the policy cut down to these
   modules (the same set names, rules, order and reasons, and the two roots
-  declared with `[[root]]`) over `editor-ws`: `lean-deny: ok (14 rules)`.
+  declared with `[[root]]`) over `editor-ws`: `lean-deny: ok (17 rules)`.
+  Its doc rules read `docs/design/packages.md`, not `../docs/…`: the
+  miniature's core is inside the workspace (`path = "lean"`), so the
+  module map is under the workspace root.
   Its target-config rule lists the miniature's six packages. Its
   host sets are derived as the example policy's are: `set:entry-modules` is
   the three entry modules, `set:fixture-support` is
@@ -1126,7 +1276,7 @@ it part of `lake test`:
   twice (`Editor.Main` and `Editor.Test.Fixture.Main`, through
   `Editor.Headless` and `Editor.Loop`).
 - `tests/fixtures/editor-acceptance-bites` runs the same policy over
-  `editor-broken-ws`: `lean-deny: 26 violations in 14 of 14 rules`. Deny rule
+  `editor-broken-ws`: `lean-deny: 30 violations in 17 of 17 rules`. Deny rule
   1 bites five times (`Editor.Core` through `Editor.Main`, `Editor.Main`,
   `Editor.Test.Fixture.Main`, `ModelTest` through `ModelTest.Bound`,
   `ModelTest.Bound`), deny rule 2 twice, deny rule 4 twice (`Editor.Main`,
@@ -1139,7 +1289,13 @@ it part of `lake test`:
   editor-core → compile-api), and every other rule once, reachable rule 1
   on `Editor.Test.Shell` (`lean/Editor/Test/Shell.lean`) and co-reach rule 1
   on `EditorSetFixtures`, which reaches `Editor.Config.Elaborate` but not
-  `Editor`, and target-config rule 1 on `editor-core/FilesApi`. Without the
+  `Editor`, and target-config rule 1 on `editor-core/FilesApi`;
+  require-backed rule 1 twice (`Compile` imports `Shell` and `ShellApi`,
+  and `compile` requires only `editor-core` and `compile-api`), doc-modules
+  rule 1 once (`Editor.Test.Shell`) and doc-packages rule 1 once
+  (`shell-api`'s layer). With any one of the three rules taken out of the
+  policy, exactly its lines go (28, 29 and 29 violations), so `lake test`
+  fails if one stops biting. Without the
   `except`, the `Editor.Window.Real` violation is not reported; with a
   hand-written entry-module list lacking `ShippedThemes.EditorPackage`, deny
   rule 4 misses `Editor.Test.Fixture.Main`; with deny rule 5's `to` cut to
@@ -1153,7 +1309,8 @@ it part of `lake test`:
 
 The fixtures are a model of editor-project's structure, not a copy of it:
 each `.lean` file holds only `import` lines (two hold none), with
-editor-project's module and package names and none of its source. Their
+editor-project's module and package names and none of its source, and the
+Markdown is a miniature of `packages.md`'s module map. Their
 lakefiles are TOML, so loading them runs no code, and they write nothing.
 The `ModelTests` library matters: without it `ModelTest.Bound` would belong
 to no target and become an external node, and deny rules 1 and 3 would not
@@ -1172,6 +1329,8 @@ on `main`.
 | Core rule 4 sees only direct imports of `Lean`/`Lake`, as the script did (not a regression). | `external-transitive-reach` |
 | Paths outside the workspace directory (the core's, `../lean`) print absolute. | `relative-paths-outside-root` |
 | The lint-plugins rule's packages are enumerated: a new package is outside target-config rule 1 until listed. | `workspace-selector` |
+| The module map's columns 4 and 5 (the extension points a package registers at and reads) are not checked: they need elaborated Lean, a non-goal of roadmap `editor-project-module-map-leave-out`. | none |
+| `set:packages` is enumerated: a new implementation package missing from it escapes require-backed rule 1. Its row in the module map would then show up as a doc-packages violation (`a row for X, which 'packages' does not match`), so the omission does not pass silently. | `workspace-selector` |
 | A fixture support module imported directly by the editor's generated root would be derived as an entry module, so `set:fixture-support` would be empty and the check would exit 2 (`set 'fixture-support' matches no module: its except list removes every module it selects`), not report a deny rule 6 violation. It still fails the check. Telling the two apart by name (`<P>Test.FixtureSupport` against `….EditorPackage`) needs a glob selector. | `glob-selector` |
 
 ## For editor-project's adoption
@@ -1184,7 +1343,16 @@ This is input for editor-project's task `lean-structure-rules-tool`:
   copy.
 - The policy reports `Editor.Test.Shell` (reachable rule 1) until
   `Editor.Core` imports it, which is what editor-project's own core rule 2
-  asks for. It is still the baseline's only violation at `acfed133`.
+  asks for. It is still the baseline's only violation at `acfed133` and at
+  `1101b206`.
+- Leave-out and the module map hold at `1101b206`: require-backed rule 1,
+  doc-modules rule 1 and doc-packages rule 1 report nothing, so this run
+  adds no finding for `lean-structure-rules-tool`.
+- `packages.md` says of the module map "No gate step checks it; rdm task
+  `lean-structure-rules-tool` is where automated checking comes back".
+  doc-modules rule 1 and doc-packages rule 1 are that check, for "The
+  core's modules" and for columns 1 to 3 of "The packages". Run from
+  `packages/`, their `file` is `../docs/design/packages.md`.
 - Deny rule 6 reads "Host imports" bullet 3 as "of the two generated roots,
   only the fixture harness's imports a fixture support module, and the
   editor's root does not link one"; editor-project's own model test of
