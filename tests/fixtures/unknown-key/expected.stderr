@@ -1,1 +1,1 @@
-lean-deny: error: lean-deny.toml:2:0: unknown key 'bans' (known keys: sets, deny)
+lean-deny: error: lean-deny.toml:2:0: unknown key 'bans' (known keys: sets, deny, allow-only)

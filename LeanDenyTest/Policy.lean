@@ -2,8 +2,8 @@ import LeanDeny
 
 /-!
 Tests of the policy loader (`LeanDeny.Policy.ofToml`) on TOML texts: the
-three forms of a set, the two forms of `[[deny]]`, the positions of sets,
-rules and selectors, every load-time error with its exact rendering, `set:`
+three forms of a set, the two forms of `[[deny]]` and of `[[allow-only]]`,
+the positions of sets, rules and selectors, every load-time error with its exact rendering, `set:`
 references and cycles, and the order sets are resolved in.
 -/
 
@@ -45,11 +45,20 @@ def renderRule (r : DenyRule) : String :=
     {if r.transitive then " transitive" else ""}\
     {if r.wrappers.isEmpty then "" else s!" wrappers[{refs r.wrappers}]"} reason={repr r.reason}"
 
-/-- Every set, then the order by name, then every rule. -/
+/-- An allow-only rule as `allow-only#1@pos from[…][ except[…]] allow[…] reason="…"`. -/
+def renderAllowOnly (r : AllowOnlyRule) : String :=
+  let refs (rs : Array SelectorRef) := ", ".intercalate (rs.map renderRef).toList
+  s!"allow-only#{r.index}@{renderPos r.pos?} from[{refs r.sources}]\
+    {if r.except.isEmpty then "" else s!" except[{refs r.except}]"} allow[{refs r.allow}] \
+    reason={repr r.reason}"
+
+/-- Every set, then the order by name, then every deny rule, then every
+allow-only rule. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
   (p.sets.map renderSet |>.push
       s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
-    p.deny.map renderRule
+    p.deny.map renderRule ++
+    p.allowOnly.map renderAllowOnly
 
 /-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
 def denyWith (extra : String) : String :=
@@ -84,8 +93,9 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "b@3:4 [pkg:b@3:5 select(b)]", "order: b a"]),
     -- Unknown top-level keys.
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
-      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny)"]),
-    ("foo = 1", "foo = 1\n", .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny)"]),
+      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only)"]),
+    ("foo = 1", "foo = 1\n",
+      .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -154,7 +164,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
         #["p.toml:3:4: set 'b' is empty",
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external or set)",
-          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny)",
+          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/
@@ -255,6 +265,124 @@ def denyCases : Array (String × String × Except (Array String) (Array String))
           "p.toml:2:7: selector 'set:nope' in deny rule 1 ('from') names an unknown set \
             (defined: a, b)"])]
 
+/-- An allow-only table with `from`, `allow` and `reason`, then `extra` lines. -/
+def allowOnlyWith (extra : String) : String :=
+  s!"[[allow-only]]\nfrom = \"mod:A\"\nallow = \"mod:B\"\nreason = \"r\"\n{extra}"
+
+/-- `[[allow-only]]` cases, as `cases`. -/
+def allowOnlyCases : Array (String × String × Except (Array String) (Array String)) :=
+  #[ -- The two forms, string versus array fields, `except` absent and present.
+    ("[[allow-only]] tables",
+      "[[allow-only]]\nfrom = \"mod:A\"\nallow = [\"mod:B\", \"external:Init\"]\nreason = \"r1\"\n\n\
+        [[allow-only]]\nfrom = [\"mod:X\"]\nexcept = \"mod:X.T!\"\nallow = \"mod:C!\"\n\
+        reason = \"r2\"\n",
+      .ok
+        #["order: ",
+          "allow-only#1@1:0 from[mod:A@2:7 allow-only1.from] allow[mod:B@3:9 allow-only1.allow, \
+            external:Init@3:18 allow-only1.allow] reason=\"r1\"",
+          "allow-only#2@6:0 from[mod:X@7:8 allow-only2.from] except[mod:X.T!@8:9 \
+            allow-only2.except] allow[mod:C!@9:8 allow-only2.allow] reason=\"r2\""]),
+    ("inline tables",
+      "allow-only = [{ from = \"mod:A\", allow = \"mod:B\", reason = \"r\" }, \
+        { from = \"mod:C\", except = [\"mod:C.T\"], allow = \"mod:D\", reason = \"s\" }]\n",
+      .ok
+        #["order: ",
+          "allow-only#1@1:14 from[mod:A@1:23 allow-only1.from] allow[mod:B@1:40 \
+            allow-only1.allow] reason=\"r\"",
+          "allow-only#2@1:65 from[mod:C@1:74 allow-only2.from] except[mod:C.T@1:93 \
+            allow-only2.except] allow[mod:D@1:113 allow-only2.allow] reason=\"s\""]),
+    ("sets in every field",
+      "[sets]\ncore = [\"pkg:core\"]\n\n[[allow-only]]\nfrom = \"set:core\"\n\
+        except = [\"mod:A!\", \"set:core\"]\nallow = \"set:core\"\nreason = \"r\"\n",
+      .ok
+        #["core@2:7 [pkg:core@2:8 select(core)]", "order: core",
+          "allow-only#1@4:0 from[set:core@5:7 allow-only1.from] except[mod:A!@6:10 \
+            allow-only1.except, set:core@6:20 allow-only1.except] allow[set:core@7:8 \
+            allow-only1.allow] reason=\"r\""]),
+    -- The shape of `allow-only`.
+    ("allow-only = 1", "allow-only = 1\n",
+      .error #["p.toml:1:13: 'allow-only' must be an array of tables, such as [[allow-only]]"]),
+    ("[allow-only]", "[allow-only]\nfrom = \"pkg:a\"\n",
+      .error #["p.toml:1:0: 'allow-only' must be an array of tables, such as [[allow-only]]"]),
+    ("allow-only = []", "allow-only = []\n",
+      .error #["p.toml:1:13: 'allow-only' is empty (omit it)"]),
+    ("allow-only = [1]", "allow-only = [1]\n",
+      .error #["p.toml:1:14: allow-only rule 1 must be a table, found an integer"]),
+    -- Every load-time error of an allow-only table.
+    ("missing keys", "[[allow-only]]\nexcept = \"mod:A\"\n",
+      .error
+        #["p.toml:1:0: allow-only rule 1 has no 'from'",
+          "p.toml:1:0: allow-only rule 1 has no 'allow'",
+          "p.toml:1:0: allow-only rule 1 has no 'reason'"]),
+    ("missing keys come before the entries' errors", "[[allow-only]]\nallow = 1\n",
+      .error
+        #["p.toml:1:0: allow-only rule 1 has no 'from'",
+          "p.toml:1:0: allow-only rule 1 has no 'reason'",
+          "p.toml:2:8: allow-only rule 1: 'allow' must be a selector or an array of selectors, \
+            found an integer"]),
+    ("an unknown key", allowOnlyWith "allows = \"mod:W\"\n",
+      .error
+        #["p.toml:5:9: allow-only rule 1: unknown key 'allows' (expected from, except, allow, \
+            reason)"]),
+    ("from, except and allow not selectors",
+      "[[allow-only]]\nfrom = 1\nexcept = { a = 1 }\nallow = true\nreason = \"r\"\n",
+      .error
+        #["p.toml:2:7: allow-only rule 1: 'from' must be a selector or an array of selectors, \
+            found an integer",
+          "p.toml:3:9: allow-only rule 1: 'except' must be a selector or an array of selectors, \
+            found a table",
+          "p.toml:4:8: allow-only rule 1: 'allow' must be a selector or an array of selectors, \
+            found a boolean"]),
+    ("empty lists", "[[allow-only]]\nfrom = []\nexcept = []\nallow = []\nreason = \"r\"\n",
+      .error
+        #["p.toml:2:7: allow-only rule 1: 'from' is empty",
+          "p.toml:3:9: allow-only rule 1: 'except' is empty (omit it)",
+          "p.toml:4:8: allow-only rule 1: 'allow' is empty"]),
+    ("an element not a string", allowOnlyWith "except = [\"mod:W\", true]\n",
+      .error
+        #["p.toml:5:19: allow-only rule 1 ('except'): expected a selector string, found a \
+            boolean"]),
+    ("a malformed selector",
+      "[[allow-only]]\nfrom = \"mod:A\"\nallow = [\"pkg:\"]\nreason = \"r\"\n",
+      .error #["p.toml:3:9: invalid selector 'pkg:': nothing after 'pkg:'"]),
+    ("reason not a string", "[[allow-only]]\nfrom = \"mod:A\"\nallow = \"mod:B\"\nreason = false\n",
+      .error #["p.toml:4:9: allow-only rule 1: 'reason' must be a string, found a boolean"]),
+    ("reason blank", "[[allow-only]]\nfrom = \"mod:A\"\nallow = \"mod:B\"\nreason = \"  \"\n",
+      .error #["p.toml:4:9: allow-only rule 1: 'reason' is empty"]),
+    ("a rule with errors keeps its number",
+      "[[allow-only]]\nallow = \"mod:B\"\n\n[[allow-only]]\nfrom = \"mod:A\"\nallow = \"mod:B\"\n\
+        reason = 1\n",
+      .error
+        #["p.toml:1:0: allow-only rule 1 has no 'from'",
+          "p.toml:1:0: allow-only rule 1 has no 'reason'",
+          "p.toml:7:9: allow-only rule 2: 'reason' must be a string, found an integer"]),
+    -- References.
+    ("an unknown set",
+      "[sets]\napi = [\"pkg:core\"]\n\n[[allow-only]]\nfrom = \"set:ap\"\nallow = \"set:api\"\n\
+        reason = \"r\"\n",
+      .error
+        #["p.toml:5:7: selector 'set:ap' in allow-only rule 1 ('from') names an unknown set \
+            (defined: api)"]),
+    ("an unknown set in allow with no sets",
+      "[[allow-only]]\nfrom = \"mod:A\"\nallow = [\"mod:B\", \"set:w\"]\nreason = \"r\"\n",
+      .error
+        #["p.toml:3:18: selector 'set:w' in allow-only rule 1 ('allow') names an unknown set \
+            (the policy defines no sets)"]),
+    ("unknown sets in both kinds of rule: deny's first",
+      "[[allow-only]]\nfrom = \"set:a\"\nallow = \"mod:B\"\nreason = \"r\"\n\n\
+        [[deny]]\nfrom = \"set:d\"\nto = \"mod:B\"\nreason = \"r\"\n",
+      .error
+        #["p.toml:7:7: selector 'set:d' in deny rule 1 ('from') names an unknown set (the \
+            policy defines no sets)",
+          "p.toml:2:7: selector 'set:a' in allow-only rule 1 ('from') names an unknown set (the \
+            policy defines no sets)"]),
+    ("a deny rule and an allow-only rule",
+      "[[deny]]\nfrom = \"mod:A\"\nto = \"mod:B\"\nreason = \"r\"\n\n" ++ allowOnlyWith "",
+      .ok
+        #["order: ", "deny#1@1:0 from[mod:A@2:7 deny1.from] to[mod:B@3:5 deny1.to] reason=\"r\"",
+          "allow-only#1@6:0 from[mod:A@7:7 allow-only1.from] allow[mod:B@8:8 allow-only1.allow] \
+            reason=\"r\""])]
+
 def renderResult : Except (Array String) (Array String) → String
   | .ok xs => s!"ok {repr xs}"
   | .error es => s!"error {repr es}"
@@ -266,6 +394,7 @@ def renderingFailures : Array String :=
     [(r (.setSelect "core"), "selector 'mod:X' in set 'core'"),
       (r (.setExcept "core"), "selector 'mod:X' in the except list of set 'core'"),
       (r (.rule "deny" 2 "from"), "selector 'mod:X' in deny rule 2 ('from')"),
+      (r (.rule "allow-only" 2 "except"), "selector 'mod:X' in allow-only rule 2 ('except')"),
       (r .commandLine, "selector 'mod:X'")]
   let fs :=
     want.toArray.filterMap fun (ref, w) =>
@@ -282,7 +411,7 @@ def renderingFailures : Array String :=
 
 def run : IO (Array String) := do
   let mut fs := renderingFailures
-  for (name, src, want) in cases ++ denyCases do
+  for (name, src, want) in cases ++ denyCases ++ allowOnlyCases do
     let got := (← load src).map renderPolicy
     let same :=
       match got, want with

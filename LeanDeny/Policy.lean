@@ -4,13 +4,15 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows two top-level keys:
+`lean-deny.toml`. This version knows three top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
   list;
 - `[[deny]]`: deny rules, each with `from`, `to`, `transitive`, `wrappers`
-  and `reason` (`LeanDeny.Rules.Deny` evaluates them).
+  and `reason` (`LeanDeny.Rules.Deny` evaluates them);
+- `[[allow-only]]`: allow-only rules, each with `from`, `except`, `allow`
+  and `reason` (`LeanDeny.Rules.AllowOnly` evaluates them).
 
 Any other key is rejected rather than ignored, so a policy full of rules
 cannot pass while checking nothing.
@@ -102,6 +104,29 @@ structure DenyRule where
 def DenyRule.label (r : DenyRule) : String :=
   s!"deny rule {r.index}"
 
+/-- One `[[allow-only]]` table: every import by a module it governs, of a
+module outside that module's own package, must land in `allow`. -/
+structure AllowOnlyRule where
+  /-- 1-based, in source order among the `allow-only` tables; a table with
+  errors keeps its number. -/
+  index : Nat
+  /-- The table's position: its `[[allow-only]]` header (column 0), or the
+  `{` of an inline table. -/
+  pos? : Option Toml.Pos
+  /-- `from`: non-empty in a valid policy. -/
+  sources : Array SelectorRef := #[]
+  /-- `except`, default none: modules taken out of `from`. -/
+  except : Array SelectorRef := #[]
+  /-- `allow`: non-empty in a valid policy. -/
+  allow : Array SelectorRef := #[]
+  /-- `reason`: not blank in a valid policy. -/
+  reason : String := ""
+  deriving BEq, Repr, Inhabited
+
+/-- "allow-only rule 1". -/
+def AllowOnlyRule.label (r : AllowOnlyRule) : String :=
+  s!"allow-only rule {r.index}"
+
 /-- A parsed policy. -/
 structure Policy where
   /-- The policy path as given. It starts every message about the file. -/
@@ -112,15 +137,17 @@ structure Policy where
   order : Array Nat := #[]
   /-- The `[[deny]]` rules, in source order. -/
   deny : Array DenyRule := #[]
+  /-- The `[[allow-only]]` rules, in source order. -/
+  allowOnly : Array AllowOnlyRule := #[]
   deriving Repr, Inhabited
 
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets", "deny"]
+  #["sets", "deny", "allow-only"]
 
 /-- The number of rules of every kind. -/
 def Policy.ruleCount (p : Policy) : Nat :=
-  p.deny.size
+  p.deny.size + p.allowOnly.size
 
 /-- `<path>:<line>:<column>`, or `<path>` with no position. -/
 def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
@@ -158,6 +185,11 @@ def SetDef.refs (d : SetDef) : Array SelectorRef :=
 order. -/
 def DenyRule.refs (r : DenyRule) : Array SelectorRef :=
   (r.sources ++ r.targets ++ r.wrappers).qsort fun a b => posLt a.pos? b.pos?
+
+/-- An allow-only rule's selectors, `from`, `except` and `allow` together, in
+source order. -/
+def AllowOnlyRule.refs (r : AllowOnlyRule) : Array SelectorRef :=
+  (r.sources ++ r.except ++ r.allow).qsort fun a b => posLt a.pos? b.pos?
 
 /-- The set a selector names, if it is a `set:` selector. -/
 def SelectorRef.setName? (r : SelectorRef) : Option String :=
@@ -237,6 +269,59 @@ private def parseSet (e : Errors) (name : String) (v : Toml.LValue) : Errors × 
               'except', found {v.kindName}",
           base)
 
+/-- A rule field that holds one selector or an array of them (their union):
+`none` after an error, the field's kind being wrong or the array empty. An
+empty array gives "'k' is empty", or "'k' is empty (omit it)" when
+`optional`. Elements go through `parseSelectors` with context
+"{label} ('{k}')" and use `.rule kind index k`. -/
+private def parseRuleSelectors (e : Errors) (label kind : String) (index : Nat) (k : String)
+    (optional : Bool) (x : Toml.LValue) : Errors × Option (Array SelectorRef) :=
+  let xs? : Option (Array Toml.LValue) :=
+    match x with
+    | .string .. => some #[x]
+    | .array _ xs => some xs
+    | _ => none
+  match xs? with
+  | none =>
+    (e.add x.pos? <|
+        s!"{label}: '{k}' must be a selector or an array of selectors, found {x.kindName}",
+      none)
+  | some xs =>
+    if xs.isEmpty then
+      (e.add x.pos? <|
+          if optional then s!"{label}: '{k}' is empty (omit it)" else s!"{label}: '{k}' is empty",
+        none)
+    else
+      let (e', refs) := parseSelectors e s!"{label} ('{k}')" (.rule kind index k) xs
+      (e', some refs)
+
+/-- A rule's `reason`: a string that is not blank. -/
+private def parseReason (e : Errors) (label : String) (x : Toml.LValue) : Errors × Option String :=
+  match x with
+  | .string _ s =>
+    if s.trimAscii.toString.isEmpty then (e.add x.pos? s!"{label}: 'reason' is empty", none)
+    else (e, some s)
+  | _ => (e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}", none)
+
+/-- A top-level rule key (`deny`, `allow-only`): an array of tables, each
+parsed by `parse` with its 1-based index. -/
+private def parseRuleArray {α : Type} (e : Errors) (key : String) (v : Toml.LValue)
+    (parse : Errors → Nat → Toml.LValue → Errors × α) : Errors × Array α :=
+  Id.run do
+    match v with
+    | .array pos? xs =>
+      let mut e := e
+      if xs.isEmpty then
+        e := e.add pos? s!"'{key}' is empty (omit it)"
+      let mut rs := #[]
+      for (x, i) in xs.zipIdx do
+        let (e', r) := parse e (i + 1) x
+        e := e'
+        rs := rs.push r
+      return (e, rs)
+    | _ =>
+      return (e.add v.pos? s!"'{key}' must be an array of tables, such as [[{key}]]", #[])
+
 /-- The keys of a deny table, in the order messages list them. -/
 private def denyKeys : Array String :=
   #["from", "to", "transitive", "wrappers", "reason"]
@@ -259,26 +344,9 @@ private def parseDeny (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × D
     for (k, x) in entries do
       match k with
       | "from" | "to" | "wrappers" =>
-        -- One selector, or an array of them (their union).
-        let xs ←
-          match x with
-          | .string .. =>
-            pure #[x]
-          | .array _ xs =>
-            pure xs
-          | _ =>
-            e :=
-              e.add x.pos? <|
-                s!"{label}: '{k}' must be a selector or an array of selectors, found {x.kindName}"
-            continue
-        if xs.isEmpty then
-          e :=
-            e.add x.pos? <|
-              if k == "wrappers" then s!"{label}: 'wrappers' is empty (omit it)"
-              else s!"{label}: '{k}' is empty"
-          continue
-        let (e', refs) := parseSelectors e s!"{label} ('{k}')" (.rule "deny" index k) xs
+        let (e', refs?) := parseRuleSelectors e label "deny" index k (k == "wrappers") x
         e := e'
+        let some refs := refs? | continue
         r :=
           match k with
           | "from" => { r with sources := refs }
@@ -291,18 +359,52 @@ private def parseDeny (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × D
         | _ =>
           e := e.add x.pos? s!"{label}: 'transitive' must be true or false, found {x.kindName}"
       | "reason" =>
-        match x with
-        | .string _ s =>
-          if s.trimAscii.toString.isEmpty then
-            e := e.add x.pos? s!"{label}: 'reason' is empty"
-          else
-            r := { r with reason := s }
-        | _ =>
-          e := e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}"
+        let (e', reason?) := parseReason e label x
+        e := e'
+        if let some reason := reason? then
+          r := { r with reason }
       | _ =>
         e :=
           e.add x.pos? <|
             s!"{label}: unknown key '{k}' (expected {", ".intercalate denyKeys.toList})"
+    return (e, r)
+
+/-- The keys of an allow-only table, in the order messages list them. -/
+private def allowOnlyKeys : Array String :=
+  #["from", "except", "allow", "reason"]
+
+/-- Entry `index` (1-based) of the `allow-only` array, as `parseDeny`. -/
+private def parseAllowOnly (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × AllowOnlyRule :=
+  Id.run do
+    let label := s!"allow-only rule {index}"
+    let base : AllowOnlyRule := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in #["from", "allow", "reason"] do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k with
+      | "from" | "except" | "allow" =>
+        let (e', refs?) := parseRuleSelectors e label "allow-only" index k (k == "except") x
+        e := e'
+        let some refs := refs? | continue
+        r :=
+          match k with
+          | "from" => { r with sources := refs }
+          | "except" => { r with except := refs }
+          | _ => { r with allow := refs }
+      | "reason" =>
+        let (e', reason?) := parseReason e label x
+        e := e'
+        if let some reason := reason? then
+          r := { r with reason }
+      | _ =>
+        e :=
+          e.add x.pos? <|
+            s!"{label}: unknown key '{k}' (expected {", ".intercalate allowOnlyKeys.toList})"
     return (e, r)
 
 /-- The depth-first walk that finds cycles and the order. -/
@@ -362,17 +464,18 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
         w := visit sets index (sets.size + 1) i #[] w
     return (w.errs, w.order)
 
-/-- Check that every `set:` in a rule names a set, in rule order, then source
-order within a rule. -/
-private def checkRuleRefs (e : Errors) (sets : Array SetDef) (rules : Array DenyRule) : Errors :=
+/-- Check that every `set:` in a rule names a set. `refs` holds each rule's
+selectors (`DenyRule.refs`, `AllowOnlyRule.refs`), in rule order. -/
+private def checkRuleRefs (e : Errors) (sets : Array SetDef) (refs : Array (Array SelectorRef)) :
+    Errors :=
   Id.run do
     let names := sets.map (·.name)
     let defined :=
       if names.isEmpty then "the policy defines no sets"
       else s!"defined: {", ".intercalate names.toList}"
     let mut e := e
-    for rule in rules do
-      for r in rule.refs do
+    for rule in refs do
+      for r in rule do
         if let some n := r.setName? then
           unless names.contains n do
             e := e.add r.pos? s!"{r.describe} names an unknown set ({defined})"
@@ -385,6 +488,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut e : Errors := { path }
     let mut sets := #[]
     let mut deny := #[]
+    let mut allowOnly := #[]
     for (k, v) in entries do
       if k == "sets" then
         match v with
@@ -396,22 +500,19 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         | _ =>
           e := e.add v.pos? "'sets' must be a table, such as [sets]"
       else if k == "deny" then
-        match v with
-        | .array pos? xs =>
-          if xs.isEmpty then
-            e := e.add pos? "'deny' is empty (omit it)"
-          for (x, i) in xs.zipIdx do
-            let (e', r) := parseDeny e (i + 1) x
-            e := e'
-            deny := deny.push r
-        | _ =>
-          e := e.add v.pos? "'deny' must be an array of tables, such as [[deny]]"
+        let (e', rs) := parseRuleArray e "deny" v parseDeny
+        e := e'
+        deny := deny ++ rs
+      else if k == "allow-only" then
+        let (e', rs) := parseRuleArray e "allow-only" v parseAllowOnly
+        e := e'
+        allowOnly := allowOnly ++ rs
       else
         e := e.add v.pos? s!"unknown key '{k}' (known keys: {", ".intercalate knownKeys.toList})"
     let (e', order) := checkRefs e sets
-    let errs := checkRuleRefs e' sets deny
+    let errs := checkRuleRefs e' sets (deny.map (·.refs) ++ allowOnly.map (·.refs))
     if errs.msgs.isEmpty then
-      return .ok { path, sets, order, deny }
+      return .ok { path, sets, order, deny, allowOnly }
     return .error errs.msgs
 
 /-- The default policy file of a workspace. -/
