@@ -87,10 +87,13 @@ rm -rf "$work/pristine" "$work/edit"
 mkdir -p "$work/pristine"
 # Nothing under the source may be newer than this when the run ends.
 touch "$work/stamp"
+# `git archive` of a path the revision lacks fails whole, with no tar output,
+# so check the module map is there first: without this its absence would show
+# only as the vaguer "gave no lean/, ..." abort below.
+git -C "$source" --no-optional-locks cat-file -e "$rev:docs/design/packages.md" 2>/dev/null || { echo "acceptance: $rev has no docs/design/packages.md (the module map the doc rules read); update acceptance.sh and the policy's file paths" >&2; exit 2; }
 git -C "$source" --no-optional-locks archive "$rev" lean packages docs/design/packages.md | tar -x -C "$work/pristine"
 # POSIX sh has no pipefail: check that the archive arrived.
-[ -f "$work/pristine/lean/lakefile.lean" ] && [ -f "$work/pristine/packages/lakefile.toml" ] || { echo "acceptance: git archive of $rev gave no lean/ and packages/" >&2; exit 2; }
-[ -f "$work/pristine/docs/design/packages.md" ] || { echo "acceptance: git archive of $rev gave no docs/design/packages.md" >&2; exit 2; }
+[ -f "$work/pristine/lean/lakefile.lean" ] && [ -f "$work/pristine/packages/lakefile.toml" ] && [ -f "$work/pristine/docs/design/packages.md" ] || { echo "acceptance: git archive of $rev gave no lean/, packages/ and docs/design/packages.md" >&2; exit 2; }
 
 # The policy's declared roots, generated in the copy (never in the source):
 # `query :editorRoot` writes EditorSetRoot.lean. `build --no-build

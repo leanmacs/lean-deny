@@ -523,7 +523,10 @@ examples/editor-project/acceptance.sh /path/to/editor-project /path/to/work-dir
 
 The script reads editor-project's HEAD with `git --no-optional-locks
 rev-parse --verify HEAD` (it needs a git checkout, else it exits 2),
-prints it as `editor-project: <sha>`, and extracts that one revision's
+prints it as `editor-project: <sha>`, checks with `git --no-optional-locks
+cat-file -e <sha>:docs/design/packages.md` that the module map is at that
+revision (else it exits 2 naming the file: `git archive` of a missing path
+fails whole, with no output), and extracts that one revision's
 `lean/`, `packages/` and `docs/design/packages.md` with `git
 --no-optional-locks archive <sha> lean packages docs/design/packages.md |
 tar -x` into `<work dir>/pristine`: committed files only, so
