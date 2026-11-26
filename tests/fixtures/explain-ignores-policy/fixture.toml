@@ -1,0 +1,5 @@
+# explain reads the policy only for a set: selector. A malformed policy named
+# by --config must not stop an ordinary selector.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "--config", "bad.toml", "mod:App!"]
+exit = 0

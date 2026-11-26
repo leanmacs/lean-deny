@@ -1,0 +1,3 @@
+# Not valid TOML: a key with no value before the next `=`.
+[[deny]]
+from = = "pkg:a"

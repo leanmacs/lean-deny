@@ -1,0 +1,3 @@
+[sets]
+core = ["pkg:core"]
+api = ["mod:Core.Api!"]

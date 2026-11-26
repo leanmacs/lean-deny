@@ -1,0 +1,4 @@
+# A set: selector needs the policy: a malformed one is an error (exit 2).
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "--config", "bad.toml", "set:core"]
+exit = 2

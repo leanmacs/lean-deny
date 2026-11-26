@@ -1,0 +1,6 @@
+# A set: selector naming no set of the policy is an error (exit 2), reported
+# before Lake runs: the workspace is one Lake cannot load, and its error
+# does not appear.
+run = "direct"
+args = ["explain", "--workspace", "../unloadable-workspace", "--config", "sets.toml", "set:nope"]
+exit = 2

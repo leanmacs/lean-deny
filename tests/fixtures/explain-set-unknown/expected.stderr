@@ -1,0 +1,1 @@
+lean-deny: error: unknown set 'nope' in 'sets.toml' (defined: core, api)
