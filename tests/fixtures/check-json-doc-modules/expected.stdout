@@ -9,6 +9,7 @@
     "file": "../doc-modules-both/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "Doc.B", "file": "Doc/B.lean"},
    "missing": [],
    "message":
@@ -31,6 +32,7 @@
     "file": "../doc-modules-both/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": null,
    "missing": [],
    "message":

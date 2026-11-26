@@ -71,6 +71,47 @@ structure DocGap where
   line : Nat
   deriving BEq, Repr, Inhabited
 
+/-- What a doc-packages violation says of a package's row: the package has
+no row, the row names a package the selector does not match, its layer
+cell differs from `[layers]`, or its requires cell differs from the
+package's direct requires. -/
+inductive PackageRowKind where
+  | missingRow
+  | extraRow
+  | layerDiffers
+  | requiresDiffer
+  deriving BEq, Repr, Inhabited
+
+/-- "missing", "extra", "layer" or "requires". -/
+def PackageRowKind.toString : PackageRowKind → String
+  | .missingRow => "missing"
+  | .extraRow => "extra"
+  | .layerDiffers => "layer"
+  | .requiresDiffer => "requires"
+
+instance : ToString PackageRowKind :=
+  ⟨PackageRowKind.toString⟩
+
+/-- What a doc-packages violation is about: package `pkg` (as the row or
+the lakefile writes it) and its row in the table under section `heading`
+of Markdown file `file` (absolute: the workspace root joined with the
+rule's `file`); `line` is the heading's line for a missing row, the row's
+line otherwise. A layer violation sets `documentedLayer?` (the cell) and
+`layer?` (`[layers]`'s); a requires violation sets `missingRequires` (direct
+requires the cell does not name, in lakefile order) and `extraRequires`
+(names the cell gives that are no direct require, in cell order). -/
+structure PackageRowGap where
+  kind : PackageRowKind
+  pkg : String
+  file : System.FilePath
+  heading : String
+  line : Nat
+  documentedLayer? : Option String := none
+  layer? : Option String := none
+  missingRequires : Array String := #[]
+  extraRequires : Array String := #[]
+  deriving BEq, Repr, Inhabited
+
 /-- One violation of any rule kind: the rule, its table position, its
 reason, what the violation is, and the chain of imports that breaks it. -/
 structure Violation where
@@ -79,9 +120,8 @@ structure Violation where
   /-- The rule's table. -/
   pos? : Option Toml.Pos
   /-- The rule's `reason` as written: always set for deny, allow-only,
-  reachable, co-reach, target-config, require-backed and doc-modules,
-  optional for
-  `[layers]`. -/
+  reachable, co-reach, target-config, require-backed, doc-modules and
+  doc-packages, optional for `[layers]`. -/
   reason? : Option String
   /-- What this violation is, beyond the reason: for `[layers]`,
   "app (implementation) may not import plugin (implementation)"; for a
@@ -90,10 +130,14 @@ structure Violation where
   does not load P"; for a require-backed rule, "M (package a) imports
   package b, which a does not require directly"; for a doc-modules rule,
   "M is not listed in section 'S' of f" or "section 'S' of f lists N,
-  which 'modules' does not match". -/
+  which 'modules' does not match"; for a doc-packages rule, "package P has
+  no row in section 'S' of f", "section 'S' of f has a row for P, which
+  'packages' does not match", "section 'S' of f gives P layer L, but
+  [layers] puts it in K" or "section 'S' of f gives P requires A, but P
+  requires B directly: missing …; extra …". -/
   detail? : Option String := none
-  /-- At least one edge for every kind but reachable, target-config and
-  doc-modules, whose chain is empty, and co-reach, whose chain is the witness from its root to the
+  /-- At least one edge for every kind but reachable, target-config,
+  doc-modules and doc-packages, whose chain is empty, and co-reach, whose chain is the witness from its root to the
   `if-reaches` module it reaches (empty when the root is itself one);
   exactly one for a direct deny rule, an allow-only rule, `[layers]` and a
   require-backed rule;
@@ -115,11 +159,23 @@ structure Violation where
   /-- The missing or extra name a doc-modules rule reports; `none` for the
   other kinds. -/
   doc? : Option DocGap := none
+  /-- The package row a doc-packages rule reports; `none` for the other
+  kinds. -/
+  packageRow? : Option PackageRowGap := none
   deriving BEq, Repr, Inhabited
+
+/-- The Markdown place a doc-modules or doc-packages violation is about:
+its file and line (`DocGap`'s, `PackageRowGap`'s); `none` for the other
+kinds. -/
+def Violation.docPlace? (v : Violation) : Option (System.FilePath × Nat) :=
+  match v.doc?, v.packageRow? with
+  | some d, _ => some (d.file, d.line)
+  | none, some r => some (r.file, r.line)
+  | none, none => none
 
 /-- "deny rule 1", "allow-only rule 2", "layers", "reachable rule 1",
 "co-reach rule 1", "target-config rule 1", "require-backed rule 1",
-"doc-modules rule 1": names the rule. -/
+"doc-modules rule 1", "doc-packages rule 1": names the rule. -/
 def Violation.label (v : Violation) : String :=
   v.rule.label
 
@@ -189,8 +245,10 @@ require-backed rule, after its chain, the importing package's requires,
 `<lakefile>: <package> requires <r1, r2>` (or `requires nothing`), indented
 two spaces; for a doc-modules rule, after the missing module's line, the
 section's place, `<file>:<line>: section '<section>'`, or, for an extra
-name, the name's place, `<file>:<line>: <name>`, indented two spaces.
-`policyPath` is
+name, the name's place, `<file>:<line>: <name>`, indented two spaces; for a
+doc-packages rule, the section's place, `<file>:<line>: section
+'<section>'`, for a missing row, or the row's place, `<file>:<line>:
+<package>`, for the others, indented two spaces. `policyPath` is
 the policy's; `path` writes each file (as in `chainLine`). -/
 def Violation.render (g : Graph) (policyPath : String) (v : Violation)
     (path : System.FilePath → String := g.relPath) : Array String :=
@@ -208,6 +266,11 @@ def Violation.render (g : Graph) (policyPath : String) (v : Violation)
           match d.kind with
           | .missing => #[s!"  {path d.file}:{d.line}: section '{d.heading}'"]
           | .extra => #[s!"  {path d.file}:{d.line}: {d.name}"]).getD
+      #[] ++
+    (v.packageRow?.map fun r =>
+          match r.kind with
+          | .missingRow => #[s!"  {path r.file}:{r.line}: section '{r.heading}'"]
+          | _ => #[s!"  {path r.file}:{r.line}: {r.pkg}"]).getD
       #[]
 
 end LeanDeny

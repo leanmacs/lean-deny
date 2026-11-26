@@ -1,0 +1,21 @@
+# A doc-packages rule whose requires-except names a package the workspace
+# does not have (exit 2).
+[layers]
+classify = [{ layer = "core", select = "pkg:core" }, { layer = "interface", select = "pkg:api" }]
+default = "implementation"
+allow = [
+  ["implementation", "implementation"],
+  ["implementation", "core"],
+  ["implementation", "interface"],
+  ["interface", "core"],
+]
+
+[[doc-packages]]
+file = "docs/packages.md"
+section = "Agrees"
+package-column = "Package"
+layer-column = "Layer"
+requires-column = "Requires"
+packages = ["pkg:api", "pkg:impl"]
+requires-except = ["core", "kernel"]
+reason = "the package table has one row per package"

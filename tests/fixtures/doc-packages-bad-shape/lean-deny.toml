@@ -1,0 +1,35 @@
+# doc-packages tables with missing keys, wrong kinds and duplicate columns
+# (exit 2, before Lake runs).
+[layers]
+classify = [{ layer = "core", select = "pkg:core" }, { layer = "interface", select = "pkg:api" }]
+default = "implementation"
+allow = [
+  ["implementation", "implementation"],
+  ["implementation", "core"],
+  ["implementation", "interface"],
+  ["interface", "core"],
+]
+
+[[doc-packages]]
+file = "docs/packages.md"
+section = "Agrees"
+
+[[doc-packages]]
+file = 1
+section = "Agrees"
+package-column = ["Package"]
+layer-column = "Layer"
+requires-column = "Requires"
+packages = 2
+requires-except = []
+reason = true
+
+[[doc-packages]]
+file = "docs/packages.md"
+section = "Agrees"
+package-column = "Package"
+layer-column = " Package "
+requires-column = "Package"
+packages = "pkg:api"
+requires-except = ["core", 3, ""]
+reason = "r"

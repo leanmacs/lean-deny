@@ -7,6 +7,7 @@ import LeanDeny.Rules.AllowOnly
 import LeanDeny.Rules.CoReach
 import LeanDeny.Rules.Deny
 import LeanDeny.Rules.DocModules
+import LeanDeny.Rules.DocPackages
 import LeanDeny.Rules.Layers
 import LeanDeny.Rules.Reachable
 import LeanDeny.Rules.RequireBacked
@@ -24,10 +25,11 @@ allow-only rules (`LeanDeny.Rules.AllowOnly`), then `[layers]`
 (`LeanDeny.Rules.Reachable`), then co-reach rules (`LeanDeny.Rules.CoReach`),
 then target-config rules (`LeanDeny.Rules.TargetConfig`), then
 require-backed rules (`LeanDeny.Rules.RequireBacked`), then doc-modules
-rules (`LeanDeny.Rules.DocModules`). Cheap failures come first: a bad
-workspace path or policy is reported before Lake runs. A doc-modules rule's
-Markdown file is read after the graph loads, against the loaded workspace
-root, so its errors join the other rule errors in rule order.
+rules (`LeanDeny.Rules.DocModules`), then doc-packages rules
+(`LeanDeny.Rules.DocPackages`). Cheap failures come first: a bad workspace
+path or policy is reported before Lake runs. A doc-modules or doc-packages
+rule's Markdown file is read after the graph loads, against the loaded
+workspace root, so its errors join the other rule errors in rule order.
 
 The report goes to stdout in the format `--format` names
 (`LeanDeny.Report`): for text, `lean-deny: ok (N rules)` when every rule
@@ -40,32 +42,42 @@ open System
 
 namespace LeanDeny
 
+/-- The contents of `file` (relative to the workspace root): `none` for no
+file or a directory, `some (.error e)` for a read failure. -/
+def readDocContents (g : Graph.Graph) (file : String) : IO (Option (Except String String)) := do
+  let path := g.root / file
+  if !(← path.pathExists) || (← path.isDir) then
+    return none
+  try
+    return some (.ok (← IO.FS.readFile path))
+  catch e =>
+    return some (.error (toString e))
+
 /-- Each doc-modules rule's section, in rule order: the rule's file
 (relative to the workspace root) read and its heading found, or the located
 diagnostic. The only IO a doc-modules rule does. -/
 def readDocSections (g : Graph.Graph) (p : Policy) : IO (Array DocRead) :=
-  p.docModules.mapM fun r => do
-    let path := g.root / r.file
-    if !(← path.pathExists) || (← path.isDir) then
-      return r.readResult p none
-    try
-      let text ← IO.FS.readFile path
-      return r.readResult p (some (.ok text))
-    catch e =>
-      return r.readResult p (some (.error (toString e)))
+  p.docModules.mapM fun r => return r.readResult p (← readDocContents g r.file)
 
-/-- Every rule of `p`, with the policy's sets resolved in `sets` and the
-doc-modules rules' sections read in `docs` (`readDocSections`): deny rules,
-then allow-only rules, then `[layers]`, then reachable rules, then co-reach
+/-- Each doc-packages rule's package table, in rule order, as
+`readDocSections`. The only IO a doc-packages rule does. -/
+def readDocTables (g : Graph.Graph) (p : Policy) : IO (Array DocPackagesRead) :=
+  p.docPackages.mapM fun r => return r.readResult p (← readDocContents g r.file)
+
+/-- Every rule of `p`, with the policy's sets resolved in `sets`, the
+doc-modules rules' sections read in `docs` (`readDocSections`) and the
+doc-packages rules' tables in `tables` (`readDocTables`): deny rules, then
+allow-only rules, then `[layers]`, then reachable rules, then co-reach
 rules, then target-config rules, then require-backed rules, then
-doc-modules rules. Every error of every kind (in that order), or, when
-there is none, every violation (in that order). -/
+doc-modules rules, then doc-packages rules. Every error of every kind (in
+that order), or, when there is none, every violation (in that order). -/
 def checkRules (g : Graph.Graph) (p : Policy) (sets : Std.HashMap String (Array Graph.NodeId))
-    (docs : Array DocRead) : Except (Array String) (Array Violation) :=
+    (docs : Array DocRead) (tables : Array DocPackagesRead := #[]) :
+    Except (Array String) (Array Violation) :=
   let rs :=
     #[checkDeny g p sets, checkAllowOnly g p sets, checkLayers g p sets, checkReachable g p sets,
       checkCoReach g p sets, checkTargetConfig g p sets, checkRequireBacked g p sets,
-      checkDocModules g p sets docs]
+      checkDocModules g p sets docs, checkDocPackages g p sets tables]
   let errs :=
     rs.flatMap fun
       | .error es => es
@@ -113,7 +125,8 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
     | .error msgs =>
       return ← finish (.failed rules msgs)
   let docs ← readDocSections g policy
-  match checkRules g policy sets docs with
+  let tables ← readDocTables g policy
+  match checkRules g policy sets docs tables with
   | .error msgs =>
     finish (.failed rules msgs)
   | .ok vs =>

@@ -88,8 +88,9 @@ def ctx : ReportCtx :=
 /-- The hand-made results: the transitive deny violation `A > Y > Z`, a
 violation on an implicit import, one without a position, one of `[layers]`,
 one of a target-config rule, one of a require-backed rule, a doc-modules
-missing module and a doc-modules extra name; and the policy they are
-checked against. -/
+missing module, a doc-modules extra name, a doc-packages missing row and a
+doc-packages requires difference; and the policy they are checked
+against. -/
 structure Fixture where
   g : Graph
   p : Policy
@@ -101,6 +102,8 @@ structure Fixture where
   requireV : Violation
   docMissingV : Violation
   docExtraV : Violation
+  pkgMissingV : Violation
+  pkgRequiresV : Violation
 
 def fixture : IO (Except String Fixture) := do
   let ms := #[Deny.m `A #[`X, `Y], Deny.m `X, Deny.m `Y #[`Z], Deny.m `Z]
@@ -149,7 +152,25 @@ def fixture : IO (Except String Fixture) := do
             doc? :=
               some
                 { kind := .extra, name := "Gone", file := "/ws/docs/m.md", heading := "Mods"
-                  line := 7 } } }
+                  line := 7 } }
+        pkgMissingV :=
+          { rule := ⟨.docPackages, 1⟩, pos? := v0.pos?, reason? := some "why"
+            detail? := some "package impl has no row in section 'Pkgs' of docs/p.md", chain := #[]
+            packageRow? :=
+              some
+                { kind := .missingRow, pkg := "impl", file := "/ws/docs/p.md", heading := "Pkgs"
+                  line := 2 } }
+        pkgRequiresV :=
+          { rule := ⟨.docPackages, 1⟩, pos? := v0.pos?, reason? := some "why"
+            detail? :=
+              some
+                "section 'Pkgs' of docs/p.md gives api requires impl, but api requires core \
+                  directly: missing core; extra impl"
+            chain := #[]
+            packageRow? :=
+              some
+                { kind := .requiresDiffer, pkg := "api", file := "/ws/docs/p.md", heading := "Pkgs"
+                  line := 9, missingRequires := #["core"], extraRequires := #["impl"] } } }
 
 def githubFailures (f : Fixture) : Array String :=
   let gh (vs : Array Violation) := renderGithub ctx (.checked f.g f.p vs)
@@ -214,6 +235,24 @@ def githubFailures (f : Fixture) : Array String :=
       "doc-modules rule 1 (p.toml:1:0): why: section 'Mods' of docs/m.md lists Gone, which \
           'modules' does not match\n  docs/m.md:7: Gone" ++
     expect "label of a doc-modules rule" (RuleRef.mk .docModules 2).label "doc-modules rule 2" ++
+    expect "github: doc-packages missing, on the Markdown file at the heading" (gh #[f.pkgMissingV])
+      "::error file=docs/p.md,line=2,title=lean-deny%3A doc-packages rule 1::doc-packages rule 1 \
+          (p.toml:1:0): why: package impl has no row in section 'Pkgs' of docs/p.md%0A  \
+          docs/p.md:2: section 'Pkgs'\nlean-deny: 1 violation in 1 of 1 rule\n" ++
+    expect "github: doc-packages requires, on the Markdown file at the row" (gh #[f.pkgRequiresV])
+      "::error file=docs/p.md,line=9,title=lean-deny%3A doc-packages rule 1::doc-packages rule 1 \
+          (p.toml:1:0): why: section 'Pkgs' of docs/p.md gives api requires impl, but api \
+          requires core directly: missing core; extra impl%0A  docs/p.md:9: api\nlean-deny: 1 \
+          violation in 1 of 1 rule\n" ++
+    expect "text: doc-packages missing"
+      ("\n".intercalate (f.pkgMissingV.render f.g f.p.path).toList)
+      "doc-packages rule 1 (p.toml:1:0): why: package impl has no row in section 'Pkgs' of \
+          docs/p.md\n  docs/p.md:2: section 'Pkgs'" ++
+    expect "text: doc-packages requires"
+      ("\n".intercalate (f.pkgRequiresV.render f.g f.p.path).toList)
+      "doc-packages rule 1 (p.toml:1:0): why: section 'Pkgs' of docs/p.md gives api requires \
+          impl, but api requires core directly: missing core; extra impl\n  docs/p.md:9: api" ++
+    expect "label of a doc-packages rule" (RuleRef.mk .docPackages 3).label "doc-packages rule 3" ++
     expect "github: holds" (gh #[]) "lean-deny: ok (1 rule)\n" ++
     expect "github: failed" (renderGithub ctx (.failed (some 2) #["p.toml:4:7: bad", "lake: boom"]))
       "::error file=p.toml,line=4,col=8,title=lean-deny%3A error::bad\n::error \
@@ -233,7 +272,9 @@ def jsonFailures (f : Fixture) : Array String :=
       #[("holds", .checked f.g f.p #[], true, "holds", toJson (1 : Nat)),
         ("violation",
           .checked f.g f.p
-            (f.vs ++ #[f.implicitV, f.layersV, f.targetV, f.requireV, f.docMissingV, f.docExtraV]),
+            (f.vs ++
+              #[f.implicitV, f.layersV, f.targetV, f.requireV, f.docMissingV, f.docExtraV,
+                f.pkgMissingV, f.pkgRequiresV]),
           false, "violation", toJson (1 : Nat)),
         ("failed", .failed none #["p.toml:4:7: bad", "lake: boom"], false, "error", .null)]
     let mut fs := #[]
@@ -261,7 +302,28 @@ def jsonFailures (f : Fixture) : Array String :=
             path.foldl (fun x k => (x.getObjVal? k).toOption.getD .null) v
           let step0 (v : Json) : Json := (((field v ["chain"]).getArrVal? 0).toOption).getD .null
           fs :=
-            fs ++ check "violation: seven violations" (vs.size == 7) ++
+            fs ++ check "violation: nine violations" (vs.size == 9) ++
+              check "violation: a doc-packages missing row's packageRow"
+                (field vs[7]! ["packageRow"] ==
+                    Json.mkObj
+                      [("kind", Json.str "missing"), ("package", Json.str "impl"),
+                        ("file", Json.str "docs/p.md"), ("section", Json.str "Pkgs"),
+                        ("line", toJson (2 : Nat)), ("documentedLayer", .null), ("layer", .null),
+                        ("missingRequires", Json.arr #[]), ("extraRequires", Json.arr #[])] &&
+                  field vs[7]! ["module"] == .null &&
+                  field vs[7]! ["doc"] == .null &&
+                  field vs[7]! ["chain"] == Json.arr #[] &&
+                  field vs[7]! ["rule", "kind"] == Json.str "doc-packages") ++
+              check "violation: a doc-packages requires difference's packageRow"
+                (field vs[8]! ["packageRow"] ==
+                  Json.mkObj
+                    [("kind", Json.str "requires"), ("package", Json.str "api"),
+                      ("file", Json.str "docs/p.md"), ("section", Json.str "Pkgs"),
+                      ("line", toJson (9 : Nat)), ("documentedLayer", .null), ("layer", .null),
+                      ("missingRequires", Json.arr #[Json.str "core"]),
+                      ("extraRequires", Json.arr #[Json.str "impl"])]) ++
+              check "violation: another kind's packageRow is null"
+                (field vs[0]! ["packageRow"] == .null && field vs[5]! ["packageRow"] == .null) ++
               check "violation: a doc-modules violation's doc, missing, with its module"
                 (field vs[5]! ["doc"] ==
                     Json.mkObj

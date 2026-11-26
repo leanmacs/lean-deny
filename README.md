@@ -13,7 +13,7 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]`, `[[require-backed]]` and `[[doc-modules]]` rules of
+> table and the `[[deny]]`, `[[allow-only]]`, `[layers]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]`, `[[require-backed]]`, `[[doc-modules]]` and `[[doc-packages]]` rules of
 > `lean-deny.toml`, checks that every selector matches, and exits 1 with
 > the violations when a rule is broken. Any other top-level key is an
 > error, never silently ignored. `lean-deny explain` lists the modules a
@@ -63,6 +63,7 @@ imports.
 | `target-config` | Every `lean_lib` and `lean_exe` of a set of packages loads a given Lake plugin, or has a module whose import closure holds a module of A. | none |
 | `require-backed` | Every import from a module of a package in A into another workspace package is backed by a direct `require` of that package in the importer's lakefile. | none |
 | `doc-modules` | The backticked module names with a prefix in a Markdown section are exactly the modules of A. | none |
+| `doc-packages` | A Markdown table has one row per package of A, with its `[layers]` layer and its direct requires. | none |
 
 ### Selectors
 
@@ -940,6 +941,129 @@ error (exit 2), reported at the policy's `file:line:column`:
 A rule's selector errors and its file's error are both reported. When the
 policy has any error, no violation is reported.
 
+### doc-packages
+
+A `[[doc-packages]]` rule says a Markdown table has one row per package of
+a set, and that each row gives the package's layer, as `[layers]` puts it,
+and its direct requires, as its lakefile writes them.
+
+```toml
+[layers]
+classify = [{ layer = "core", select = "pkg:core" }, { layer = "interface", select = "pkg:api" }]
+default = "implementation"
+allow = [...]
+
+[[doc-packages]]
+file = "docs/packages.md"
+section = "The packages"
+package-column = "Package"
+layer-column = "Layer"
+requires-column = "Requires, beside the core"
+packages = ["pkg:api", "pkg:impl"]
+requires-except = "core"
+reason = "the module map has one row per package"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `file` | yes | a non-empty path relative to the workspace directory: the Markdown file |
+| `section` | yes | a non-blank string: the text of the section's heading, matched exactly (trimmed) |
+| `package-column`, `layer-column`, `requires-column` | yes | non-blank strings: the header cells of the package, layer and requires columns, matched exactly (trimmed); the three must differ |
+| `packages` | yes | a selector or a non-empty array of selectors (their union), any form, selecting whole packages: the packages the table must have a row for |
+| `requires-except` | no | a package name or a non-empty array of them: packages left out of every requires comparison (the core every package requires) |
+| `reason` | yes | a non-blank string, printed with every violation |
+
+Rules are numbered `doc-packages rule 1`, `doc-packages rule 2`, … in the
+order they are written, apart from the other kinds' numbers. Both
+`[[doc-packages]]` tables and an inline `doc-packages = [{ … }, …]` work. A
+policy with a doc-packages rule must have `[layers]`, which gives each
+package's layer.
+
+**Why:** a design document's table of packages, their layers and what they
+require goes stale silently when a package is added, moves layer or gains
+a require. This rule keeps such a table honest from what lean-deny already
+knows: `[layers]` and the lakefiles.
+
+**What is read:** headings, the section and fences as for
+[doc-modules](#doc-modules), and then:
+
+- **A top-level table** starts at a header row whose first character is `|`
+  (column 0, no indent), followed by a delimiter row (`|---|:-:|`, as many
+  cells as the header). Its rows are the following lines starting with `|`
+  in column 0; a blank line or any other line ends it. A table nested in a
+  list item (its rows indented) or in a fenced code block is ignored.
+- **The table checked** is the first top-level table in the section whose
+  header has all three named columns. Earlier tables without them are
+  skipped; later tables are not read. Every other column is ignored.
+- **Cells** are split on `|` (`\|` is a literal `|`) and trimmed. A row's
+  package is the first backticked name in its package cell; its layer is
+  its layer cell (or the name in a cell that is one backticked name); its
+  requires are every backticked name in its requires cell, or none for a
+  cell that is exactly `none`.
+
+**What is checked:** each package `packages` matches with no row is one
+violation; then, each row in document order: a row naming a package
+`packages` does not match is one violation; otherwise a layer cell other
+than the package's `[layers]` layer is one violation, naming the package,
+both layers and the file; and requires that differ, as sets, from the
+package's direct requires less `requires-except` are one violation, naming
+the package and the names missing and extra. Row order and duplicate rows
+are not checked. Violations come after the other kinds': missing packages
+by name, then rows in document order. From `tests/fixtures/doc-packages-broken`:
+
+```
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: package impl has no row in section 'Broken' of docs/packages.md
+  docs/packages.md:30: section 'Broken'
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: section 'Broken' of docs/packages.md has a row for gone, which 'packages' does not match
+  docs/packages.md:34: gone
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: section 'Broken' of docs/packages.md gives api layer implementation, but [layers] puts it in interface
+  docs/packages.md:35: api
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: section 'Broken' of docs/packages.md gives api requires impl, but api requires nothing directly: extra impl
+  docs/packages.md:35: api
+lean-deny: 4 violations in 1 of 2 rules
+```
+
+In `--format json` the violation's `packageRow` holds its kind (`missing`,
+`extra`, `layer`, `requires`), the package, the file, the section, the
+line, both layers and the missing and extra requires
+([docs/check-json.md](docs/check-json.md)); in `--format github` it is
+annotated on the Markdown file, at the section's heading (a missing row)
+or the row's line (the others).
+
+The file is read after the workspace's graph loads. Each of these is an
+error (exit 2), reported at the policy's `file:line:column`:
+
+- a malformed rule: `doc-packages` not an array of tables, a missing key
+  (all but `requires-except`), an empty `file`, column or selector array,
+  a blank `section` or `reason`, an absolute `file`, an empty
+  `requires-except` array or name, two columns with the same name, an
+  unknown key (`doc-packages rule 1: unknown key 'heading' (expected file,
+  section, package-column, layer-column, requires-column, packages,
+  requires-except, reason)`), a value of the wrong kind, or a malformed
+  selector;
+- a policy with no `[layers]`: `doc-packages rule 1: the policy has no
+  [layers], which gives each package's layer`;
+- a `set:` that names no set;
+- a selector that matches no module, or only modules in no package, or a
+  rule that splits a package (as for [require-backed](#require-backed));
+- a `requires-except` name the workspace has no package of:
+  `doc-packages rule 1: 'requires-except' names package 'kernel', which
+  the workspace does not have`;
+- a missing or unreadable file, or a heading missing or appearing more than
+  once, as for doc-modules;
+- a section with no top-level table, or none with every named column:
+  `doc-packages rule 1: no top-level table in section 'No requires' of
+  'docs/packages.md' has the columns 'Package', 'Layer' and 'Requires'
+  (the first, at line 39, has no 'Requires')`;
+- a row whose package cell names no package in backticks, whose layer cell
+  is empty, or whose requires cell is neither `none` nor backticked names:
+  `doc-packages rule 1: 'docs/packages.md':14: the 'Package' cell names no
+  package in backticks`.
+
+A rule's selector errors and its file's error are both reported. A
+`[layers]` that does not resolve reports its own errors only. When the
+policy has any error, no violation is reported.
+
 ## A policy, sketched
 
 ```toml
@@ -1055,7 +1179,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach", "target-config", "require-backed" and "doc-modules"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
+| `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only", "layers", "reachable", "co-reach", "target-config", "require-backed", "doc-modules" and "doc-packages"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a selector that names a set (`set:x`, `imports:set:x`), and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
@@ -1065,8 +1189,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config`, `require-backed` or `doc-modules` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a require-backed table with an unknown key or a missing `packages` or `reason`, a require-backed selector that matches only modules in no package (outside the workspace, or declared roots), a require-backed rule that splits a package, a doc-modules table with an unknown key or a missing or malformed `file`, `section`, `prefix`, `modules` or `reason`, a doc-modules selector that matches only external modules, a doc-modules rule whose `modules` matches a module without its prefix, a doc-modules file that is missing or unreadable, or whose heading is missing or appears twice, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config`, `require-backed`, `doc-modules` or `doc-packages` violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a `must-cover` selector that matches only external modules, a reachable rule whose `must-cover` lies inside its `from`, a `roots` selector that matches only external modules, an `if-reaches` or `must-reach` selector that matches only external modules, a co-reach rule none of whose roots reaches its `if-reaches`, a target-config selector in `targets` or `except` that is not `pkg:` or `lib:` or that names no target, a `load-plugin` that is not a target name, an `or-imports` selector that matches only external modules, a target-config `except` that removes every target, a require-backed table with an unknown key or a missing `packages` or `reason`, a require-backed selector that matches only modules in no package (outside the workspace, or declared roots), a require-backed rule that splits a package, a doc-modules table with an unknown key or a missing or malformed `file`, `section`, `prefix`, `modules` or `reason`, a doc-modules selector that matches only external modules, a doc-modules rule whose `modules` matches a module without its prefix, a doc-modules file that is missing or unreadable, or whose heading is missing or appears twice, a doc-packages table with an unknown key, a missing or malformed key, two columns with the same name, or in a policy with no `[layers]`, a doc-packages selector that matches only modules in no package or a rule that splits a package, a `requires-except` name the workspace has no package of, a doc-packages file that is missing or unreadable, whose heading is missing or appears twice, whose section has no top-level table with every named column, or whose table has a package, layer or requires cell that cannot be read, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With
@@ -1083,7 +1207,9 @@ pull request's diff: a `deny`, `allow-only`, `layers`, `co-reach` or
 `co-reach` one with an empty chain) on its module's file, a `target-config`
 violation on its package's lakefile, a `doc-modules` violation on its
 Markdown file, at the section's heading (a missing module) or the name's
-line (an extra name); a policy error is annotated on `lean-deny.toml`. Paths
+line (an extra name), a `doc-packages` violation on its Markdown file, at
+the section's heading (a missing row) or the row's line (the others); a
+policy error is annotated on `lean-deny.toml`. Paths
 are relative to the working directory, so run it from the repository root.
 With lean-deny as the lint driver:
 
@@ -1166,10 +1292,11 @@ views on a hand-written graph (`view`); of what selectors and sets match
 on a hand-written graph (`resolve`); of `deny` rules on hand-written
 graphs, from the policy's text to what `check` prints (`deny`), and of
 `allow-only` rules, `[layers]`, `[[reachable]]`, `[[co-reach]]`,
-`[[target-config]]`, `[[require-backed]]` and `[[doc-modules]]` rules the
-same way (`allow-only`, `layers`, `reachable`, `co-reach`, `target-config`,
-`require-backed`, `doc-modules`); of the Markdown section reading behind
-`[[doc-modules]]` on strings (`doc-section`); of the
+`[[target-config]]`, `[[require-backed]]`, `[[doc-modules]]` and
+`[[doc-packages]]` rules the same way (`allow-only`, `layers`, `reachable`,
+`co-reach`, `target-config`, `require-backed`, `doc-modules`,
+`doc-packages`); of the Markdown section and table reading behind
+`[[doc-modules]]` and `[[doc-packages]]` on strings (`doc-section`); of the
 renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 of the check report's JSON and GitHub renderings, including the golden
@@ -1209,7 +1336,8 @@ for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces;
 `reachable-*` for `reachable` and `co-reach-*` for `co-reach`, over
 `graph-ws`; `target-config-*` for `target-config`, over `target-ws`;
 `require-backed-*` for `require-backed`, over `require-ws`; `doc-modules-*`
-for `doc-modules`, over `doc-ws`);
+for `doc-modules`, over `doc-ws`; `doc-packages-*` for `doc-packages`, over
+`doc-pkg-ws`);
 `check-json-*` and `check-github-*` for `--format json` and `github` (over
 the same workspaces), and `lake-lint-github` for
 `lake lint -- --format github`. The `editor-acceptance-*` fixtures run a

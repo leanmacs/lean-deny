@@ -1,0 +1,4 @@
+# --format json of doc-packages violations, one of each kind (with \`packageRow\`); the policy is doc-packages-broken's (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../doc-pkg-ws", "--config", "../doc-packages-broken/lean-deny.toml", "--format", "json"]
+exit = 1

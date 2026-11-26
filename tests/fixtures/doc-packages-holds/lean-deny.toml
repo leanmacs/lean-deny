@@ -1,0 +1,23 @@
+# A doc-packages rule over doc-pkg-ws that holds: section Agrees has a
+# disagreeing table nested in a list item and a top-level table without the
+# Requires column before the agreeing package table (rows out of order, an
+# extra column).
+[layers]
+classify = [{ layer = "core", select = "pkg:core" }, { layer = "interface", select = "pkg:api" }]
+default = "implementation"
+allow = [
+  ["implementation", "implementation"],
+  ["implementation", "core"],
+  ["implementation", "interface"],
+  ["interface", "core"],
+]
+
+[[doc-packages]]
+file = "docs/packages.md"
+section = "Agrees"
+package-column = "Package"
+layer-column = "Layer"
+requires-column = "Requires"
+packages = ["pkg:api", "pkg:impl"]
+requires-except = "core"
+reason = "the package table has one row per package"

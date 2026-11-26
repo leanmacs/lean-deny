@@ -86,13 +86,24 @@ def renderDocModules (r : DocModulesRule) : String :=
   s!"doc-modules#{r.index}@{renderPos r.pos?} file={repr r.file} section={repr r.heading} \
     prefix={repr r.pfx} modules[{refs r.modules}] reason={repr r.reason}"
 
+/-- A doc-packages rule as `doc-packages#1@pos file="…" section="…"
+columns="…","…","…" packages[…] except[name@pos, …] reason="…"`. -/
+def renderDocPackages (r : DocPackagesRule) : String :=
+  let refs (rs : Array SelectorRef) := ", ".intercalate (rs.map renderRef).toList
+  let names :=
+    ", ".intercalate (r.requiresExcept.map fun (n, pos?) => s!"{n}@{renderPos pos?}").toList
+  s!"doc-packages#{r.index}@{renderPos r.pos?} file={repr r.file} section={repr r.heading} \
+    columns={repr r.packageColumn},{repr r.layerColumn},{repr r.requiresColumn} \
+    packages[{refs r.packages}] except[{names}] reason={repr r.reason}"
+
 /-- A declared root as `root#1@pos Module=path`. -/
 def renderRoot (r : RootDef) : String :=
   s!"root#{r.index}@{renderPos r.pos?} {r.module}={r.path}"
 
 /-- Every set, then the order by name, then every deny rule, then every
 allow-only rule, then `[layers]`, then every require-backed rule, then
-every doc-modules rule, then every declared root. -/
+every doc-modules rule, then every doc-packages rule, then every declared
+root. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
   (p.sets.map renderSet |>.push
       s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
@@ -101,6 +112,7 @@ def renderPolicy (p : LeanDeny.Policy) : Array String :=
     (p.layers?.map fun r => #[renderLayers r]).getD #[] ++
     p.requireBacked.map renderRequireBacked ++
     p.docModules.map renderDocModules ++
+    p.docPackages.map renderDocPackages ++
     p.roots.map renderRoot
 
 /-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
@@ -138,11 +150,11 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
       .error
         #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, require-backed, doc-modules, root)"]),
+            co-reach, target-config, require-backed, doc-modules, doc-packages, root)"]),
     ("foo = 1", "foo = 1\n",
       .error
         #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, require-backed, doc-modules, root)"]),
+            co-reach, target-config, require-backed, doc-modules, doc-packages, root)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -217,7 +229,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external, set or imports)",
           "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, reachable, \
-            co-reach, target-config, require-backed, doc-modules, root)",
+            co-reach, target-config, require-backed, doc-modules, doc-packages, root)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/
@@ -876,10 +888,142 @@ def docModulesCases : Array (String × String × Except (Array String) (Array St
         #["p.toml:5:10: selector 'set:nope' in doc-modules rule 1 ('modules') names an unknown \
             set (the policy defines no sets)"])]
 
+/-- A `[layers]` table of two lines, `classify` and `default` (no `allow`,
+so it allows nothing), before a doc-packages table. -/
+def layersTable : String :=
+  "[layers]\nclassify = [{ layer = \"core\", select = \"pkg:core\" }]\ndefault = \"impl\"\n"
+
+/-- `[layers]` (lines 1 to 3), then a doc-packages table (header on line 4)
+with the given lines after its header. -/
+def pkgTable (lines : String) : String :=
+  s!"{layersTable}[[doc-packages]]\n{lines}"
+
+/-- A doc-packages table's lines: `file`, `section`, the three columns,
+`packages` and `reason`, each valid. -/
+def pkgLines : String :=
+  "file = \"docs/p.md\"\nsection = \"Pkgs\"\npackage-column = \"Package\"\n\
+    layer-column = \"Layer\"\nrequires-column = \"Requires, beside the core\"\n\
+    packages = \"set:default\"\nreason = \"r\"\n"
+
+/-- The rendered `[layers]` of `layersTable`. -/
+def layersRendered : String :=
+  "layers@1:0 classify[core@2:12(pkg:core@2:39 layers1)] default=impl@3:10 allow[] reason=-"
+
+/-- `layersRendered` two lines down, after a two-line `[sets]`. -/
+def layersAfterSets : String :=
+  "layers@3:0 classify[core@4:12(pkg:core@4:39 layers1)] default=impl@5:10 allow[] reason=-"
+
+/-- `[[doc-packages]]`: `requires-except` absent, a name and an array, and
+every load-time error. -/
+def docPackagesCases : Array (String × String × Except (Array String) (Array String)) :=
+  let sets := "[sets]\ndefault = [\"pkg:a\"]\n"
+  #[("doc-packages, no requires-except", sets ++ pkgTable pkgLines,
+      .ok
+        #["default@2:10 [pkg:a@2:11 select(default)]", "order: default", layersAfterSets,
+          "doc-packages#1@6:0 file=\"docs/p.md\" section=\"Pkgs\" \
+            columns=\"Package\",\"Layer\",\"Requires, beside the core\" \
+            packages[set:default@12:11 doc-packages1.packages] except[] reason=\"r\""]),
+    ("doc-packages, requires-except a name, columns trimmed",
+      pkgTable
+        "file = \"p.md\"\nsection = \"S\"\npackage-column = \" P \"\nlayer-column = \"L\"\n\
+        requires-column = \"R\"\npackages = [\"pkg:a\", \"pkg:b\"]\nrequires-except = \"core\"\n\
+        reason = \"r\"\n",
+      .ok
+        #["order: ", layersRendered,
+          "doc-packages#1@4:0 file=\"p.md\" section=\"S\" columns=\"P\",\"L\",\"R\" \
+            packages[pkg:a@10:12 doc-packages1.packages, pkg:b@10:21 doc-packages1.packages] \
+            except[core@11:18] reason=\"r\""]),
+    ("doc-packages, requires-except an array",
+      sets ++ pkgTable (pkgLines ++ "requires-except = [\"core\", \"base\"]\n"),
+      .ok
+        #["default@2:10 [pkg:a@2:11 select(default)]", "order: default", layersAfterSets,
+          "doc-packages#1@6:0 file=\"docs/p.md\" section=\"Pkgs\" \
+            columns=\"Package\",\"Layer\",\"Requires, beside the core\" \
+            packages[set:default@12:11 doc-packages1.packages] except[core@14:19, base@14:27] \
+            reason=\"r\""]),
+    ("doc-packages, every required key missing", pkgTable "",
+      .error
+        #["p.toml:4:0: doc-packages rule 1 has no 'file'",
+          "p.toml:4:0: doc-packages rule 1 has no 'section'",
+          "p.toml:4:0: doc-packages rule 1 has no 'package-column'",
+          "p.toml:4:0: doc-packages rule 1 has no 'layer-column'",
+          "p.toml:4:0: doc-packages rule 1 has no 'requires-column'",
+          "p.toml:4:0: doc-packages rule 1 has no 'packages'",
+          "p.toml:4:0: doc-packages rule 1 has no 'reason'"]),
+    ("doc-packages, empty values",
+      pkgTable
+        "file = \"\"\nsection = \" \"\npackage-column = \"\"\nlayer-column = \" \"\n\
+        requires-column = \"\"\npackages = []\nrequires-except = []\nreason = \"\"\n",
+      .error
+        #["p.toml:5:7: doc-packages rule 1: 'file' must not be empty",
+          "p.toml:6:10: doc-packages rule 1: 'section' is empty",
+          "p.toml:7:17: doc-packages rule 1: 'package-column' is empty",
+          "p.toml:8:15: doc-packages rule 1: 'layer-column' is empty",
+          "p.toml:9:18: doc-packages rule 1: 'requires-column' is empty",
+          "p.toml:10:11: doc-packages rule 1: 'packages' is empty",
+          "p.toml:11:18: doc-packages rule 1: 'requires-except' is empty (omit it)",
+          "p.toml:12:9: doc-packages rule 1: 'reason' is empty"]),
+    ("doc-packages, wrong types",
+      pkgTable
+        "file = 1\nsection = true\npackage-column = []\nlayer-column = 2\nrequires-column = 3\n\
+        packages = 4\nrequires-except = 5\nreason = 6\n",
+      .error
+        #["p.toml:5:7: doc-packages rule 1: 'file' must be a string, found an integer",
+          "p.toml:6:10: doc-packages rule 1: 'section' must be a string, found a boolean",
+          "p.toml:7:17: doc-packages rule 1: 'package-column' must be a string, found an array",
+          "p.toml:8:15: doc-packages rule 1: 'layer-column' must be a string, found an integer",
+          "p.toml:9:18: doc-packages rule 1: 'requires-column' must be a string, found an integer",
+          "p.toml:10:11: doc-packages rule 1: 'packages' must be a selector or an array of \
+            selectors, found an integer",
+          "p.toml:11:18: doc-packages rule 1: 'requires-except' must be a package name or an \
+            array of package names, found an integer",
+          "p.toml:12:9: doc-packages rule 1: 'reason' must be a string, found an integer"]),
+    ("doc-packages, bad requires-except names",
+      pkgTable
+        (pkgLines.replace "set:default" "pkg:a" ++ "requires-except = [\"core\", 1, \" \"]\n"),
+      .error
+        #["p.toml:12:27: doc-packages rule 1 ('requires-except'): expected a package name string, \
+            found an integer",
+          "p.toml:12:30: doc-packages rule 1 ('requires-except'): a package name is empty"]),
+    ("doc-packages, an absolute file",
+      pkgTable
+        (("/docs/p.md").intercalate ((pkgLines.replace "set:default" "pkg:a").splitOn "docs/p.md")),
+      .error
+        #["p.toml:5:7: doc-packages rule 1: 'file' must be relative to the workspace directory"]),
+    ("doc-packages, duplicate columns",
+      pkgTable
+        "file = \"p.md\"\nsection = \"S\"\nrequires-column = \"P\"\npackage-column = \"P\"\n\
+        layer-column = \" P\"\npackages = \"pkg:a\"\nreason = \"r\"\n",
+      .error
+        #["p.toml:9:15: doc-packages rule 1: 'layer-column' names the same column as \
+            'package-column' ('P')",
+          "p.toml:7:18: doc-packages rule 1: 'requires-column' names the same column as \
+            'package-column' ('P')"]),
+    ("doc-packages, an unknown key",
+      pkgTable (pkgLines.replace "set:default" "pkg:a" ++ "heading = \"S\"\n"),
+      .error
+        #["p.toml:12:10: doc-packages rule 1: unknown key 'heading' (expected file, section, \
+            package-column, layer-column, requires-column, packages, requires-except, reason)"]),
+    ("doc-packages, no [layers]",
+      "[[doc-packages]]\n" ++ pkgLines.replace "set:default" "pkg:a" ++ "[[doc-packages]]\n" ++
+        pkgLines.replace "set:default" "pkg:a",
+      .error
+        #["p.toml:1:0: doc-packages rule 1: the policy has no [layers], which gives each \
+            package's layer",
+          "p.toml:9:0: doc-packages rule 2: the policy has no [layers], which gives each \
+            package's layer"]),
+    ("doc-packages, not an array", "doc-packages = 1\n",
+      .error #["p.toml:1:15: 'doc-packages' must be an array of tables, such as [[doc-packages]]"]),
+    ("doc-packages, an unknown set", pkgTable pkgLines,
+      .error
+        #["p.toml:10:11: selector 'set:default' in doc-packages rule 1 ('packages') names an \
+            unknown set (the policy defines no sets)"])]
+
 def run : IO (Array String) := do
   let mut fs := renderingFailures ++ (← sketchFailures) ++ (← rootsOnlyFailures)
   for (name, src, want) in
     cases ++ denyCases ++ allowOnlyCases ++ layersCases ++ requireBackedCases ++ docModulesCases ++
+      docPackagesCases ++
       rootCases do
     let got := (← load src).map renderPolicy
     let same :=

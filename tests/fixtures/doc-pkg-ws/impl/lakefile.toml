@@ -1,0 +1,12 @@
+name = "impl"
+
+[[require]]
+name = "core"
+path = "../core"
+
+[[require]]
+name = "api"
+path = "../api"
+
+[[lean_lib]]
+name = "Impl"

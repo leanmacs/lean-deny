@@ -14,6 +14,7 @@
     "file": "../target-config-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": null,
    "missing": [],
    "message":
@@ -37,6 +38,7 @@
     "file": "../target-config-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": null,
    "missing": [],
    "message":
@@ -60,6 +62,7 @@
     "file": "../target-config-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": null,
    "missing": [],
    "message":

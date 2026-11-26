@@ -1,0 +1,10 @@
+# A doc-packages rule in a policy with no [layers] (exit 2, before Lake runs).
+[[doc-packages]]
+file = "docs/packages.md"
+section = "Agrees"
+package-column = "Package"
+layer-column = "Layer"
+requires-column = "Requires"
+packages = ["pkg:api", "pkg:impl"]
+requires-except = "core"
+reason = "the package table has one row per package"

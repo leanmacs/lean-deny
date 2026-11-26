@@ -1,0 +1,9 @@
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: package impl has no row in section 'Broken' of docs/packages.md
+  docs/packages.md:30: section 'Broken'
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: section 'Broken' of docs/packages.md has a row for gone, which 'packages' does not match
+  docs/packages.md:34: gone
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: section 'Broken' of docs/packages.md gives api layer implementation, but [layers] puts it in interface
+  docs/packages.md:35: api
+doc-packages rule 1 (lean-deny.toml:14:0): the package table has one row per package: section 'Broken' of docs/packages.md gives api requires impl, but api requires nothing directly: extra impl
+  docs/packages.md:35: api
+lean-deny: 4 violations in 1 of 2 rules

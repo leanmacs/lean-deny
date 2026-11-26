@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:20:27: doc-packages rule 1: 'requires-except' names package 'kernel', which the workspace does not have

@@ -24,6 +24,7 @@ import LeanDeny.Rules.CoReach
 import LeanDeny.Rules.Common
 import LeanDeny.Rules.Deny
 import LeanDeny.Rules.DocModules
+import LeanDeny.Rules.DocPackages
 import LeanDeny.Rules.Layers
 import LeanDeny.Rules.Reachable
 import LeanDeny.Rules.RequireBacked

@@ -1,0 +1,14 @@
+lean-deny: error: lean-deny.toml:13:0: doc-packages rule 1 has no 'package-column'
+lean-deny: error: lean-deny.toml:13:0: doc-packages rule 1 has no 'layer-column'
+lean-deny: error: lean-deny.toml:13:0: doc-packages rule 1 has no 'requires-column'
+lean-deny: error: lean-deny.toml:13:0: doc-packages rule 1 has no 'packages'
+lean-deny: error: lean-deny.toml:13:0: doc-packages rule 1 has no 'reason'
+lean-deny: error: lean-deny.toml:18:7: doc-packages rule 2: 'file' must be a string, found an integer
+lean-deny: error: lean-deny.toml:20:17: doc-packages rule 2: 'package-column' must be a string, found an array
+lean-deny: error: lean-deny.toml:23:11: doc-packages rule 2: 'packages' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:24:18: doc-packages rule 2: 'requires-except' is empty (omit it)
+lean-deny: error: lean-deny.toml:25:9: doc-packages rule 2: 'reason' must be a string, found a boolean
+lean-deny: error: lean-deny.toml:34:27: doc-packages rule 3 ('requires-except'): expected a package name string, found an integer
+lean-deny: error: lean-deny.toml:34:30: doc-packages rule 3 ('requires-except'): a package name is empty
+lean-deny: error: lean-deny.toml:31:15: doc-packages rule 3: 'layer-column' names the same column as 'package-column' ('Package')
+lean-deny: error: lean-deny.toml:32:18: doc-packages rule 3: 'requires-column' names the same column as 'package-column' ('Package')

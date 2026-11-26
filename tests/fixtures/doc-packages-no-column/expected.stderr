@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:12:0: doc-packages rule 1: no top-level table in section 'No requires' of 'docs/packages.md' has the columns 'Package', 'Layer' and 'Requires' (the first, at line 39, has no 'Requires')

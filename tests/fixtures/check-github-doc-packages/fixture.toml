@@ -1,0 +1,4 @@
+# --format github of doc-packages violations, one of each kind (line annotations on the Markdown file, at the heading for a missing row and at the row for the others); the policy is doc-packages-broken's (editing it changes this fixture).
+run = "direct"
+args = ["check", "--workspace", "../doc-pkg-ws", "--config", "../doc-packages-broken/lean-deny.toml", "--format", "github"]
+exit = 1

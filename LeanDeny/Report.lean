@@ -238,6 +238,22 @@ private def docJson (g : Graph) : Option DocGap → Json
         ("file", Json.str (g.relPath d.file)), ("section", Json.str d.heading),
         ("line", toJson d.line)]
 
+/-- A doc-packages violation's row: its kind (`missing`, `extra`, `layer`,
+`requires`), the package, the Markdown file (relative to the workspace root
+when under it, otherwise as is), the section, the line (the heading's for a
+missing row, the row's otherwise), the documented and `[layers]` layers (a
+layer violation's, else `null`) and the missing and extra requires (a
+requires violation's, else empty); `null` for the other kinds. -/
+private def packageRowJson (g : Graph) : Option PackageRowGap → Json
+  | none => .null
+  | some r =>
+    Json.mkObj
+      [("kind", Json.str (toString r.kind)), ("package", Json.str r.pkg),
+        ("file", Json.str (g.relPath r.file)), ("section", Json.str r.heading),
+        ("line", toJson r.line), ("documentedLayer", jOptStr r.documentedLayer?),
+        ("layer", jOptStr r.layer?), ("missingRequires", Json.arr (r.missingRequires.map Json.str)),
+        ("extraRequires", Json.arr (r.extraRequires.map Json.str))]
+
 private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
   Json.mkObj
     [("rule",
@@ -250,7 +266,7 @@ private def violationJson (g : Graph) (p : Policy) (v : Violation) : Json :=
       ("chain", Json.arr (v.chain.map (importJson g))), ("module", moduleJson g v.module?),
       ("missing", Json.arr (v.missing.map (moduleJson g ∘ some))),
       ("target", targetJson g v.target?), ("require", requireJson g v.require?),
-      ("doc", docJson g v.doc?)]
+      ("doc", docJson g v.doc?), ("packageRow", packageRowJson g v.packageRow?)]
 
 private def diagnosticJson (d : Diagnostic) : Json :=
   Json.mkObj
@@ -280,8 +296,10 @@ for a reachable rule or a co-reach rule whose root is itself in
 target-config rule, on the target's package lakefile, with no line; a
 require-backed violation's chain is its one unbacked import; a doc-modules
 violation, on its Markdown file at the section's heading for a missing
-module or at the name's first listing for an extra name), or per error;
-then the summary line.
+module or at the name's first listing for an extra name; a doc-packages
+violation, on its Markdown file at the section's heading for a missing row
+or at the row's line for the others), or per error; then the summary
+line.
 Ends in one newline. -/
 def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
   let rel (f : System.FilePath) : String := githubFile ctx.cwd f.toString
@@ -291,16 +309,16 @@ def renderGithub (ctx : ReportCtx) (r : CheckResult) : String :=
       vs.map fun (v : Violation) =>
         let e? := v.chain[0]?
         let file? :=
-          match v.doc?, e? with
-          | some d, _ => some d.file
+          match v.docPlace?, e? with
+          | some (f, _), _ => some f
           | none, some e => some e.file
           | none, none =>
             match v.target? with
             | some t => some t.configFile
             | none => v.module? >>= fun m => g.nodes[m]? >>= (·.file?)
         let line? :=
-          match v.doc? with
-          | some d => some d.line
+          match v.docPlace? with
+          | some (_, l) => some l
           | none => e? >>= (·.line?)
         let props :=
           (file?.map fun f => ("file", rel f)).toList ++

@@ -31,7 +31,9 @@ one for target-config rules (an empty `chain`, a `target`),
 [`tests/fixtures/check-json-require-backed/expected.stdout`](../tests/fixtures/check-json-require-backed/expected.stdout)
 one for require-backed rules (a one-import `chain`, a `require`),
 [`tests/fixtures/check-json-doc-modules/expected.stdout`](../tests/fixtures/check-json-doc-modules/expected.stdout)
-one for doc-modules rules (an empty `chain`, a `doc`, a `module` or none), and
+one for doc-modules rules (an empty `chain`, a `doc`, a `module` or none),
+[`tests/fixtures/check-json-doc-packages/expected.stdout`](../tests/fixtures/check-json-doc-packages/expected.stdout)
+one for doc-packages rules (an empty `chain`, a `packageRow` of each kind), and
 [`tests/fixtures/check-json-policy-error/expected.stdout`](../tests/fixtures/check-json-policy-error/expected.stdout)
 one for exit 2.
 
@@ -59,7 +61,7 @@ Every key is always present.
 | `ok` | boolean | True exactly when the exit code is 0. |
 | `outcome` | string | `holds` (exit 0), `violation` (exit 1) or `error` (exit 2). |
 | `policy` | string | The policy path as given (`--config`, or `<workspace>/lean-deny.toml`; `lean-deny.toml` for workspace `.`), as messages print it. |
-| `rules` | number or null | The policy's rule count (each `[[deny]]`, `[[allow-only]]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]`, `[[require-backed]]` and `[[doc-modules]]` table, and `[layers]` as one); null when the policy did not load. |
+| `rules` | number or null | The policy's rule count (each `[[deny]]`, `[[allow-only]]`, `[[reachable]]`, `[[co-reach]]`, `[[target-config]]`, `[[require-backed]]`, `[[doc-modules]]` and `[[doc-packages]]` table, and `[layers]` as one); null when the policy did not load. |
 | `brokenRules` | number | Rules with at least one violation; 0 when `outcome` is `error`. |
 | `violations` | array | Every violation, in report order (Violation); `[]` unless `outcome` is `violation`. |
 | `errors` | array | Every diagnostic, in the order stderr prints them (Error); `[]` unless `outcome` is `error`. |
@@ -70,14 +72,15 @@ Every key is always present.
 | Key | Type | Meaning |
 |---|---|---|
 | `rule` | object | The rule it breaks (Rule). |
-| `message` | string | The text header after the position: the reason; for `layers`, `<reason>: <detail>` or the detail alone; for `reachable`, `co-reach`, `target-config`, `require-backed` and `doc-modules`, `<reason>: <detail>`. |
-| `detail` | string or null | What this violation is beyond the reason: for `layers`, `app (implementation) may not import plugin (implementation)`; for `reachable`, `AppTest is outside the import closure of App` (the `from` modules named when there are at most three, else `'from' (5 modules)`); for `co-reach`, `AppTest reaches Core.Types but not Main`, or, when the root is itself an `if-reaches` module, `Core.Impl is in 'if-reaches' but does not reach Base and Core.Macros` (every missing module named); for `target-config`, `lean_lib pkgb/PkgBExtra does not load @lint/lintShared`, followed by ` and imports no module of lib:lint/Lint` when the rule has `or-imports` (its selectors as written, joined by ` or `); for `require-backed`, `App (package require-ws) imports package iface, which require-ws does not require directly`; for `doc-modules`, `Doc.B is not listed in section 'Missing' of docs/modules.md` for a missing module, or `section 'Extra' of docs/modules.md lists Doc.Gone, which 'modules' does not match` for an extra name (the Markdown file relative to the workspace root); null for the other kinds. |
-| `chain` | array | The imports that break the rule, as graph JSON's Import objects ([`graph-json.md`](graph-json.md), "Import"): consecutive (each step's `imported` is the next's `importer`); exactly one for a direct deny rule, an allow-only rule, `layers` and `require-backed` (the first unbacked import directive of the importing module into the imported one); a shortest chain for a transitive deny rule; `[]` for `reachable`, which no import breaks; for `co-reach`, a shortest chain from the root to the nearest `if-reaches` module, the witness that the rule applies, or `[]` when the root is itself one; `[]` for `target-config`, which is about a target's configuration, not an import; `[]` for `doc-modules`, which is about a document. A consumer must not assume a non-empty chain for kind `reachable`, `co-reach`, `target-config` or `doc-modules`. |
+| `message` | string | The text header after the position: the reason; for `layers`, `<reason>: <detail>` or the detail alone; for `reachable`, `co-reach`, `target-config`, `require-backed`, `doc-modules` and `doc-packages`, `<reason>: <detail>`. |
+| `detail` | string or null | What this violation is beyond the reason: for `layers`, `app (implementation) may not import plugin (implementation)`; for `reachable`, `AppTest is outside the import closure of App` (the `from` modules named when there are at most three, else `'from' (5 modules)`); for `co-reach`, `AppTest reaches Core.Types but not Main`, or, when the root is itself an `if-reaches` module, `Core.Impl is in 'if-reaches' but does not reach Base and Core.Macros` (every missing module named); for `target-config`, `lean_lib pkgb/PkgBExtra does not load @lint/lintShared`, followed by ` and imports no module of lib:lint/Lint` when the rule has `or-imports` (its selectors as written, joined by ` or `); for `require-backed`, `App (package require-ws) imports package iface, which require-ws does not require directly`; for `doc-modules`, `Doc.B is not listed in section 'Missing' of docs/modules.md` for a missing module, or `section 'Extra' of docs/modules.md lists Doc.Gone, which 'modules' does not match` for an extra name (the Markdown file relative to the workspace root); for `doc-packages`, `package impl has no row in section 'Broken' of docs/packages.md` for a missing row, `section 'Broken' of docs/packages.md has a row for gone, which 'packages' does not match` for an extra row, `section 'Broken' of docs/packages.md gives api layer implementation, but [layers] puts it in interface` for a layer, or `section 'S' of docs/packages.md gives impl requires gone, but impl requires api directly: missing api; extra gone` for requires (`requires none` for an empty cell, `requires nothing` for no direct require beside `requires-except`; a side with no names left out); null for the other kinds. |
+| `chain` | array | The imports that break the rule, as graph JSON's Import objects ([`graph-json.md`](graph-json.md), "Import"): consecutive (each step's `imported` is the next's `importer`); exactly one for a direct deny rule, an allow-only rule, `layers` and `require-backed` (the first unbacked import directive of the importing module into the imported one); a shortest chain for a transitive deny rule; `[]` for `reachable`, which no import breaks; for `co-reach`, a shortest chain from the root to the nearest `if-reaches` module, the witness that the rule applies, or `[]` when the root is itself one; `[]` for `target-config`, which is about a target's configuration, not an import; `[]` for `doc-modules` and `doc-packages`, which are about a document. A consumer must not assume a non-empty chain for kind `reachable`, `co-reach`, `target-config`, `doc-modules` or `doc-packages`. |
 | `module` | object or null | For `reachable`, the module the rule does not reach; for `co-reach`, the root the rule is broken for; for a `doc-modules` missing module, that module (`null` for an extra name): `{"name": string, "file": string}`, `file` relative to the workspace root when under it (with `/` separators), otherwise as is, like chain files. `null` for the other kinds. |
 | `missing` | array | For `co-reach`, the `must-reach` modules outside the root's closure, at least one, in the order `graph` lists modules, each an object as `module`. `[]` for the other kinds. |
 | `target` | object or null | For `target-config`, the target the rule is broken for (Target). `null` for the other kinds (and `module` is `null` for `target-config`). |
 | `require` | object or null | For `require-backed`, the package dependency no direct require backs (Require). `null` for the other kinds (and `module`, `target` are `null`, `missing` is `[]`, for `require-backed`). |
 | `doc` | object or null | For `doc-modules`, the name missing from or extra in the Markdown section (Doc). `null` for the other kinds (and `target`, `require` are `null`, `missing` is `[]`, for `doc-modules`). |
+| `packageRow` | object or null | For `doc-packages`, the package row the violation is about (PackageRow). `null` for the other kinds (and `module`, `target`, `require`, `doc` are `null`, `missing` is `[]`, for `doc-packages`). |
 
 ### Target
 
@@ -120,15 +123,35 @@ Example:
 "doc": {"kind": "missing", "name": "Doc.B", "file": "docs/modules.md", "section": "Missing", "line": 16}
 ```
 
+### PackageRow
+
+| Key | Type | Meaning |
+|---|---|---|
+| `kind` | string | `missing` (a package `packages` matches with no row), `extra` (a row naming a package `packages` does not match), `layer` (the row's layer cell differs from the package's `[layers]` layer) or `requires` (the row's requires cell differs from the package's direct requires less `requires-except`). |
+| `package` | string | The package, as the row or the lakefile writes it (`impl`). |
+| `file` | string | The Markdown file, relative to the workspace root when under it, otherwise as is, like chain files. |
+| `section` | string | The heading's text, as the rule's `section` writes it. |
+| `line` | number | 1-based: the heading's line for `missing`, the row's line for the others. |
+| `documentedLayer` | string or null | For `layer`, the row's layer cell; `null` for the other kinds. |
+| `layer` | string or null | For `layer`, the package's `[layers]` layer; `null` for the other kinds. |
+| `missingRequires` | array | For `requires`, the direct requires the cell does not name, in lakefile order, each a string; `[]` otherwise. |
+| `extraRequires` | array | For `requires`, the names the cell gives that are no direct require (a `requires-except` package among them), in cell order, each a string; `[]` otherwise. |
+
+Example:
+
+```json
+"packageRow": {"kind": "layer", "package": "api", "file": "docs/packages.md", "section": "Broken", "line": 35, "documentedLayer": "implementation", "layer": "interface", "missingRequires": [], "extraRequires": []}
+```
+
 ### Rule
 
 | Key | Type | Meaning |
 |---|---|---|
-| `kind` | string | `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config`, `require-backed` or `doc-modules`. |
+| `kind` | string | `deny`, `allow-only`, `layers`, `reachable`, `co-reach`, `target-config`, `require-backed`, `doc-modules` or `doc-packages`. |
 | `index` | number | 1-based among the policy's tables of that kind, in source order; always 1 for `layers`. |
-| `label` | string | `deny rule 1`, `allow-only rule 2`, `layers`, `reachable rule 1`, `co-reach rule 1`, `target-config rule 1`, `require-backed rule 1`, `doc-modules rule 1`: how messages name the rule. |
+| `label` | string | `deny rule 1`, `allow-only rule 2`, `layers`, `reachable rule 1`, `co-reach rule 1`, `target-config rule 1`, `require-backed rule 1`, `doc-modules rule 1`, `doc-packages rule 1`: how messages name the rule. |
 | `file` | string | The policy path (as `policy`). |
-| `line` | number or null | The rule table's 1-based line: its `[[deny]]`/`[[allow-only]]`/`[layers]`/`[[reachable]]`/`[[co-reach]]`/`[[target-config]]`/`[[require-backed]]`/`[[doc-modules]]` header, or the `{` of an inline table. |
+| `line` | number or null | The rule table's 1-based line: its `[[deny]]`/`[[allow-only]]`/`[layers]`/`[[reachable]]`/`[[co-reach]]`/`[[target-config]]`/`[[require-backed]]`/`[[doc-modules]]`/`[[doc-packages]]` header, or the `{` of an inline table. |
 | `column` | number or null | Its 0-based column, as Lean and Lake print columns (0 for a header). |
 | `reason` | string or null | The rule's `reason` as written; null only for `layers` without one. |
 
@@ -146,7 +169,7 @@ Example:
 - `violations`: in the order the text prints them. That is deny rules, then
   allow-only rules, then `layers`, then reachable rules, then co-reach
   rules, then target-config rules, then require-backed rules, then
-  doc-modules rules, each in source order. Within a rule, by importing module in the order `graph` lists them,
+  doc-modules rules, then doc-packages rules, each in source order. Within a rule, by importing module in the order `graph` lists them,
   then by import directive in source order (direct deny rules, allow-only,
   layers, require-backed), or one per `from` module (transitive deny rules); within a
   reachable rule, by uncovered module in the order `graph` lists them;
@@ -155,7 +178,9 @@ Example:
   order `graph` lists packages (Lake's), then libraries, then executables,
   each in lakefile order; within a doc-modules rule, the missing modules in
   the order `graph` lists them, then the extra names in order of first
-  appearance in the section.
+  appearance in the section; within a doc-packages rule, the missing
+  packages by name, then the rows in document order, a row's layer
+  violation before its requires violation.
 - `chain`: from the importer in the rule's scope to the module that breaks
   it.
 - `errors`: the order stderr prints them.
@@ -168,7 +193,7 @@ toolchain.
 
 - Module names (`importer`, `imported`) are written as Lean writes them,
   with `«»` around components that need them (`«my-mod».X`).
-- Chain `file`s, `module.file`, each `missing[].file`, `target.file`, `require.file` and `doc.file` are relative to the workspace root, with
+- Chain `file`s, `module.file`, each `missing[].file`, `target.file`, `require.file`, `doc.file` and `packageRow.file` are relative to the workspace root, with
   `/` separators, as in graph JSON; a file outside the workspace root stays
   as it is.
 - `policy`, `rule.file` and `error.file` are the policy path as given on the
@@ -212,6 +237,11 @@ other kind; for `doc-modules`, `chain` and `missing` are `[]`, `target` and
 `require` are `null`, and `module` is set for a missing module and `null`
 for an extra name.
 
+The `[[doc-packages]]` rule kind added the Violation key `packageRow` and
+the Rule `kind` value `doc-packages`, again without a bump: `packageRow` is
+`null` for every other kind; for `doc-packages`, `chain` and `missing` are
+`[]`, and `module`, `target`, `require` and `doc` are `null`.
+
 ## Text and GitHub
 
 - The text format (the default) is for people. It prints a block per
@@ -226,7 +256,10 @@ for an extra name.
   `  <lakefile>: <package> requires nothing`; for a doc-modules rule, a
   missing module's `  <file>: <module>` line and then
   `  <markdown>:<line>: section '<section>'`, or an extra name's
-  `  <markdown>:<line>: <name>`), and then the summary line. It may change
+  `  <markdown>:<line>: <name>`; for a doc-packages rule,
+  `  <markdown>:<line>: section '<section>'` for a missing row, or the
+  row's `  <markdown>:<line>: <package>` for the others), and then the
+  summary line. It may change
   without notice.
 - `--format github` prints GitHub Actions workflow commands. Each violation
   is one command,
@@ -243,7 +276,9 @@ for an extra name.
   on its one import, its text block ending in the requires line. A
   doc-modules violation is placed on its Markdown file, at the section's
   heading (a missing module) or at the name's first listing (an extra
-  name). On exit 2 it prints one command per
+  name). A doc-packages violation is placed on its Markdown file, at the
+  section's heading (a missing row) or at the row's line (the others). On
+  exit 2 it prints one command per
   diagnostic,
   `::error file=<policy>,line=<line>,col=<column+1>,title=lean-deny%3A error::<message>`,
   each property only when known (`col` is 1-based, as GitHub counts). It

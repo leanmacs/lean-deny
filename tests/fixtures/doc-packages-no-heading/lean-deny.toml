@@ -1,0 +1,20 @@
+# A doc-packages rule naming a heading docs/packages.md does not have (exit 2).
+[layers]
+classify = [{ layer = "core", select = "pkg:core" }, { layer = "interface", select = "pkg:api" }]
+default = "implementation"
+allow = [
+  ["implementation", "implementation"],
+  ["implementation", "core"],
+  ["implementation", "interface"],
+  ["interface", "core"],
+]
+
+[[doc-packages]]
+file = "docs/packages.md"
+section = "The packages"
+package-column = "Package"
+layer-column = "Layer"
+requires-column = "Requires"
+packages = ["pkg:api", "pkg:impl"]
+requires-except = "core"
+reason = "the package table has one row per package"

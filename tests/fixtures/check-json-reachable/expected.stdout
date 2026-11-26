@@ -9,6 +9,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "AppTest", "file": "AppTest.lean"},
    "missing": [],
    "message":
@@ -26,6 +27,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "Main", "file": "Main.lean"},
    "missing": [],
    "message":
@@ -43,6 +45,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "Core.Api", "file": "core/Core/Api.lean"},
    "missing": [],
    "message":
@@ -60,6 +63,7 @@
     "file": "../reachable-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "Core.Macros", "file": "core/Core/Macros.lean"},
    "missing": [],
    "message":

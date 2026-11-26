@@ -1,0 +1,5 @@
+# The doc-packages fixtures' workspace (tests/fixtures/doc-packages-*): its
+# own policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0

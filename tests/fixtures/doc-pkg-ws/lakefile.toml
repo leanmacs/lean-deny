@@ -1,0 +1,16 @@
+# The doc-packages fixtures' workspace (tests/fixtures/doc-packages-*): this
+# root package `doc-pkg-ws` requires `impl` and `core`; `impl` requires
+# `core` and `api`; `api` requires `core`. docs/packages.md holds one
+# section per case. Joined by path `require`s. Never built.
+name = "doc-pkg-ws"
+
+[[require]]
+name = "impl"
+path = "impl"
+
+[[require]]
+name = "core"
+path = "core"
+
+[[lean_lib]]
+name = "App"

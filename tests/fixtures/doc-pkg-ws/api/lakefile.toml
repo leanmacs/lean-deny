@@ -1,0 +1,8 @@
+name = "api"
+
+[[require]]
+name = "core"
+path = "../core"
+
+[[lean_lib]]
+name = "Api"

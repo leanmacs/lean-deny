@@ -48,10 +48,16 @@ structure RequireBackedResolved where
   packages : Array Name
   deriving Inhabited
 
-/-- Resolve rule `r`'s selectors in `g`, with the policy's sets resolved in
-`sets`. The errors are in the module doc's order. -/
-def resolveRequireBacked (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeId))
-    (r : RequireBackedRule) : Except (Array String) RequireBackedResolved :=
+/-- The whole packages selectors `refs` match in `g`, with the policy's sets
+resolved in `sets`, sorted by `plainName`; `label` and `pos?` name the rule
+in a split's error. The errors, in order: each selector that matches nothing
+(source order), each that matches only modules outside the workspace or
+declared roots, then, only if there was none, each package the selectors
+split (packages by name). Shared by require-backed and doc-packages
+rules. -/
+def resolvePackageRefs (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeId))
+    (label : String) (pos? : Option Toml.Pos) (refs : Array SelectorRef) :
+    Except (Array String) (Array Name) :=
   Id.run do
     let loc := Policy.locate p.path
     let mut errs := #[]
@@ -59,7 +65,7 @@ def resolveRequireBacked (g : Graph) (p : Policy) (sets : Std.HashMap String (Ar
     -- declared roots too (`true`).
     let mut noPackage : Array (SelectorRef × Bool) := #[]
     let mut matched : Array NodeId := #[]
-    for ref in r.refs do
+    for ref in refs do
       match matchRef g sets ref with
       | .ok ns =>
         if !ns.isEmpty && ns.all fun n => (packageOf? g n).isNone then
@@ -90,17 +96,24 @@ def resolveRequireBacked (g : Graph) (p : Policy) (sets : Std.HashMap String (Ar
       match mods.find? inRule, mods.find? (!inRule ·) with
       | some m1, some m2 =>
         let msg :=
-          s!"{r.label} splits package '{plainName pk}': it matches {nodeName g m1} but not \
+          s!"{label} splits package '{plainName pk}': it matches {nodeName g m1} but not \
             {nodeName g m2}; the rule judges whole packages, so select them with pkg:, keyword:, \
             or a set of them"
-        errs := errs.push (loc r.pos? msg)
+        errs := errs.push (loc pos? msg)
       | some _, none =>
         packages := packages.push pk
       | _, _ =>
         pure ()
     if !errs.isEmpty then
       return .error errs
-    return .ok { rule := r, packages }
+    return .ok packages
+
+/-- Resolve rule `r`'s selectors in `g`, with the policy's sets resolved in
+`sets`. The errors are in the module doc's order (`resolvePackageRefs`). -/
+def resolveRequireBacked (g : Graph) (p : Policy) (sets : Std.HashMap String (Array NodeId))
+    (r : RequireBackedRule) : Except (Array String) RequireBackedResolved := do
+  let packages ← resolvePackageRefs g p sets r.label r.pos? r.refs
+  return { rule := r, packages }
 
 /-- Package `name`'s lakefile and direct requires, as written; a package
 missing from `g.packages` requires nothing, its lakefile the workspace

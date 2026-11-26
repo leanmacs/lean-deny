@@ -1,9 +1,11 @@
 /-!
-# Reading a Markdown section's module names
+# Reading a Markdown section's module names and tables
 
 What a `[[doc-modules]]` rule reads from its Markdown file: the section
-under one heading, and the backticked module names in it. A small,
-documented subset of CommonMark, enough for tables and lists. Pure.
+under one heading, and the backticked module names in it; and what a
+`[[doc-packages]]` rule reads: the section's top-level tables. A small,
+documented subset of CommonMark and GitHub tables, enough for tables and
+lists. Pure.
 
 - Lines are split on `\n`, a trailing `\r` dropped; line numbers are
   1-based.
@@ -30,6 +32,18 @@ documented subset of CommonMark, enough for tables and lists. Pure.
   components, each non-empty, of ASCII letters, digits, `_` and `'`, not
   starting with a digit (`isModuleName`). `«»`-escaped names are not
   recognised.
+- A **top-level table** (`sectionTables`) starts at a header row: a line
+  outside any fence whose first character is `|` (column 0, no indent).
+  The next line is its delimiter row: also a `|` line in column 0, with as
+  many cells as the header, each matching `:?-+:?`. Its body rows are the
+  following `|` lines in column 0; a blank line, any other line, a heading
+  or a fence ends it. A table whose rows are indented (as inside a list
+  item) is not top-level and is ignored, as is a table in a fence.
+- A row's **cells** (`tableCells`): the line trimmed, its leading `|` and
+  one trailing unescaped `|` dropped, split on each `|` not preceded by
+  `\`, each cell trimmed and its `\|` unescaped. A body row with fewer
+  cells than the header is padded with empty cells; extra cells are
+  dropped.
 -/
 
 namespace LeanDeny
@@ -191,9 +205,19 @@ private def classify (lines : Array (List Char)) : Array LineKind :=
             kinds := kinds.push .text
     return kinds
 
-/-- The section of `text` under the heading whose text is `heading`
-(trimmed), with its candidate names; the module doc gives the rules. -/
-def findSection (text heading : String) : Except SectionError DocSection :=
+/-- A section's place in `text`: its lines (a trailing `\r` dropped), their
+kinds, the heading's 0-based index and level, and the 0-based index where
+the section ends (exclusive). -/
+private structure SectionLines where
+  lines : Array (List Char)
+  kinds : Array LineKind
+  headingIdx : Nat
+  level : Nat
+  endIdx : Nat
+
+/-- The lines of `text` and the section under the heading whose text is
+`heading` (trimmed); the module doc gives the rules. -/
+private def sectionLines (text heading : String) : Except SectionError SectionLines :=
   Id.run do
     let lines : Array (List Char) :=
       (text.splitOn "\n").toArray.map fun l =>
@@ -210,7 +234,6 @@ def findSection (text heading : String) : Except SectionError DocSection :=
       | return .error .notFound
     if found.size > 1 then
       return .error (.ambiguous (found.map (·.1 + 1)))
-    let mut names := #[]
     let mut i := h + 1
     let mut stop := false
     while i < lines.size && !stop do
@@ -220,15 +243,105 @@ def findSection (text heading : String) : Except SectionError DocSection :=
           stop := true
       | _ =>
         pure ()
-      match kinds[i]! with
-      | .code =>
-        pure ()
-      | _ =>
-        if !stop then
-          for s in codeSpans (String.ofList lines[i]!) do
-            if isModuleName s then
-              names := names.push { name := s, line := i + 1 }
+      if !stop then
+        i := i + 1
+    return .ok { lines, kinds, headingIdx := h, level, endIdx := i }
+
+/-- The section of `text` under the heading whose text is `heading`
+(trimmed), with its candidate names; the module doc gives the rules. -/
+def findSection (text heading : String) : Except SectionError DocSection := do
+  let sl ← sectionLines text heading
+  let mut names := #[]
+  for i in [sl.headingIdx + 1:sl.endIdx] do
+    match sl.kinds[i]! with
+    | .code =>
+      pure ()
+    | _ =>
+      for s in codeSpans (String.ofList sl.lines[i]!) do
+        if isModuleName s then
+          names := names.push { name := s, line := i + 1 }
+  return { headingLine := sl.headingIdx + 1, names }
+
+/-- One body row of a table: its 1-based line and its cells, as many as the
+header's. -/
+structure DocRow where
+  line : Nat
+  cells : Array String
+  deriving BEq, Repr, Inhabited
+
+/-- A top-level table: its header row's 1-based line, the header's cells
+and the body rows, in document order. -/
+structure DocTable where
+  line : Nat
+  header : Array String
+  rows : Array DocRow
+  deriving BEq, Repr, Inhabited
+
+/-- The cells of a table row: the line trimmed, the leading `|` and one
+trailing unescaped `|` dropped, split on each `|` not preceded by `\`, each
+cell trimmed and its `\|` unescaped. -/
+def tableCells (line : String) : Array String :=
+  Id.run do
+    let cs := trimBlanks line.toList
+    let cs := if cs.head? == some '|' then cs.drop 1 else cs
+    let r := cs.reverse
+    let cs :=
+      match r with
+      | '|' :: '\\' :: _ => cs
+      | '|' :: rest => rest.reverse
+      | _ => cs
+    let mut cells : Array String := #[]
+    let mut cur : List Char := []
+    let mut prev : Option Char := none
+    for c in cs do
+      if c == '|' && prev != some '\\' then
+        cells := cells.push (String.ofList cur.reverse)
+        cur := []
+      else
+        cur := c :: cur
+      prev := some c
+    cells := cells.push (String.ofList cur.reverse)
+    return cells.map fun c => String.ofList (trimBlanks c.toList) |>.replace "\\|" "|"
+
+/-- The line is a table row: a text line starting with `|` in column 0. -/
+private def isRowLine (kind : LineKind) (cs : List Char) : Bool :=
+  match kind with
+  | .text => cs.head? == some '|'
+  | _ => false
+
+/-- A delimiter cell: `:?-+:?`. -/
+private def isDelimiterCell (c : String) : Bool :=
+  let cs := c.toList
+  let cs := if cs.head? == some ':' then cs.drop 1 else cs
+  let cs := if cs.getLast? == some ':' then cs.dropLast else cs
+  !cs.isEmpty && cs.all (· == '-')
+
+/-- The heading's 1-based line and every top-level table in the section of
+`text` under the heading whose text is `heading` (trimmed), in document
+order; the module doc gives the rules. -/
+def sectionTables (text heading : String) : Except SectionError (Nat × Array DocTable) := do
+  let sl ← sectionLines text heading
+  let row (i : Nat) : Bool := i < sl.endIdx && isRowLine sl.kinds[i]! sl.lines[i]!
+  let cellsAt (i : Nat) : Array String := tableCells (String.ofList sl.lines[i]!)
+  let mut tables := #[]
+  let mut i := sl.headingIdx + 1
+  while i < sl.endIdx do
+    let header := cellsAt i
+    let delim := if row (i + 1) then cellsAt (i + 1) else #[]
+    if row i && row (i + 1) && delim.size == header.size && delim.all isDelimiterCell then
+      let mut rows := #[]
+      let mut j := i + 2
+      while row j do
+        let cells := cellsAt j
+        let cells :=
+          if cells.size < header.size then cells ++ Array.replicate (header.size - cells.size) ""
+          else cells.extract 0 header.size
+        rows := rows.push { line := j + 1, cells }
+        j := j + 1
+      tables := tables.push { line := i + 1, header, rows }
+      i := j
+    else
       i := i + 1
-    return .ok { headingLine := h + 1, names }
+  return (sl.headingIdx + 1, tables)
 
 end LeanDeny

@@ -9,6 +9,7 @@
     "file": "../co-reach-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "AppTest", "file": "AppTest.lean"},
    "missing": [{"name": "Main", "file": "Main.lean"}],
    "message":
@@ -53,6 +54,7 @@
     "file": "../co-reach-bites/lean-deny.toml",
     "column": 0},
    "require": null,
+   "packageRow": null,
    "module": {"name": "Core.Impl", "file": "core/Core/Impl.lean"},
    "missing":
    [{"name": "Base", "file": "base/Base.lean"},
