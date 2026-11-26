@@ -1,0 +1,6 @@
+# `a` names `set:c` three times. explain must still walk every set it
+# refers to: `explain set:a` prints both App and Core.Api.
+[sets]
+b = ["mod:App!"]
+c = ["mod:Core.Api!"]
+a = ["set:b", "set:c", "set:c", "set:c"]

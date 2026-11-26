@@ -1,0 +1,4 @@
+# Two paths to one set must not cut the walk over the sets short.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "--config", "sets.toml", "set:top"]
+exit = 0

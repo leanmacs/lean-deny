@@ -177,7 +177,19 @@ def setCases : Array (String × LeanDeny.Policy × Option String × Array String
       mkPolicy #[mkSet "broken" 1 ["mod:Nope", "pkg:core"], mkSet "top" 2 ["set:broken"]],
       some "top",
       #["error: p.toml:1:10: selector 'mod:Nope' in set 'broken' matches no module: no \
-          workspace module is or is under 'Nope'"])]
+          workspace module is or is under 'Nope'"]),
+    ("only? walks a diamond of set: references to the end",
+      mkPolicy
+        #[mkSet "b" 1 ["mod:App!"], mkSet "c" 2 ["mod:Core.Api!"], mkSet "l" 3 ["set:b"],
+          mkSet "r" 4 ["set:b"], mkSet "m" 5 ["set:b"],
+          mkSet "top" 6 ["set:c", "set:l", "set:r", "set:m"]],
+      some "top",
+      #["b: [App]", "c: [Core.Api]", "l: [App]", "m: [App]", "r: [App]", "top: [App, Core.Api]"]),
+    ("only? with repeated set: references",
+      mkPolicy
+        #[mkSet "b" 1 ["mod:App!"], mkSet "c" 2 ["mod:Core.Api!"],
+          mkSet "a" 3 ["set:b", "set:c", "set:c", "set:c"]],
+      some "a", #["a: [App, Core.Api]", "b: [App]", "c: [Core.Api]"])]
 
 /-- A command-line selector. -/
 def cli (text : String) : SelectorRef :=

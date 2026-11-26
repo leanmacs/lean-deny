@@ -1,0 +1,4 @@
+# A repeated set: reference must not cut the walk over the sets short.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "--config", "sets.toml", "set:a"]
+exit = 0

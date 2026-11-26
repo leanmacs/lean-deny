@@ -156,22 +156,23 @@ private def diff (a b : Array NodeId) : Array NodeId :=
         out := out.push x
     return out
 
-/-- The indices of set `start` and of every set it refers to, directly or not. -/
+/-- The indices of set `start` and of every set it refers to, directly or not.
+A set is marked when it is pushed, and pushed only if unmarked, so a set named
+more than once (a repeated `set:`, or two paths to it) is walked once. The
+walk ends when `todo` is empty; no step bound can cut it short. -/
 private def closure (p : Policy) (start : Nat) : Array Bool :=
   Id.run do
-    let mut seen := Array.replicate p.sets.size false
+    let mut seen := (Array.replicate p.sets.size false).set! start true
     let mut todo := #[start]
-    -- Each set is pushed at most once, so `sets.size` rounds suffice.
-    for _ in [0:p.sets.size + 1] do
+    repeat
       let some i := todo.back? | break
       todo := todo.pop
-      if seen[i]?.getD true then
-        continue
-      seen := seen.set! i true
       for r in (p.sets[i]?.map (·.refs)).getD #[] do
         if let some n := r.setName? then
           if let some j := p.sets.findIdx? fun (d : SetDef) => d.name == n then
-            todo := todo.push j
+            unless seen[j]?.getD true do
+              seen := seen.set! j true
+              todo := todo.push j
     return seen
 
 /-- Resolve every set (`only? = none`, used by `check`) or only the closure of

@@ -1,0 +1,10 @@
+# Diamonds: `top` reaches `b` along three paths (through `l`, `r` and `m`),
+# and names no set twice. explain must still walk every set it refers to:
+# `explain set:top` prints both App and Core.Api.
+[sets]
+b = ["mod:App!"]
+c = ["mod:Core.Api!"]
+l = ["set:b"]
+r = ["set:b"]
+m = ["set:b"]
+top = ["set:c", "set:l", "set:r", "set:m"]
