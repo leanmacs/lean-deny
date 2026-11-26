@@ -13,12 +13,15 @@ build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
 > graph through Lake and exits with the codes below. It reads the `[sets]`
-> table of `lean-deny.toml` and checks that every selector in it matches.
-> No rule kinds exist yet, so any other top-level key is an error, never
-> silently ignored. `lean-deny explain` lists the modules a selector
-> matches, and `lean-deny graph` prints the graph it loads, as text, JSON or
-> DOT. The rule syntax below is a draft and will change. The plan lives in the rdm project `lean-deny`
-> (roadmaps `foundation` and `policy-rules`).
+> table and the `[[deny]]` rules of `lean-deny.toml`, checks that every
+> selector matches, and exits 1 with the violations when a `deny` rule is
+> broken. `allow-only` and `layers` are not implemented yet: like any other
+> unknown top-level key, they are an error, never silently ignored.
+> `lean-deny explain` lists the modules a selector matches, and
+> `lean-deny graph` prints the graph it loads, as text, JSON or DOT. The
+> syntax of the rules not yet implemented is a draft and will change. The
+> plan lives in the rdm project `lean-deny` (roadmaps `foundation` and
+> `policy-rules`).
 
 [cargo-deny]: https://github.com/EmbarkStudios/cargo-deny
 
@@ -112,6 +115,107 @@ or names a set that has one, the set's modules are not all known, so the two
 Every set is checked, whether a rule uses it or not, so a set no rule uses
 is fine.
 
+### deny
+
+A `[[deny]]` rule says the modules of `from` must not import the modules of
+`to`:
+
+```toml
+[[deny]]
+from = "set:core"
+to = "keyword:editor-implementation"
+transitive = true
+wrappers = ["mod:Editor.Adapters.Fs"]
+reason = "the core imports no package"
+```
+
+| Key | Required | Value |
+|---|---|---|
+| `from` | yes | a selector, or a non-empty array of selectors (their union) |
+| `to` | yes | the same |
+| `transitive` | no | `true` or `false` (default `false`: direct imports only) |
+| `wrappers` | no | a selector, or a non-empty array of selectors (default none) |
+| `reason` | yes | a non-blank string, printed with every violation |
+
+Rules are numbered `deny rule 1`, `deny rule 2`, … in the order they are
+written. Both `[[deny]]` tables and an inline `deny = [{ … }, …]` work.
+
+- **Direct** (`transitive = false`): every import from a module of `from` to
+  a module of `to` is a violation, reported once per (importer, imported)
+  pair, with the first such `import` as its witness. Every import counts:
+  plain, `meta`, `public`, and Lean's implicit `Init` imports (so
+  `to = "external:Init"` bites every module of `from` that is not
+  `prelude`).
+- **Transitive** (`transitive = true`): every module of `from` that reaches a
+  module of `to` through one or more imports is a violation, reported once
+  per `from` module, with a shortest import chain as its witness. Among
+  equally short chains, the witness is the one found first when each
+  module's imports are read in source order.
+- The graph holds only the external modules the workspace imports directly,
+  and they import nothing in it, so a chain ends at the first external
+  module: `to = "external:Lean.Elab"` sees a module that imports
+  `Lean.Elab.Command`, not one that imports `Lean`, which imports it.
+
+**Wrappers** are the modules allowed to import `to` (cargo-deny's
+`wrappers`). A `from` module that is a wrapper is excused, in both modes. A
+transitive rule never follows the imports of a wrapper, so a chain that
+passes through one is allowed; a chain that avoids every wrapper is still a
+violation. A wrapper that is itself in `to` still counts as reached.
+
+A wrapper selector must excuse something. A wrapper module is used when it
+is the first wrapper on a chain from `from` to `to`: for a direct rule, it
+is in `from` and imports a module of `to`; for a transitive rule, it is in
+`from`, or reached from `from` without passing through another wrapper or a
+module of `to`, and some module of `to` is reachable from it. A selector none
+of whose modules is used is an error. One used module is enough, so
+`wrappers = ["mod:Editor.Adapters"]` may cover several adapters of which
+only some import `to`. Removing an unused selector never changes the rule's
+result.
+
+Each of these is an error (exit 2), reported at the policy's
+`file:line:column`:
+
+- a malformed rule: `deny` not an array of tables, a missing `from`, `to` or
+  `reason`, an unknown key, an empty list, a blank `reason`, a value of the
+  wrong kind, or a malformed selector;
+- a `set:` that names no set;
+- a selector in `from`, `to` or `wrappers` that matches no module, named
+  with its rule and field (`selector 'mod:Core.Apii' in deny rule 1
+  ('from') matches no module: …`);
+- a `from` selector that matches only external modules, which import
+  nothing in the graph, so the rule could never bite;
+- `from` and `to` sharing modules (take them out of one side with a set's
+  `except`);
+- a wrapper selector that excuses nothing.
+
+A rule with one of these errors is not evaluated further, so one mistake gives
+one error. When the policy has any error, no violation is reported: a policy
+known to be wrong gives no result to trust.
+
+A violation is printed as a block on stdout: the rule, where it is written,
+and its reason, then each import of the chain with its file and line (paths
+relative to the workspace). Blocks come in rule order, then by importing
+module in the order `graph` lists modules, then, for a direct rule, in the
+order the imports are written. A summary line follows the last block, and
+`check` exits 1. From
+`tests/fixtures/deny-transitive-bites`, whose first rule bites three times:
+
+```
+deny rule 1 (lean-deny.toml:5:0): the app never reaches the core's primitives
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+  core/Core/Types.lean:3: Core.Types imports Core.Prim
+deny rule 1 (lean-deny.toml:5:0): the app never reaches the core's primitives
+  AppTest.lean:1: AppTest imports App
+  App.lean:2: App imports Core.Api
+  core/Core/Api.lean:5: Core.Api imports Core.Types
+  core/Core/Types.lean:3: Core.Types imports Core.Prim
+…
+lean-deny: 4 violations in 2 of 2 rules
+```
+
+When every rule holds, `check` prints `lean-deny: ok (2 rules)` and exits 0.
+
 ## A policy, sketched
 
 ```toml
@@ -155,15 +259,16 @@ allow = [
 ]
 ```
 
-A violation would be reported like this (format not final):
+Only `[sets]` and `[[deny]]` are implemented so far, so today this policy is
+rejected for its `allow-only` and `layers` keys. With only its sets and its
+two `deny` rules, a broken rule is reported like this (see "deny" above; a
+`--format` option is planned):
 
 ```
-error: deny rule 1: a package may depend on the core, and the core on no package
+deny rule 1 (lean-deny.toml:8:0): a package may depend on the core, and the core on no package
   Editor/Core/Commands.lean:4: Editor.Core.Commands imports Editor.Core.Menus
   Editor/Core/Menus.lean:7: Editor.Core.Menus imports Compile.Api
-  Compile.Api belongs to package `compile`, which has keyword `editor-feature`
-
-1 violation in 1 rule
+lean-deny: 1 violation in 1 of 2 rules
 ```
 
 ## Using it with Lake
@@ -214,7 +319,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 
 | Command | Status | Does |
 |---|---|---|
-| `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
+| `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
 | `lean-deny graph [--workspace <dir>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--format text`, `--level module`. Does not read the policy. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
 | `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read only for a `set:` selector, and then only that set and the sets it refers to are resolved. |
@@ -225,8 +330,8 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | Code | Meaning |
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
-| 1 | At least one rule is broken. Reserved for rule violations; with no rule kinds yet, nothing produces it. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing (later also an unused wrapper). The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
+| 1 | At least one rule is broken (a `deny` rule's violation). The violations and a summary go to stdout. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules or whose `from` selector matches only external modules. No violation is reported then. The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
 
 ### Seeing the graph
 
@@ -271,7 +376,9 @@ of the selector syntax (`selector`), of the policy loader on TOML texts
 (`policy`), of the import-line parser (`header`), and of the graph builder and its
 queries on hand-written graphs (`query`); of the module, lib and package
 views on a hand-written graph (`view`); of what selectors and sets match
-on a hand-written graph (`resolve`); of the renderings, including the
+on a hand-written graph (`resolve`); of `deny` rules on hand-written
+graphs, from the policy's text to what `check` prints (`deny`); of the
+renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 exact checks of the graph loaded for `tests/fixtures/spike-ws` and
 `tests/fixtures/graph-ws` (`graph`); the fixture runner's own checks
@@ -301,8 +408,8 @@ runs with the fixture directory as its working directory.
   repository's becomes `<repo>`.
 - A directory without a `fixture.toml` is a failure, not a skip.
 
-Each rule kind will be tested by small fixture workspaces, one where the rule
-holds and one where it is broken. After `lake build --wfail && lake test`,
+Each rule kind is tested by fixtures where the rule holds and where it is
+broken (`deny-*` for `deny`, most over the `graph-ws` workspace). After `lake build --wfail && lake test`,
 `git status --porcelain` must print nothing; CI checks that too.
 
 The sources are formatted and linted with
