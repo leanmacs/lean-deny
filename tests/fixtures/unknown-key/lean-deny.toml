@@ -1,4 +1,3 @@
-# Valid TOML, but no rule kinds exist yet: rejected, never ignored.
-[[deny]]
-from = "pkg:a"
-to = "pkg:b"
+# Valid TOML, but `bans` is no key of this version: rejected, never ignored.
+[[bans]]
+deny = ["pkg:a"]

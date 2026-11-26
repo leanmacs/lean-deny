@@ -14,4 +14,5 @@ import LeanDeny.GraphCmd
 import LeanDeny.Lake.Toml
 import LeanDeny.Load
 import LeanDeny.Policy
+import LeanDeny.Policy.Selector
 import LeanDeny.Version

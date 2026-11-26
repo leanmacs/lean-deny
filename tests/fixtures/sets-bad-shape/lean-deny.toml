@@ -1,0 +1,9 @@
+[sets]
+"core api" = ["pkg:core"]
+scalar = "pkg:core"
+empty = []
+mixed = ["pkg:core", 1]
+nosel = { except = ["mod:Core.Api!"] }
+typo = { select = ["pkg:core"], exept = ["mod:Core.Api!"] }
+noexc = { select = ["pkg:core"], except = [] }
+# One badly shaped set per line, each reported. Rejected at load.

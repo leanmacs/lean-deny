@@ -1,0 +1,11 @@
+# One malformed selector per line, each reported. Rejected at load.
+[sets]
+bad = [
+  "Core.Api",
+  "crate:core",
+  "pkg:",
+  "mod:Core..Api",
+  "lib:a/b/c",
+  "pkg:core!",
+  "set:a.b",
+]

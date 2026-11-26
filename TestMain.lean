@@ -3,13 +3,16 @@ import LeanDenyTest.Fixtures
 import LeanDenyTest.Graph
 import LeanDenyTest.Harness
 import LeanDenyTest.Header
+import LeanDenyTest.Policy
 import LeanDenyTest.Query
 import LeanDenyTest.Render
+import LeanDenyTest.Selector
 import LeanDenyTest.View
 
 /-!
-`lake test` driver. Runs the CLI parser tests, the graph checks, the fixture
-runner's own checks and every fixture under `tests/fixtures/`. `lake test -- <name>…` runs only the named
+`lake test` driver. Runs the CLI parser tests, the selector and policy
+tests, the graph checks, the fixture runner's own checks and every
+fixture under `tests/fixtures/`. `lake test -- <name>…` runs only the named
 fixtures. The working directory is the package root (as `lake test` sets it).
 -/
 
@@ -29,6 +32,8 @@ def main (args : List String) : IO UInt32 := do
   let mut ok := true
   if args.isEmpty then
     ok := (← report "cli" Cli.failures) && ok
+    ok := (← report "selector" Selector.failures) && ok
+    ok := (← report "policy" (← Policy.run)) && ok
     ok := (← report "header" (← Header.run)) && ok
     ok := (← report "query" Query.run) && ok
     ok := (← report "view" View.run) && ok

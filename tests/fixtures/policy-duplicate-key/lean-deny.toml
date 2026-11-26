@@ -1,0 +1,4 @@
+[sets]
+core = ["pkg:core"]
+core = ["pkg:base"]
+# A set defined twice: Lake's parser rejects it, with its position.

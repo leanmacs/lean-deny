@@ -1,0 +1,7 @@
+lean-deny: error: lean-deny.toml:2:13: invalid set name 'core api' (use letters, digits, '-' and '_')
+lean-deny: error: lean-deny.toml:3:9: set 'scalar' must be an array of selectors or a table with 'select' and 'except', found a string
+lean-deny: error: lean-deny.toml:4:8: set 'empty' is empty
+lean-deny: error: lean-deny.toml:5:21: set 'mixed': expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:6:8: set 'nosel' has no 'select' list
+lean-deny: error: lean-deny.toml:7:40: set 'typo': unknown key 'exept' (expected 'select' or 'except')
+lean-deny: error: lean-deny.toml:8:42: set 'noexc': 'except' is empty (omit it)

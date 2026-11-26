@@ -1,0 +1,5 @@
+# Sets that refer to themselves. Rejected at load, before Lake runs.
+[sets]
+a = ["set:b"]
+b = ["mod:X", "set:a"]
+c = ["set:c"]

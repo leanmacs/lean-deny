@@ -1,0 +1,2 @@
+lean-deny: error: lean-deny.toml:3:5: set 'a' refers to itself: a -> b -> a
+lean-deny: error: lean-deny.toml:5:5: set 'c' refers to itself: c -> c

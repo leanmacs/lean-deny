@@ -1,0 +1,4 @@
+[sets]
+core = ["pkg:core"]
+api = ["set:cor"]
+# A typo in a set name. Rejected at load, before Lake runs.
