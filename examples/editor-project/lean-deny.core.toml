@@ -1,0 +1,18 @@
+# editor-project's core imports rules 4 and 5 over the core alone: the
+# workspace lean/ (Lake package editor-core), which holds no package, so the
+# rules that name packages are in lean-deny.toml, over packages/.
+# docs/editor-project-acceptance.md.
+#
+#   lean-deny check --workspace lean --config <this file>
+
+[[deny]]
+from = ["mod:Editor!", "mod:ModelTest!"]
+to = ["external:Lean", "external:Lake"]
+transitive = true
+reason = "the config base and the model tests' root are plain Lean (core imports check, rule 4)"
+
+[[deny]]
+from = "mod:ModelTest!"
+to = "mod:Editor.Ffi"
+transitive = true
+reason = "model-test links no Rust library (core imports check, rule 5)"

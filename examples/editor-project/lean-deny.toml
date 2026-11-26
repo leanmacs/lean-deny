@@ -1,0 +1,207 @@
+# editor-project's four import rules as a lean-deny policy: the core,
+# package, host and layer imports checks (tools/*-imports-check.sh at
+# editor-project 78d9d9ea, deleted at d51fe135; .agents/rules/structure.md
+# states them now). Mapping, runs and gaps: docs/editor-project-acceptance.md.
+#
+# The workspace is packages/, the default package set: it requires the core
+# (../lean, Lake package editor-core) and every default package by path.
+#
+#   lean-deny check --workspace packages --config <this file>
+
+[sets]
+# Every module of every package of the set but the core.
+packages = { select = ["keyword:editor-interface", "keyword:editor-input-scheme",
+  "pkg:at-point",
+  "pkg:binding-search",
+  "pkg:buffers",
+  "pkg:compile",
+  "pkg:completion",
+  "pkg:ex",
+  "pkg:execute-command",
+  "pkg:files",
+  "pkg:frame-commands",
+  "pkg:languages",
+  "pkg:menu",
+  "pkg:minibuffer",
+  "pkg:mode-line",
+  "pkg:package-set",
+  "pkg:project-search",
+  "pkg:restore",
+  "pkg:shell",
+  "pkg:shipped-themes",
+  "pkg:tab-commands",
+  "pkg:themes",
+  "pkg:version-control",
+  "pkg:window-commands",
+  "pkg:working-set",
+  "pkg:workspace",
+] }
+toolchain = ["external:Init", "external:Std", "external:Lean", "external:Lake"]
+
+# The core's linked test kit.
+linked-kit = ["mod:Editor.Test.Linked"]
+
+doubles = { select = [
+  "mod:Editor.Completion.Fake!", "mod:Editor.Job.Fake!", "mod:Editor.InputScheme.Test!",
+  "mod:Editor.Loop.Driver!", "mod:Editor.Config.Packages!", "mod:Editor.Theme.Picture!",
+  "mod:Editor.Test",
+  # Editor.*.Model and under it, Editor.*Contract, Editor.*.Cases, as of today (no glob selector).
+  "mod:Editor.Clipboard.Model",
+  "mod:Editor.Command.Model",
+  "mod:Editor.Config.Elaborator.Model",
+  "mod:Editor.Diff.Model",
+  "mod:Editor.Display.Model",
+  "mod:Editor.File.Model",
+  "mod:Editor.FileWatch.Model",
+  "mod:Editor.Fuzzy.Model",
+  "mod:Editor.Grep.Model",
+  "mod:Editor.Job.Model",
+  "mod:Editor.Process.Model",
+  "mod:Editor.SyntaxTree.Model",
+  "mod:Editor.Text.Model",
+  "mod:Editor.Watch.Model",
+  "mod:Editor.Clipboard.Contract!",
+  "mod:Editor.Completion.AtPointContract!",
+  "mod:Editor.Completion.Contract!",
+  "mod:Editor.Completion.DisplayContract!",
+  "mod:Editor.Completion.StyleContract!",
+  "mod:Editor.Config.Elaborator.Contract!",
+  "mod:Editor.Display.Contract!",
+  "mod:Editor.Fuzzy.Contract!",
+  "mod:Editor.Headless.Journal.Contract!",
+  "mod:Editor.Headless.Queue.Contract!",
+  "mod:Editor.InputScheme.Contract!",
+  "mod:Editor.Job.Contract!",
+  "mod:Editor.Job.FlushContract!",
+  "mod:Editor.Job.HandleContract!",
+  "mod:Editor.Job.ProtocolContract!",
+  "mod:Editor.Job.PumpContract!",
+  "mod:Editor.Job.SchedulerContract!",
+  "mod:Editor.SyntaxTree.Contract!",
+  "mod:Editor.SyntaxTree.DeliveryContract!",
+  "mod:Editor.Text.Contract!",
+  "mod:Editor.Watch.Contract!",
+  "mod:Editor.Api.Cases!",
+  "mod:Editor.File.Cases!",
+  "mod:Editor.UndoTree.Cases!",
+  "mod:FilesApiTest",
+], except = ["set:linked-kit"] }
+
+internal = { select = [
+  "mod:Editor!", "mod:Editor.Core!",
+  "mod:Editor.Main!", "mod:Editor.Headless!", "mod:Editor.Headless.CommandLine!", "mod:Editor.Headless.Queue!",
+  "mod:Editor.Headless.Stepped!", "mod:Editor.Headless.Wait!", "mod:Editor.Job.Activity!", "mod:Editor.Window!",
+  "mod:Editor.Window.Real!", "mod:Editor.WindowCheck!", "mod:Editor.WindowCheck.Real!", "mod:Editor.Executable!",
+  "mod:Editor.Version!", "mod:Editor.ModuleLookup!",
+  "mod:Editor.Loop!", "mod:Editor.Command.Dispatch!", "mod:Editor.Event.Queue!", "mod:Editor.State.Outbox!",
+  "mod:Editor.Config",
+  "mod:Editor.Ffi",
+  "mod:Editor.Clipboard.Real!",
+  "mod:Editor.Command.Real!",
+  "mod:Editor.Display.Real!",
+  "mod:Editor.Fuzzy.Real!",
+  "mod:Editor.Headless.Journal.Real!",
+  "mod:Editor.Headless.Queue.Real!",
+  "mod:Editor.Job.Real!",
+  "mod:Editor.Restart.Real!",
+  "mod:Editor.SyntaxTree.Real!",
+  "mod:Editor.Text.Real!",
+  "mod:Editor.Watch.Real!",
+  "mod:Editor.Clipboard.InProcess!", "mod:Editor.Display.Recorder!", "mod:Editor.Job.Runner!",
+  "mod:Editor.Job.Jobs!", "mod:Editor.Job.Table!", "mod:Editor.Job.Pool!",
+], except = ["set:doubles"] }
+
+# The core's API: every module of the libraries Editor and FilesApi that is neither internal nor a test double.
+api = { select = ["lib:Editor", "lib:FilesApi"], except = ["set:internal", "set:doubles", "set:linked-kit"] }
+
+# What the root of a linked test may import beyond the linked kit.
+linked-root-extra = { select = ["mod:Editor!", "mod:Editor.Headless!",
+  "mod:Editor.Clipboard.Real!",
+  "mod:Editor.Command.Real!",
+  "mod:Editor.Display.Real!",
+  "mod:Editor.Fuzzy.Real!",
+  "mod:Editor.Headless.Journal.Real!",
+  "mod:Editor.Headless.Queue.Real!",
+  "mod:Editor.Job.Real!",
+  "mod:Editor.Restart.Real!",
+  "mod:Editor.SyntaxTree.Real!",
+  "mod:Editor.Text.Real!",
+  "mod:Editor.Watch.Real!",
+  "mod:Editor.Window.Real!",
+  "mod:Editor.WindowCheck.Real!",
+], except = ["mod:Editor.Window.Real!", "mod:Editor.WindowCheck.Real!"] }
+
+package-tests = ["mod:AtPointApiTest", "mod:AtPointTest", "mod:BindingSearchApiTest", "mod:BindingSearchTest", "mod:BuffersApiTest", "mod:BuffersTest", "mod:CompileApiTest", "mod:CompileTest", "mod:CompletionApiTest", "mod:CompletionTest", "mod:EvilApiTest", "mod:EvilTest", "mod:ExApiTest", "mod:ExTest", "mod:ExecuteCommandApiTest", "mod:ExecuteCommandTest", "mod:FilesTest", "mod:FrameCommandsApiTest", "mod:FrameCommandsTest", "mod:LanguagesTest", "mod:MenuTest", "mod:MinibufferApiTest", "mod:MinibufferTest", "mod:ModeLineTest", "mod:PackageSetTest", "mod:ProjectApiTest", "mod:ProjectSearchApiTest", "mod:ProjectSearchTest", "mod:RestoreTest", "mod:ShellApiTest", "mod:ShellTest", "mod:ShippedThemesTest", "mod:TabCommandsApiTest", "mod:TabCommandsTest", "mod:ThemesApiTest", "mod:ThemesTest", "mod:VcApiTest", "mod:VersionControlTest", "mod:WindowCommandsApiTest", "mod:WindowCommandsTest", "mod:WorkingSetApiTest", "mod:WorkingSetTest", "mod:WorkspaceTest"]
+package-linked = ["mod:CompileTest.Linked", "mod:CompletionTest.Linked", "mod:EvilTest.Linked", "mod:ExTest.Linked", "mod:FilesTest.Linked", "mod:ProjectSearchTest.Linked", "mod:ShellTest.Linked", "mod:ShippedThemesTest.Linked", "mod:ThemesTest.Linked", "mod:VcApiTest.Linked", "mod:VersionControlTest.Linked", "mod:WorkingSetTest.Linked", "mod:WorkspaceTest.Linked"]
+package-linked-roots = ["mod:CompileTest.Linked!", "mod:CompletionTest.Linked!", "mod:EvilTest.Linked!", "mod:ExTest.Linked!", "mod:FilesTest.Linked!", "mod:ProjectSearchTest.Linked!", "mod:ShellTest.Linked!", "mod:ShippedThemesTest.Linked!", "mod:ThemesTest.Linked!", "mod:VersionControlTest.Linked!", "mod:WorkingSetTest.Linked!", "mod:WorkspaceTest.Linked!"]
+
+library-may = ["set:api", "set:packages", "set:toolchain"]
+test-may = ["set:library-may", "set:doubles"]
+linked-may = ["set:test-may", "set:linked-kit"]
+linked-root-may = ["set:linked-may", "set:linked-root-extra"]
+
+# The host's modules, by hand from the generated roots' text (rootSource, fixturesRootSource):
+# every import but the entry modules.
+host-roots = ["mod:Editor!", "mod:Editor.Main!", "mod:Editor.Test.Fixture.Main!"]
+entry-modules = ["mod:AtPoint.EditorPackage!", "mod:BindingSearch.EditorPackage!", "mod:Buffers.EditorPackage!", "mod:Compile.EditorPackage!", "mod:Completion.EditorPackage!", "mod:Evil.EditorPackage!", "mod:Ex.EditorPackage!", "mod:ExecuteCommand.EditorPackage!", "mod:Files.EditorPackage!", "mod:FrameCommands.EditorPackage!", "mod:Languages.EditorPackage!", "mod:Menu.EditorPackage!", "mod:Minibuffer.EditorPackage!", "mod:ModeLine.EditorPackage!", "mod:PackageSet.EditorPackage!", "mod:ProjectSearch.EditorPackage!", "mod:Restore.EditorPackage!", "mod:Shell.EditorPackage!", "mod:TabCommands.EditorPackage!", "mod:Themes.EditorPackage!", "mod:VersionControl.EditorPackage!", "mod:WindowCommands.EditorPackage!", "mod:WorkingSet.EditorPackage!", "mod:Workspace.EditorPackage!"]
+feature-modules = ["set:entry-modules", "mod:AtPoint.Compiled!", "mod:BindingSearch.Compiled!", "mod:Buffers.Compiled!", "mod:Compile.Compiled!", "mod:Completion.Compiled!", "mod:Evil.Compiled!", "mod:Ex.Compiled!", "mod:ExecuteCommand.Compiled!", "mod:Files.Compiled!", "mod:FrameCommands.Compiled!", "mod:Languages.Compiled!", "mod:Menu.Compiled!", "mod:Minibuffer.Compiled!", "mod:ModeLine.Compiled!", "mod:PackageSet.Compiled!", "mod:ProjectSearch.Compiled!", "mod:Restore.Compiled!", "mod:Shell.Compiled!", "mod:TabCommands.Compiled!", "mod:Themes.Compiled!", "mod:VersionControl.Compiled!", "mod:WindowCommands.Compiled!", "mod:WorkingSet.Compiled!", "mod:Workspace.Compiled!", "mod:Evil.Theorems!"]
+
+# Core imports, rule 1 (standing form): the core imports no package.
+[[deny]]
+from = "pkg:editor-core"
+to = "set:packages"
+transitive = true
+reason = "a package may depend on the core, and the core on no package (core imports check, rule 1)"
+
+# Core imports, rule 4.
+[[deny]]
+from = ["mod:Editor!", "mod:ModelTest!"]
+to = ["external:Lean", "external:Lake"]
+transitive = true
+reason = "the config base and the model tests' root are plain Lean (core imports check, rule 4)"
+
+# Core imports, rule 5.
+[[deny]]
+from = "mod:ModelTest!"
+to = "mod:Editor.Ffi"
+transitive = true
+reason = "model-test links no Rust library (core imports check, rule 5)"
+
+# Host imports.
+[[deny]]
+from = "set:host-roots"
+to = "set:feature-modules"
+transitive = true
+reason = "the host is handed its packages as a value and names none of them (host imports check)"
+
+# Package imports: four tiers.
+[[allow-only]]
+from = "set:packages"
+allow = "set:library-may"
+reason = "a package's library imports the core's API alone (package imports check)"
+
+[[allow-only]]
+from = "set:package-tests"
+allow = "set:test-may"
+reason = "a package's tests may also import the core's test doubles (package imports check)"
+
+[[allow-only]]
+from = "set:package-linked"
+allow = "set:linked-may"
+reason = "a package's linked test may also import the linked test kit (package imports check)"
+
+[[allow-only]]
+from = "set:package-linked-roots"
+allow = "set:linked-root-may"
+reason = "a linked test's root may also import the real bindings, the headless host and the config base (package imports check)"
+
+# Three layers.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor-core" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"
+allow = [["interface", "core"], ["implementation", "core"], ["implementation", "interface"], ["interface", "interface"]]
+same-package = "allow"
+reason = "three layers (layer imports check)"

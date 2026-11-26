@@ -333,7 +333,9 @@ lean-deny: 1 violation in 1 of 2 rules
 
 The `[layers]` table puts every package of the workspace in one layer and
 says which layers a package may import from. This is editor-project's
-three-layer rule (its `tools/layer-imports-check.sh`):
+three-layer rule (its `tools/layer-imports-check.sh`, deleted from
+editor-project at `d51fe135`; see
+[docs/editor-project-acceptance.md](docs/editor-project-acceptance.md)):
 
 ```toml
 [layers]
@@ -476,6 +478,19 @@ deny rule 1 (lean-deny.toml:8:0): a package may depend on the core, and the core
   Editor/Core/Menus.lean:7: Editor.Core.Menus imports Compile.Api
 lean-deny: 1 violation in 1 of 4 rules
 ```
+
+## editor-project, as the acceptance test
+
+[docs/editor-project-acceptance.md](docs/editor-project-acceptance.md)
+writes editor-project's four import checks (core, package, host and layer
+imports) as one policy,
+[`examples/editor-project/lean-deny.toml`](examples/editor-project/lean-deny.toml),
+runs it over a copy of editor-project with
+[`examples/editor-project/acceptance.sh`](examples/editor-project/acceptance.sh),
+and shows each rule biting on an edit that breaks it. What lean-deny cannot
+express yet is listed there as tasks. It is confirmed by `lake build`, then
+the script exiting 0 with `acceptance: every expectation held`, then the
+`rdm verify` command (below), then an empty `git status --porcelain`.
 
 ## Using it with Lake
 
