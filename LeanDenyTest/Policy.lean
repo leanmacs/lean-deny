@@ -3,8 +3,10 @@ import LeanDeny
 /-!
 Tests of the policy loader (`LeanDeny.Policy.ofToml`) on TOML texts: the
 three forms of a set, the two forms of `[[deny]]` and of `[[allow-only]]`,
-the positions of sets, rules and selectors, every load-time error with its exact rendering, `set:`
-references and cycles, and the order sets are resolved in.
+the three forms of `[layers]`, the positions of sets, rules and selectors,
+every load-time error with its exact rendering, `set:` references and
+cycles, the order sets are resolved in, and that the README's sketched
+policy loads.
 -/
 
 open LeanDeny
@@ -27,6 +29,7 @@ def renderUse : Use → String
   | .setSelect n => s!"select({n})"
   | .setExcept n => s!"except({n})"
   | .rule k i f => s!"{k}{i}.{f}"
+  | .layer i => s!"layers{i}"
   | .commandLine => "cli"
 
 def renderRef (r : SelectorRef) : String :=
@@ -52,13 +55,32 @@ def renderAllowOnly (r : AllowOnlyRule) : String :=
     {if r.except.isEmpty then "" else s!" except[{refs r.except}]"} allow[{refs r.allow}] \
     reason={repr r.reason}"
 
+/-- `[layers]` as `layers@pos classify[layer@pos(selectors), …] default=d@pos
+allow[importer>imported@pos, …] reason="…"`, `-` for an absent `default` or
+`reason`. -/
+def renderLayers (r : LayersRule) : String :=
+  let refs (rs : Array SelectorRef) := ", ".intercalate (rs.map renderRef).toList
+  let entry (c : LayerClass) := s!"{c.layer}@{renderPos c.pos?}({refs c.select})"
+  let pair (q : LayerPair) := s!"{q.importer}>{q.imported}@{renderPos q.pos?}"
+  let dflt :=
+    match r.default? with
+    | some d => s!"{d}@{renderPos r.defaultPos?}"
+    | none => "-"
+  let reason :=
+    match r.reason? with
+    | some s => toString (repr s)
+    | none => "-"
+  s!"layers@{renderPos r.pos?} classify[{", ".intercalate (r.classify.map entry).toList}] \
+    default={dflt} allow[{", ".intercalate (r.allow.map pair).toList}] reason={reason}"
+
 /-- Every set, then the order by name, then every deny rule, then every
-allow-only rule. -/
+allow-only rule, then `[layers]`. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
   (p.sets.map renderSet |>.push
       s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
     p.deny.map renderRule ++
-    p.allowOnly.map renderAllowOnly
+    p.allowOnly.map renderAllowOnly ++
+    (p.layers?.map fun r => #[renderLayers r]).getD #[]
 
 /-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
 def denyWith (extra : String) : String :=
@@ -93,9 +115,9 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "b@3:4 [pkg:b@3:5 select(b)]", "order: b a"]),
     -- Unknown top-level keys.
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
-      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only)"]),
+      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers)"]),
     ("foo = 1", "foo = 1\n",
-      .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only)"]),
+      .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny, allow-only, layers)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -164,7 +186,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
         #["p.toml:3:4: set 'b' is empty",
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external or set)",
-          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only)",
+          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
 /-- `[[deny]]` cases, as `cases`. -/
@@ -383,6 +405,235 @@ def allowOnlyCases : Array (String × String × Except (Array String) (Array Str
           "allow-only#1@6:0 from[mod:A@7:7 allow-only1.from] allow[mod:B@8:8 allow-only1.allow] \
             reason=\"r\""])]
 
+/-- A `[layers]` table whose line 2 is one classify entry (`core`,
+`mod:C`, its `select` at 2:39), then `extra` lines. -/
+def layersWith (extra : String) : String :=
+  s!"[layers]\nclassify = [\{ layer = \"core\", select = \"mod:C\" }]\n{extra}"
+
+/-- `[layers]` with one classify entry written as `entry` on line 2. -/
+def layersEntry (entry : String) : String :=
+  s!"[layers]\nclassify = [{entry}]\n"
+
+/-- The message for an `allow` element that is no pair, at `pos`. -/
+def notPair (pos : String) : String :=
+  s!"p.toml:{pos}: layers: allow entry 1 must be a pair of layer names [importer, imported], \
+    such as [\"implementation\", \"core\"]"
+
+/-- `[layers]` cases, as `cases`. -/
+def layersCases : Array (String × String × Except (Array String) (Array String)) :=
+  #[ -- The three forms.
+    ("[layers] table",
+      "[layers]\nclassify = [\n  { layer = \"core\", select = \"mod:C\" },\n  \
+        { layer = \"iface\", select = [\"mod:I\", \"mod:J\"] },\n]\ndefault = \"impl\"\n\
+        allow = [[\"iface\", \"core\"], [\"impl\", \"core\"]]\nreason = \"why\"\n",
+      .ok
+        #["order: ",
+          "layers@1:0 classify[core@3:2(mod:C@3:29 layers1), iface@4:2(mod:I@4:31 layers2, \
+            mod:J@4:40 layers2)] default=impl@6:10 allow[iface>core@7:9, impl>core@7:28] \
+            reason=\"why\""]),
+    ("inline", "layers = { classify = [{ layer = \"core\", select = \"mod:C\" }] }\n",
+      .ok
+        #["order: ",
+          "layers@1:9 classify[core@1:23(mod:C@1:50 layers1)] default=- allow[] reason=-"]),
+    ("sub-tables",
+      "[layers]\ndefault = \"impl\"\n\n[[layers.classify]]\nlayer = \"core\"\nselect = \"mod:C\"\n",
+      .ok
+        #["order: ",
+          "layers@1:0 classify[core@4:0(mod:C@6:9 layers1)] default=impl@2:10 allow[] \
+            reason=-"]),
+    ("same-package = \"allow\"", layersWith "same-package = \"allow\"\n",
+      .ok
+        #["order: ",
+          "layers@1:0 classify[core@2:12(mod:C@2:39 layers1)] default=- allow[] reason=-"]),
+    ("a self pair and a default that is a classify layer",
+      layersWith "default = \"core\"\nallow = [[\"core\", \"core\"]]\n",
+      .ok
+        #["order: ",
+          "layers@1:0 classify[core@2:12(mod:C@2:39 layers1)] default=core@3:10 \
+            allow[core>core@4:9] reason=-"]),
+    -- The shape of `layers`.
+    ("layers = []", "layers = []\n",
+      .error #["p.toml:1:9: 'layers' must be a table, such as [layers]"]),
+    ("[[layers]]", "[[layers]]\nclassify = []\n",
+      .error #["p.toml:1:0: 'layers' must be a table, such as [layers]"]),
+    ("no classify", "[layers]\ndefault = \"x\"\n",
+      .error #["p.toml:1:0: layers has no 'classify'"]),
+    ("classify = 1", "[layers]\nclassify = 1\n",
+      .error
+        #["p.toml:2:11: layers: 'classify' must be an array of tables, such as [[layers.classify]]"]),
+    ("classify = []", "[layers]\nclassify = []\n",
+      .error #["p.toml:2:11: layers: 'classify' is empty"]),
+    -- Every load-time error of a classify entry.
+    ("an entry not a table", layersEntry "\"mod:C\"",
+      .error #["p.toml:2:12: layers classify entry 1 must be a table, found a string"]),
+    ("missing keys, in order", layersEntry "{}",
+      .error
+        #["p.toml:2:12: layers classify entry 1 has no 'layer'",
+          "p.toml:2:12: layers classify entry 1 has no 'select'"]),
+    ("missing keys come before the entry's errors", layersEntry "{ select = 1 }",
+      .error
+        #["p.toml:2:12: layers classify entry 1 has no 'layer'",
+          "p.toml:2:23: layers classify entry 1: 'select' must be a selector or an array of \
+            selectors, found an integer"]),
+    ("an unknown entry key", layersEntry "{ layer = \"core\", select = \"mod:C\", kind = 1 }",
+      .error
+        #["p.toml:2:55: layers classify entry 1: unknown key 'kind' (expected layer, select)"]),
+    ("layer = 1", layersEntry "{ layer = 1, select = \"mod:C\" }",
+      .error
+        #["p.toml:2:22: layers classify entry 1: 'layer' must be a layer name, found an integer"]),
+    ("layer = \"a b\"", layersEntry "{ layer = \"a b\", select = \"mod:C\" }",
+      .error
+        #["p.toml:2:22: layers classify entry 1: invalid layer name 'a b' (use letters, digits, \
+            '-' and '_')"]),
+    ("select = 3", layersEntry "{ layer = \"core\", select = 3 }",
+      .error
+        #["p.toml:2:39: layers classify entry 1: 'select' must be a selector or an array of \
+            selectors, found an integer"]),
+    ("select = []", layersEntry "{ layer = \"core\", select = [] }",
+      .error #["p.toml:2:39: layers classify entry 1: 'select' is empty"]),
+    ("select = [1]", layersEntry "{ layer = \"core\", select = [1] }",
+      .error
+        #["p.toml:2:40: layers classify entry 1 ('select'): expected a selector string, found an \
+            integer"]),
+    ("select = [\"Core\"]", layersEntry "{ layer = \"core\", select = [\"Core\"] }",
+      .error
+        #["p.toml:2:40: invalid selector 'Core': expected '<kind>:<value>', such as \
+            'mod:Editor.Api'"]),
+    -- Every load-time error of the table's other keys.
+    ("default = 1", layersWith "default = 1\n",
+      .error #["p.toml:3:10: layers: 'default' must be a layer name, found an integer"]),
+    ("default = \"a b\"", layersWith "default = \"a b\"\n",
+      .error #["p.toml:3:10: layers: invalid layer name 'a b' (use letters, digits, '-' and '_')"]),
+    ("allow = \"x\"", layersWith "allow = \"x\"\n",
+      .error
+        #["p.toml:3:8: layers: 'allow' must be an array of layer pairs, such as \
+            [[\"implementation\", \"core\"]], found a string"]),
+    ("allow = []", layersWith "allow = []\n",
+      .error #["p.toml:3:8: layers: 'allow' is empty (omit it)"]),
+    ("allow = [[\"a\"]]", layersWith "allow = [[\"a\"]]\n", .error #[notPair "3:9"]),
+    ("allow = [[\"a\", 1]]", layersWith "allow = [[\"a\", 1]]\n", .error #[notPair "3:9"]),
+    ("allow = [1]", layersWith "allow = [1]\n", .error #[notPair "3:9"]),
+    ("a repeated pair", layersWith "allow = [[\"core\", \"core\"], [\"core\", \"core\"]]\n",
+      .error #["p.toml:3:27: layers: allow entry 2 repeats allow entry 1 ([\"core\", \"core\"])"]),
+    ("an unknown layer on each side, importer first", layersWith "allow = [[\"x\", \"y\"]]\n",
+      .error
+        #["p.toml:3:10: layers: allow entry 1 names layer 'x', which neither a classify entry nor \
+            'default' declares (layers: core)",
+          "p.toml:3:15: layers: allow entry 1 names layer 'y', which neither a classify entry nor \
+            'default' declares (layers: core)"]),
+    ("the unknown-layer errors come after the table's others",
+      "[layers]\nallow = [[\"core\", \"impl\"]]\nclassify = [{ layer = \"core\", select = 1 }]\n\
+        default = \"dflt\"\n",
+      .error
+        #["p.toml:3:39: layers classify entry 1: 'select' must be a selector or an array of \
+            selectors, found an integer",
+          "p.toml:2:18: layers: allow entry 1 names layer 'impl', which neither a classify entry \
+            nor 'default' declares (layers: core, dflt)"]),
+    ("the unknown-layer check is skipped when an entry's layer is bad",
+      "[layers]\nclassify = [{ layer = 1, select = \"mod:C\" }]\nallow = [[\"x\", \"core\"]]\n",
+      .error
+        #["p.toml:2:22: layers classify entry 1: 'layer' must be a layer name, found an integer"]),
+    ("the unknown-layer check is skipped when default is bad",
+      layersWith "default = \"a b\"\nallow = [[\"x\", \"core\"]]\n",
+      .error #["p.toml:3:10: layers: invalid layer name 'a b' (use letters, digits, '-' and '_')"]),
+    ("same-package = \"check\"", layersWith "same-package = \"check\"\n",
+      .error
+        #["p.toml:3:15: layers: 'same-package' must be \"allow\": imports within one package are \
+            always allowed"]),
+    ("same-package = true", layersWith "same-package = true\n",
+      .error
+        #["p.toml:3:15: layers: 'same-package' must be \"allow\": imports within one package are \
+            always allowed"]),
+    ("reason = \"\"", layersWith "reason = \"\"\n",
+      .error #["p.toml:3:9: layers: 'reason' is empty"]),
+    ("reason = false", layersWith "reason = false\n",
+      .error #["p.toml:3:9: layers: 'reason' must be a string, found a boolean"]),
+    ("an unknown key", layersWith "allows = 1\n",
+      .error
+        #["p.toml:3:9: layers: unknown key 'allows' (expected classify, default, allow, \
+            same-package, reason)"]),
+    -- References.
+    ("an unknown set in select",
+      layersEntry "{ layer = \"core\", select = [\"mod:C\", \"set:l\"] }",
+      .error
+        #["p.toml:2:49: selector 'set:l' in layers classify entry 1 names an unknown set (the \
+            policy defines no sets)"]),
+    ("unknown sets in all three kinds of rule, in text order",
+      "[[deny]]\nfrom = \"set:d\"\nto = \"mod:B\"\nreason = \"r\"\n\n[[allow-only]]\n\
+        from = \"set:a\"\nallow = \"mod:B\"\nreason = \"r\"\n\n[layers]\n\
+        classify = [{ layer = \"core\", select = \"set:l\" }]\n",
+      .error
+        #["p.toml:2:7: selector 'set:d' in deny rule 1 ('from') names an unknown set (the \
+            policy defines no sets)",
+          "p.toml:7:7: selector 'set:a' in allow-only rule 1 ('from') names an unknown set (the \
+            policy defines no sets)",
+          "p.toml:12:39: selector 'set:l' in layers classify entry 1 names an unknown set (the \
+            policy defines no sets)"]),
+    ("unknown sets in all three kinds of rule, the text reversed",
+      "[layers]\nclassify = [{ layer = \"core\", select = \"set:l\" }]\n\n[[allow-only]]\n\
+        from = \"set:a\"\nallow = \"mod:B\"\nreason = \"r\"\n\n[[deny]]\nfrom = \"set:d\"\n\
+        to = \"mod:B\"\nreason = \"r\"\n",
+      .error
+        #["p.toml:10:7: selector 'set:d' in deny rule 1 ('from') names an unknown set (the \
+            policy defines no sets)",
+          "p.toml:5:7: selector 'set:a' in allow-only rule 1 ('from') names an unknown set (the \
+            policy defines no sets)",
+          "p.toml:2:39: selector 'set:l' in layers classify entry 1 names an unknown set (the \
+            policy defines no sets)"])]
+
+/-- The policy README.md's "A policy, sketched" shows, verbatim. -/
+def readmeSketch : String :=
+  "# lean-deny.toml
+
+[sets]
+core = [\"pkg:editor\"]
+core-api = [\"mod:Editor.Api\", \"lib:EditorInterfaces\"]
+
+# The core depends on no feature package, not even indirectly.
+[[deny]]
+from = \"set:core\"
+to = \"keyword:editor-feature\"
+transitive = true
+reason = \"a package may depend on the core, and the core on no package\"
+
+# Plain modules stay clear of Lean's frontend.
+[[deny]]
+from = \"mod:Editor.Text\"
+to = \"external:Lean.Elab\"
+transitive = true
+reason = \"text handling must not pull in the elaborator\"
+
+# A feature package's library uses the core's API and nothing else of it.
+[[allow-only]]
+from = \"keyword:editor-feature\"
+allow = [\"set:core-api\", \"external:Init\", \"external:Std\"]
+reason = \"packages import the core's API alone\"
+
+# Three layers: implementations go through interfaces, never each other.
+[layers]
+classify = [
+  { layer = \"core\", select = \"set:core\" },
+  { layer = \"interface\", select = \"keyword:editor-interface\" },
+]
+default = \"implementation\"
+allow = [
+  [\"interface\", \"core\"],
+  [\"implementation\", \"core\"],
+  [\"implementation\", \"interface\"],
+]
+"
+
+/-- The README's sketched policy loads, with every rule. -/
+def sketchFailures : IO (Array String) := do
+  match ← load readmeSketch with
+  | .error es =>
+    return #[s!"README sketch: expected it to load, got {repr es}"]
+  | .ok p =>
+    if p.deny.size == 2 && p.allowOnly.size == 1 && p.layers?.isSome && p.ruleCount == 4 then
+      return #[]
+    return #[s!"README sketch: expected 2 deny rules, 1 allow-only rule and [layers], got \
+        {repr (renderPolicy p)}"]
+
 def renderResult : Except (Array String) (Array String) → String
   | .ok xs => s!"ok {repr xs}"
   | .error es => s!"error {repr es}"
@@ -395,11 +646,16 @@ def renderingFailures : Array String :=
       (r (.setExcept "core"), "selector 'mod:X' in the except list of set 'core'"),
       (r (.rule "deny" 2 "from"), "selector 'mod:X' in deny rule 2 ('from')"),
       (r (.rule "allow-only" 2 "except"), "selector 'mod:X' in allow-only rule 2 ('except')"),
+      (r (.layer 2), "selector 'mod:X' in layers classify entry 2"),
       (r .commandLine, "selector 'mod:X'")]
+  let clause :=
+    if (Use.layer 2).clause == " in layers classify entry 2" then #[]
+    else #[s!"clause: got {repr (Use.layer 2).clause}"]
   let fs :=
-    want.toArray.filterMap fun (ref, w) =>
-      if ref.describe == w then none
-      else some s!"describe: expected {repr w}, got {repr ref.describe}"
+    clause ++
+      want.toArray.filterMap fun (ref, w) =>
+        if ref.describe == w then none
+        else some s!"describe: expected {repr w}, got {repr ref.describe}"
   let locs :=
     [(Policy.locate "p.toml" (some { line := 3, column := 0 }) "m", "p.toml:3:0: m"),
       (Policy.locate "p.toml" none "m", "p.toml: m"),
@@ -410,8 +666,8 @@ def renderingFailures : Array String :=
       if got == w then none else some s!"locate: expected {repr w}, got {repr got}"
 
 def run : IO (Array String) := do
-  let mut fs := renderingFailures
-  for (name, src, want) in cases ++ denyCases ++ allowOnlyCases do
+  let mut fs := renderingFailures ++ (← sketchFailures)
+  for (name, src, want) in cases ++ denyCases ++ allowOnlyCases ++ layersCases do
     let got := (← load src).map renderPolicy
     let same :=
       match got, want with

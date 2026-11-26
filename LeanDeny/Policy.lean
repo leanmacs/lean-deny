@@ -4,7 +4,7 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows three top-level keys:
+`lean-deny.toml`. This version knows four top-level keys:
 
 - `[sets]`: named sets of modules, each a list of selectors
   (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
@@ -12,15 +12,19 @@ import LeanDeny.Policy.Selector
 - `[[deny]]`: deny rules, each with `from`, `to`, `transitive`, `wrappers`
   and `reason` (`LeanDeny.Rules.Deny` evaluates them);
 - `[[allow-only]]`: allow-only rules, each with `from`, `except`, `allow`
-  and `reason` (`LeanDeny.Rules.AllowOnly` evaluates them).
+  and `reason` (`LeanDeny.Rules.AllowOnly` evaluates them);
+- `[layers]`: one table with `classify` entries (`layer`, `select`),
+  `default`, `allow` pairs of layers, `same-package` and `reason`
+  (`LeanDeny.Rules.Layers` evaluates it).
 
 Any other key is rejected rather than ignored, so a policy full of rules
 cannot pass while checking nothing.
 
 Loading checks everything that needs no graph: the file's shape, each
-selector's syntax, that every `set:` names a set, and that no set refers to
-itself. Every error is collected, each starting with
-`<path>:<line>:<column>: `: shape and syntax errors in source order, then
+selector's syntax, that every `set:` names a set, that no set refers to
+itself, and that every layer a `[layers]` `allow` pair names is declared.
+Every error is collected, each starting with `<path>:<line>:<column>: `:
+shape and syntax errors in source order, then
 the sets' references, then the rules' references. What the selectors match
 is checked against the graph later (`LeanDeny.Policy.Resolve`).
 -/
@@ -39,17 +43,20 @@ inductive Use where
   /-- Field `field` of rule `index` (1-based, in source order among the rules
   of `kind`): `.rule "deny" 1 "to"`. -/
   | rule (kind : String) (index : Nat) (field : String)
+  /-- The `select` of entry `entry` (1-based) of `[layers]`'s `classify`. -/
+  | layer (entry : Nat)
   /-- `lean-deny explain <selector>`. -/
   | commandLine
   deriving BEq, Repr, Inhabited
 
 /-- The clause a message puts after the selector: " in set 'core'",
-" in the except list of set 'core'", " in deny rule 1 ('to')", or "" on the
-command line. -/
+" in the except list of set 'core'", " in deny rule 1 ('to')",
+" in layers classify entry 1", or "" on the command line. -/
 def Use.clause : Use → String
   | .setSelect n => s!" in set '{n}'"
   | .setExcept n => s!" in the except list of set '{n}'"
   | .rule k i f => s!" in {k} rule {i} ('{f}')"
+  | .layer i => s!" in layers classify entry {i}"
   | .commandLine => ""
 
 /-- One selector as written in the policy or on the command line. -/
@@ -127,6 +134,67 @@ structure AllowOnlyRule where
 def AllowOnlyRule.label (r : AllowOnlyRule) : String :=
   s!"allow-only rule {r.index}"
 
+/-- One entry of `[layers]`'s `classify`: the packages `select` matches are
+in `layer`. -/
+structure LayerClass where
+  /-- 1-based, in source order. -/
+  index : Nat
+  /-- The entry's `{`, or its `[[layers.classify]]` header. -/
+  pos? : Option Toml.Pos
+  /-- A valid layer name, or `""` after an error. -/
+  layer : String := ""
+  /-- Non-empty in a valid policy. -/
+  select : Array SelectorRef := #[]
+  deriving BEq, Repr, Inhabited
+
+/-- One `allow` pair: a module of a package in layer `importer` may import a
+module of another package in layer `imported`. -/
+structure LayerPair where
+  /-- 1-based, in source order among `allow`'s elements. -/
+  index : Nat
+  /-- The pair's `[`. -/
+  pos? : Option Toml.Pos
+  importer : String
+  imported : String
+  /-- Each name's opening `"`, for the unknown-layer error. -/
+  importerPos? : Option Toml.Pos
+  importedPos? : Option Toml.Pos
+  deriving BEq, Repr, Inhabited
+
+/-- `["implementation", "core"]`, as written in TOML. -/
+def LayerPair.text (p : LayerPair) : String :=
+  s!"[\"{p.importer}\", \"{p.imported}\"]"
+
+/-- The `[layers]` table: every package is in one layer, and every import
+between two packages must be an allowed (importer layer, imported layer)
+pair. -/
+structure LayersRule where
+  /-- The `[layers]` header (column 0), or the `{` of `layers = { … }`. -/
+  pos? : Option Toml.Pos
+  classify : Array LayerClass := #[]
+  /-- `default`: the layer of every package no classify entry selects. -/
+  default? : Option String := none
+  defaultPos? : Option Toml.Pos := none
+  /-- `allow`, default none; no two pairs equal in a valid policy. -/
+  allow : Array LayerPair := #[]
+  /-- `reason`, optional; when given it starts every violation's header. -/
+  reason? : Option String := none
+  deriving BEq, Repr, Inhabited
+
+/-- The layers it declares: each classify entry's layer by first appearance,
+then `default` unless already listed. -/
+def LayersRule.layerNames (r : LayersRule) : Array String :=
+  let ls :=
+    r.classify.foldl (init := #[]) fun acc c =>
+      if c.layer.isEmpty || acc.contains c.layer then acc else acc.push c.layer
+  match r.default? with
+  | some d => if ls.contains d then ls else ls.push d
+  | none => ls
+
+/-- Every classify selector, in source order. -/
+def LayersRule.refs (r : LayersRule) : Array SelectorRef :=
+  r.classify.flatMap (·.select)
+
 /-- A parsed policy. -/
 structure Policy where
   /-- The policy path as given. It starts every message about the file. -/
@@ -139,15 +207,17 @@ structure Policy where
   deny : Array DenyRule := #[]
   /-- The `[[allow-only]]` rules, in source order. -/
   allowOnly : Array AllowOnlyRule := #[]
+  /-- The `[layers]` table, if any (TOML allows at most one). -/
+  layers? : Option LayersRule := none
   deriving Repr, Inhabited
 
 /-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets", "deny", "allow-only"]
+  #["sets", "deny", "allow-only", "layers"]
 
-/-- The number of rules of every kind. -/
+/-- The number of rules of every kind; `[layers]` is one rule. -/
 def Policy.ruleCount (p : Policy) : Nat :=
-  p.deny.size + p.allowOnly.size
+  p.deny.size + p.allowOnly.size + (if p.layers?.isSome then 1 else 0)
 
 /-- `<path>:<line>:<column>`, or `<path>` with no position. -/
 def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
@@ -273,8 +343,8 @@ private def parseSet (e : Errors) (name : String) (v : Toml.LValue) : Errors × 
 `none` after an error, the field's kind being wrong or the array empty. An
 empty array gives "'k' is empty", or "'k' is empty (omit it)" when
 `optional`. Elements go through `parseSelectors` with context
-"{label} ('{k}')" and use `.rule kind index k`. -/
-private def parseRuleSelectors (e : Errors) (label kind : String) (index : Nat) (k : String)
+"{label} ('{k}')" and use `use`. -/
+private def parseRuleSelectors (e : Errors) (label : String) (use : Use) (k : String)
     (optional : Bool) (x : Toml.LValue) : Errors × Option (Array SelectorRef) :=
   let xs? : Option (Array Toml.LValue) :=
     match x with
@@ -292,7 +362,7 @@ private def parseRuleSelectors (e : Errors) (label kind : String) (index : Nat) 
           if optional then s!"{label}: '{k}' is empty (omit it)" else s!"{label}: '{k}' is empty",
         none)
     else
-      let (e', refs) := parseSelectors e s!"{label} ('{k}')" (.rule kind index k) xs
+      let (e', refs) := parseSelectors e s!"{label} ('{k}')" use xs
       (e', some refs)
 
 /-- A rule's `reason`: a string that is not blank. -/
@@ -344,7 +414,7 @@ private def parseDeny (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × D
     for (k, x) in entries do
       match k with
       | "from" | "to" | "wrappers" =>
-        let (e', refs?) := parseRuleSelectors e label "deny" index k (k == "wrappers") x
+        let (e', refs?) := parseRuleSelectors e label (.rule "deny" index k) k (k == "wrappers") x
         e := e'
         let some refs := refs? | continue
         r :=
@@ -388,7 +458,8 @@ private def parseAllowOnly (e : Errors) (index : Nat) (v : Toml.LValue) : Errors
     for (k, x) in entries do
       match k with
       | "from" | "except" | "allow" =>
-        let (e', refs?) := parseRuleSelectors e label "allow-only" index k (k == "except") x
+        let (e', refs?) :=
+          parseRuleSelectors e label (.rule "allow-only" index k) k (k == "except") x
         e := e'
         let some refs := refs? | continue
         r :=
@@ -406,6 +477,169 @@ private def parseAllowOnly (e : Errors) (index : Nat) (v : Toml.LValue) : Errors
           e.add x.pos? <|
             s!"{label}: unknown key '{k}' (expected {", ".intercalate allowOnlyKeys.toList})"
     return (e, r)
+
+/-- The keys of `[layers]`, in the order messages list them. -/
+private def layersKeys : Array String :=
+  #["classify", "default", "allow", "same-package", "reason"]
+
+/-- A layer name (field `k` of `label`): a string with the set-name syntax;
+`none` after an error. -/
+private def parseLayerName (e : Errors) (label k : String) (x : Toml.LValue) :
+    Errors × Option String :=
+  match x with
+  | .string pos? s =>
+    if isSetName s then (e, some s)
+    else (e.add pos? s!"{label}: invalid layer name '{s}' (use letters, digits, '-' and '_')", none)
+  | _ => (e.add x.pos? s!"{label}: '{k}' must be a layer name, found {x.kindName}", none)
+
+/-- Entry `index` (1-based) of `[layers]`'s `classify`, as `parseDeny`: missing
+keys first, at the entry, then each key in source order. -/
+private def parseLayerClass (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × LayerClass :=
+  Id.run do
+    let label := s!"layers classify entry {index}"
+    let base : LayerClass := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in #["layer", "select"] do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut c := base
+    for (k, x) in entries do
+      match k with
+      | "layer" =>
+        let (e', layer?) := parseLayerName e label "layer" x
+        e := e'
+        if let some layer := layer? then
+          c := { c with layer }
+      | "select" =>
+        let (e', refs?) := parseRuleSelectors e label (.layer index) "select" false x
+        e := e'
+        if let some select := refs? then
+          c := { c with select }
+      | _ =>
+        e := e.add x.pos? s!"{label}: unknown key '{k}' (expected layer, select)"
+    return (e, c)
+
+/-- `[layers]`'s `allow`: a non-empty array of `[importer, imported]` pairs of
+strings, none repeated. -/
+private def parseLayerPairs (e : Errors) (x : Toml.LValue) : Errors × Array LayerPair :=
+  Id.run do
+    let .array pos? xs := x
+      |
+      return (e.add x.pos? <|
+            s!"layers: 'allow' must be an array of layer pairs, such as \
+              [[\"implementation\", \"core\"]], found {x.kindName}",
+          #[])
+    if xs.isEmpty then
+      return (e.add pos? "layers: 'allow' is empty (omit it)", #[])
+    let mut e := e
+    let mut pairs : Array LayerPair := #[]
+    for (y, i) in xs.zipIdx do
+      let index := i + 1
+      let pair? : Option LayerPair :=
+        match y with
+        | .array ppos? ys =>
+          match ys.toList with
+          | [.string apos? a, .string bpos? b] =>
+            some
+              { index, pos? := ppos?, importer := a, imported := b, importerPos? := apos?
+                importedPos? := bpos? }
+          | _ => none
+        | _ => none
+      let some p := pair?
+        |
+        e :=
+          e.add y.pos? <|
+            s!"layers: allow entry {index} must be a pair of layer names [importer, imported], \
+                such as [\"implementation\", \"core\"]"
+        continue
+      match pairs.find? fun q => q.importer == p.importer && q.imported == p.imported with
+      | some q =>
+        e := e.add p.pos? s!"layers: allow entry {index} repeats allow entry {q.index} ({p.text})"
+      | none =>
+        pairs := pairs.push p
+    return (e, pairs)
+
+/-- The `[layers]` table: `none` when it is not a table. A missing `classify`
+is reported first, at the table, then each key in source order, then, only
+when every layer is known (`classify` and every entry's `layer` parsed, and
+`default` if given), each `allow` pair's names that no layer declares
+(importer before imported). -/
+private def parseLayers (e : Errors) (v : Toml.LValue) : Errors × Option LayersRule :=
+  Id.run do
+    let .table pos? entries := v
+      | return (e.add v.pos? "'layers' must be a table, such as [layers]", none)
+    let mut e := e
+    let hasClassify := entries.any (·.1 == "classify")
+    unless hasClassify do
+      e := e.add pos? "layers has no 'classify'"
+    let mut r : LayersRule := { pos? }
+    -- Whether the declared layers are all known, so an unknown one is a real
+    -- error.
+    let mut declared := hasClassify
+    for (k, x) in entries do
+      match k with
+      | "classify" =>
+        match x with
+        | .array xpos? xs =>
+          if xs.isEmpty then
+            e := e.add xpos? "layers: 'classify' is empty"
+            declared := false
+          for (y, i) in xs.zipIdx do
+            let (e', c) := parseLayerClass e (i + 1) y
+            e := e'
+            if c.layer.isEmpty then
+              declared := false
+            r := { r with classify := r.classify.push c }
+        | _ =>
+          e :=
+            e.add x.pos?
+              "layers: 'classify' must be an array of tables, such as [[layers.classify]]"
+          declared := false
+      | "default" =>
+        let (e', d?) := parseLayerName e "layers" "default" x
+        e := e'
+        match d? with
+        | some d =>
+          r :=
+            { r with
+              default? := some d, defaultPos? := x.pos? }
+        | none =>
+          declared := false
+      | "allow" =>
+        let (e', allow) := parseLayerPairs e x
+        e := e'
+        r := { r with allow }
+      | "same-package" =>
+        let isAllow :=
+          match x with
+          | .string _ s => s == "allow"
+          | _ => false
+        unless isAllow do
+          e :=
+            e.add x.pos? <|
+              "layers: 'same-package' must be \"allow\": imports within one package are always \
+                allowed"
+      | "reason" =>
+        let (e', reason?) := parseReason e "layers" x
+        e := e'
+        if reason?.isSome then
+          r := { r with reason? }
+      | _ =>
+        e :=
+          e.add x.pos? <|
+            s!"layers: unknown key '{k}' (expected {", ".intercalate layersKeys.toList})"
+    if declared then
+      let names := r.layerNames
+      for p in r.allow do
+        for (l, lpos?) in [(p.importer, p.importerPos?), (p.imported, p.importedPos?)] do
+          unless names.contains l do
+            e :=
+              e.add lpos? <|
+                s!"layers: allow entry {p.index} names layer '{l}', which neither a classify \
+                  entry nor 'default' declares (layers: {", ".intercalate names.toList})"
+    return (e, some r)
 
 /-- The depth-first walk that finds cycles and the order. -/
 private structure Walk where
@@ -465,7 +699,8 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
     return (w.errs, w.order)
 
 /-- Check that every `set:` in a rule names a set. `refs` holds each rule's
-selectors (`DenyRule.refs`, `AllowOnlyRule.refs`), in rule order. -/
+selectors (`DenyRule.refs`, `AllowOnlyRule.refs`, `LayersRule.refs`), in
+rule order. -/
 private def checkRuleRefs (e : Errors) (sets : Array SetDef) (refs : Array (Array SelectorRef)) :
     Errors :=
   Id.run do
@@ -489,6 +724,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     let mut sets := #[]
     let mut deny := #[]
     let mut allowOnly := #[]
+    let mut layers? := none
     for (k, v) in entries do
       if k == "sets" then
         match v with
@@ -507,12 +743,17 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
         let (e', rs) := parseRuleArray e "allow-only" v parseAllowOnly
         e := e'
         allowOnly := allowOnly ++ rs
+      else if k == "layers" then
+        let (e', r?) := parseLayers e v
+        e := e'
+        layers? := r?
       else
         e := e.add v.pos? s!"unknown key '{k}' (known keys: {", ".intercalate knownKeys.toList})"
     let (e', order) := checkRefs e sets
-    let errs := checkRuleRefs e' sets (deny.map (·.refs) ++ allowOnly.map (·.refs))
+    let refs := deny.map (·.refs) ++ allowOnly.map (·.refs) ++ (layers?.map (#[·.refs])).getD #[]
+    let errs := checkRuleRefs e' sets refs
     if errs.msgs.isEmpty then
-      return .ok { path, sets, order, deny, allowOnly }
+      return .ok { path, sets, order, deny, allowOnly, layers? }
     return .error errs.msgs
 
 /-- The default policy file of a workspace. -/
