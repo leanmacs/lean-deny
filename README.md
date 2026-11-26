@@ -224,8 +224,7 @@ Possible later checks, beyond import rules:
 lake build --wfail && lake test
 ```
 
-This is also the project's `rdm verify` command, and what CI runs. `lake
-test` runs `lean-deny-test`: unit tests of the command-line parser (`cli`),
+`lake test` runs `lean-deny-test`: unit tests of the command-line parser (`cli`),
 of the import-line parser (`header`), and of the graph builder and its
 queries on hand-written graphs (`query`); of the module, lib and package
 views on a hand-written graph (`view`); of the renderings, including the
@@ -261,6 +260,41 @@ runs with the fixture directory as its working directory.
 Each rule kind will be tested by small fixture workspaces, one where the rule
 holds and one where it is broken. After `lake build --wfail && lake test`,
 `git status --porcelain` must print nothing; CI checks that too.
+
+The sources are formatted and linted with
+[lean-fmt](https://github.com/jcreinhold/lean-fmt). After `lake build`, at
+the repo root, check them with
+
+```sh
+lake -d tools/lean-fmt exe lean-fmt format --check --root .
+lake -d tools/lean-fmt exe lean-fmt check --root .
+```
+
+and rewrite them with
+
+```sh
+lake -d tools/lean-fmt exe lean-fmt format --root .
+lake -d tools/lean-fmt exe lean-fmt check --fix --root .
+```
+
+`check` reads the built `.olean` files, so `lake build` comes first.
+lean-fmt is hosted in `tools/lean-fmt/`, a Lake package with no Lean source
+whose one `require` is lean-fmt: lean-deny itself requires no git
+repository, and a workspace that requires lean-deny fetches nothing for it.
+The first run clones lean-fmt into `tools/lean-fmt/.lake` and builds it,
+which needs the network once. `lean-fmt.toml` excludes `tests/**`: the
+fixtures are separate workspaces, some deliberately malformed, whose bytes
+their expected outputs pin. lean-fmt's releases are tagged with the Lean
+toolchain they build with: bump `rev` in `tools/lean-fmt/lakefile.toml`
+together with both `lean-toolchain` files, then run
+`lake -d tools/lean-fmt update --keep-toolchain` at the repo root.
+
+The project's `rdm verify` command, and what CI runs, is the build and tests
+followed by both lean-fmt checks:
+
+```sh
+lake build --wfail && lake test && lake -d tools/lean-fmt exe lean-fmt format --check --root . && lake -d tools/lean-fmt exe lean-fmt check --root .
+```
 
 ## Licence
 

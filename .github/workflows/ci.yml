@@ -34,6 +34,21 @@ jobs:
       - name: Build and test
         run: lake build --wfail && lake test
 
+      # lean-fmt (README, "Development"), hosted in tools/lean-fmt. A cache
+      # of its own, so a source change does not evict the formatter build.
+      - name: Cache lean-fmt
+        uses: actions/cache@v4
+        with:
+          path: tools/lean-fmt/.lake
+          key: lean-fmt-${{ runner.os }}-${{ hashFiles('tools/lean-fmt/lean-toolchain', 'tools/lean-fmt/lakefile.toml', 'tools/lean-fmt/lake-manifest.json') }}
+
+      # After `Build and test`: `check` reads the built .olean files.
+      - name: Check formatting
+        run: lake -d tools/lean-fmt exe lean-fmt format --check --root .
+
+      - name: Check lints
+        run: lake -d tools/lean-fmt exe lean-fmt check --root .
+
       - name: Check the tree is clean
         run: |
           git status --porcelain
