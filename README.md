@@ -12,11 +12,12 @@ place a monorepo says "package A must not depend on package B" and has the
 build hold it.
 
 > **Status: early.** `lean-deny check` runs: it loads the workspace's module
-> graph through Lake and exits with the codes below. No rule kinds exist yet,
-> so the only policy it accepts is an empty one; any key in
-> `lean-deny.toml` is an error, never silently ignored. `lean-deny graph`
-> prints the graph it loads, as text, JSON or DOT. The rule syntax below
-> is a draft and will change. The plan lives in the rdm project `lean-deny`
+> graph through Lake and exits with the codes below. It reads the `[sets]`
+> table of `lean-deny.toml` and checks that every selector in it matches.
+> No rule kinds exist yet, so any other top-level key is an error, never
+> silently ignored. `lean-deny explain` lists the modules a selector
+> matches, and `lean-deny graph` prints the graph it loads, as text, JSON or
+> DOT. The rule syntax below is a draft and will change. The plan lives in the rdm project `lean-deny`
 > (roadmaps `foundation` and `policy-rules`).
 
 [cargo-deny]: https://github.com/EmbarkStudios/cargo-deny
@@ -58,17 +59,54 @@ imports.
 
 ### Selectors
 
-Every rule names its sets of modules with selectors:
+Every rule names its sets of modules with selectors. `pkg:`, `lib:`,
+`mod:` and `keyword:` match modules of the workspace only (a dependency
+package's modules are workspace modules); `external:` matches modules from
+outside it only.
 
 | Selector | Matches |
 |---|---|
-| `pkg:<name>` | every module of a Lake package |
-| `lib:<name>` | every module of a `lean_lib` |
-| `mod:<Prefix>` | that module and every module under it |
+| `pkg:<name>` | every module of a Lake package, including its executables' root modules |
+| `lib:<lib>`, `lib:<pkg>/<lib>` | every module of a `lean_lib`; a module two libraries list is in both. Not an executable's root, unless a library lists it too. When several packages declare a `lean_lib` of that name, `lib:<lib>` is an error: write `lib:<pkg>/<lib>` |
+| `mod:<Prefix>` | that module and every module under it, by name component: `mod:App` matches `App` and `App.Shared`, not `AppTest` |
 | `mod:<Exact>!` | that module alone |
-| `keyword:<kw>` | every module of every package whose lakefile declares `keywords = ["<kw>"]` |
-| `external:<Prefix>` | modules from outside the workspace, such as `Lean`, `Std` or `Lake` |
+| `keyword:<kw>` | every module of every package whose lakefile declares `keywords = ["<kw>"]` (matched exactly) |
+| `external:<Prefix>` | modules from outside the workspace, such as `Lean`, `Std` or `Lake`, by name component. The graph holds only those the workspace imports directly |
 | `set:<name>` | a named set from the policy's `[sets]` table |
+
+Module names are written as in `import` (`mod:«my-mod».X`). `lean-deny
+explain <selector>` prints what a selector matches.
+
+### Sets
+
+`[sets]` names sets of modules, for rules (and `explain`) to use as
+`set:<name>`. A set is a list of selectors, their union, or a table whose
+`except` list is taken away from the union of its `select` list:
+
+```toml
+[sets]
+core-api = ["mod:Editor.Api", "lib:EditorInterfaces"]
+core = { select = ["pkg:editor", "set:core-api"], except = ["mod:Editor.Testing"] }
+
+[sets.plugins]
+select = ["keyword:editor-feature"]
+except = ["set:core"]
+```
+
+Set names use letters, digits, `-` and `_`. Each of these is an error
+(exit 2), reported at the policy's `file:line:column` (the column is
+0-based, as Lean prints it):
+
+- a selector that matches no module, such as a misspelt or renamed module;
+- a `lib:<lib>` that several packages declare (ambiguous);
+- an `except` entry that removes no module from its set;
+- a set that its `except` list leaves empty;
+- a `set:` that names no set, or a set that refers to itself, directly or
+  through other sets;
+- a malformed selector or set, or an unknown key.
+
+Every set is checked, whether a rule uses it or not, so a set no rule uses
+is fine.
 
 ## A policy, sketched
 
@@ -175,16 +213,16 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | `lean-deny check [--workspace <dir>] [--config <file>]` | implemented | Check the policy. `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. |
 | `lean-deny graph [--workspace <dir>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--format text`, `--level module`. Does not read the policy. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
+| `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read only for a `set:` selector, and then only that set and the sets it refers to are resolved. |
 | `lean-deny check --format text\|json\|github` | planned | `github` prints annotations for pull requests. |
-| `lean-deny explain <selector>` | planned | List the modules a selector matches. |
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | Every rule holds (`check`), or the graph was printed (`graph`). |
+| 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
 | 1 | At least one rule is broken. Reserved for rule violations; with no rule kinds yet, nothing produces it. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load (later also a selector that matches nothing, or an unused wrapper). The same for `graph`, minus the policy. Any internal error is also 2, never 1. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing (later also an unused wrapper). The same for `graph`, minus the policy, and for `explain`, which reads the policy only for `set:`. Any internal error is also 2, never 1. |
 
 ### Seeing the graph
 
@@ -225,9 +263,11 @@ lake build --wfail && lake test
 ```
 
 `lake test` runs `lean-deny-test`: unit tests of the command-line parser (`cli`),
-of the import-line parser (`header`), and of the graph builder and its
+of the selector syntax (`selector`), of the policy loader on TOML texts
+(`policy`), of the import-line parser (`header`), and of the graph builder and its
 queries on hand-written graphs (`query`); of the module, lib and package
-views on a hand-written graph (`view`); of the renderings, including the
+views on a hand-written graph (`view`); of what selectors and sets match
+on a hand-written graph (`resolve`); of the renderings, including the
 golden JSON `tests/fixtures/graph-json-module/expected.stdout` (`render`);
 exact checks of the graph loaded for `tests/fixtures/spike-ws` and
 `tests/fixtures/graph-ws` (`graph`); the fixture runner's own checks
