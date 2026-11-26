@@ -1,0 +1,10 @@
+# One set per selector kind, a set reference and an exception. Every
+# selector matches, so the policy holds. `unused` is used by no rule: fine.
+[sets]
+app = ["pkg:graph-ws"]
+core-api = ["mod:Core.Api!", "lib:core/Core"]
+kernel = ["keyword:kernel"]
+lean = ["external:Lean"]
+tests = ["lib:AppTest"]
+app-surface = { select = ["set:app", "mod:Core.Api!"], except = ["set:tests"] }
+unused = ["mod:App"]

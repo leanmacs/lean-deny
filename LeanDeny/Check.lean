@@ -2,13 +2,15 @@ import LeanDeny.Cli
 import LeanDeny.Exit
 import LeanDeny.Load
 import LeanDeny.Policy
+import LeanDeny.Policy.Resolve
 
 /-!
 # `lean-deny check`
 
 Resolve the workspace, load the policy, load the workspace's module graph,
-then check the policy's rules against it. Cheap failures come first: a bad
-workspace path or policy is reported before Lake runs.
+resolve every set of the policy against it (each selector must match), then
+check the policy's rules. Cheap failures come first: a bad workspace path or
+policy is reported before Lake runs.
 -/
 
 open System
@@ -24,15 +26,21 @@ def runCheck (opts : CheckOpts) : IO Outcome := do
   if let .error msgs← checkWorkspaceDir ws then
     return ← fail msgs
   let policyPath := opts.config?.getD (defaultPolicyPath ws)
-  let _policy ←
+  let policy ←
     match ← loadPolicy policyPath with
     | .ok p =>
       pure p
     | .error msgs =>
       return ← fail msgs
-  -- Load the graph for real, so a workspace that cannot be loaded fails now.
-  -- No rule kinds exist yet, so the graph is not used.
-  if let .error msgs← loadGraph ws then
+  let g ←
+    match ← loadGraph ws with
+    | .ok g =>
+      pure g
+    | .error msgs =>
+      return ← fail msgs
+  -- Every set is resolved, used by a rule or not, so a renamed module is
+  -- caught. No rule kinds exist yet.
+  if let .error msgs := resolveSets g policy then
     return ← fail msgs
   IO.println "lean-deny: ok (0 rules)"
   return .holds

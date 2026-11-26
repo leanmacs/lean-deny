@@ -1,0 +1,3 @@
+[sets]
+app-test = { select = ["lib:AppTest"], except = ["mod:AppTest!", "mod:App.Shared!"] }
+# The exceptions remove both of AppTest's modules: the set is empty.

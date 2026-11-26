@@ -1,0 +1,11 @@
+# Two packages each declare a lean_lib named `Util` (Lake checks lib names
+# per package only), so `lib:Util` is ambiguous. Never built.
+name = "lib-ambiguous"
+
+[[require]]
+name = "other"
+path = "other"
+
+[[lean_lib]]
+name = "Util"
+roots = ["Top"]

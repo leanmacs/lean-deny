@@ -1,0 +1,3 @@
+# A typo in a module name: the selector matches nothing.
+[sets]
+core-api = ["mod:Core.Api!", "mod:Core.Apii"]

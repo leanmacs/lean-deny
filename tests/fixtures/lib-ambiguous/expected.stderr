@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:2:8: selector 'lib:Util' in set 'util' is ambiguous: lean_lib 'Util' is in packages lib-ambiguous, other; write 'lib:<package>/Util'

@@ -1,0 +1,3 @@
+[sets]
+core = { select = ["pkg:core"], except = ["mod:App!"] }
+# App is not in package core, so the exception removes nothing.

@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:2:11: set 'app-test' matches no module: its except list removes every module it selects

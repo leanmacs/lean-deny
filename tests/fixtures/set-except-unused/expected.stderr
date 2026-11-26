@@ -1,0 +1,1 @@
+lean-deny: error: lean-deny.toml:2:42: selector 'mod:App!' in the except list of set 'core' removes no module from it
