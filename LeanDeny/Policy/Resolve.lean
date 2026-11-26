@@ -23,6 +23,10 @@ resolved to modules. Pure.
   of them imports another. Its inner selector keeps its own meaning (`!`,
   prefix, `set:`, a nested `imports:`).
 
+A `[[target-config]]` rule's `pkg:` and `lib:` select Lake targets instead
+(`matchTargetSelector`): the package and library lookups, and their
+messages, are the ones the module selectors use.
+
 A selector that matches nothing is an error. So is an `except` entry that
 removes nothing from its set, and a set its `except` list empties: each
 would let a rule pass by checking nothing. Those two are not checked for a set
@@ -66,17 +70,66 @@ private def nodesWhere (g : Graph) (p : Node → Bool) : Array NodeId :=
 private def okOr (ns : Array NodeId) (reason : Unit → String) : MatchResult :=
   if ns.isEmpty then .nothing (reason ()) else .ok ns
 
+/-- The workspace modules with an owner satisfying `p`, sorted. -/
+private def ownedWhere (g : Graph) (p : Owner → Bool) : Array NodeId :=
+  nodesWhere g fun n => (owners n).any p
+
+/-- The workspace modules that target `name` of kind `kind` of package `pkg`
+owns, sorted. -/
+def targetNodes (g : Graph) (pkg : Name) (kind : TargetKind) (name : Name) : Array NodeId :=
+  ownedWhere g fun o => o.pkg == pkg && o.kind == kind && o.target == name
+
 private def packageList (g : Graph) : String :=
   ", ".intercalate (g.packages.map (plainName ·.name)).toList
 
-private def findPackage? (g : Graph) (p : String) : Option PackageInfo :=
-  g.packages.find? (plainName ·.name == p)
+/-- Why a `pkg:` or `lib:` lookup found nothing; the same words for a module
+selector (`matchBase`) and a target selector (`matchTargetSelector`). -/
+private inductive LookupError where
+  /-- No such package or library, and why. -/
+  | nothing (reason : String)
+  /-- A `lib:<lib>` that more than one package declares. -/
+  | ambiguous (detail : String)
 
-/-- The modules of `lean_lib` `l` of package `pk`. -/
-private def libNodes (g : Graph) (pk : PackageInfo) (l : String) : MatchResult :=
-  okOr
-    (nodesWhere g fun n =>
-      (owners n).any fun o => o.pkg == pk.name && o.kind == .lib && plainName o.target == l)
+private def LookupError.toMatch : LookupError → MatchResult
+  | .nothing reason => .nothing reason
+  | .ambiguous detail => .ambiguous detail
+
+/-- The index in `g.packages` of package `p`. -/
+private def lookupPackage (g : Graph) (p : String) : Except LookupError Nat :=
+  match g.packages.findIdx? (plainName ·.name == p) with
+  | none => .error (.nothing s!"no package named '{p}' (packages: {packageList g})")
+  | some pi => .ok pi
+
+/-- The index of `lean_lib` `l` in the `libs` of package `pi`. -/
+private def libIndex? (g : Graph) (pi : Nat) (l : String) : Option Nat :=
+  g.packages[pi]?.bind fun pk => pk.libs.findIdx? (plainName ·.name == l)
+
+/-- `lean_lib` `l` (of package `pkg?`, when given): its package's index in
+`g.packages` and its index in that package's `libs`. -/
+private def lookupLib (g : Graph) : Option String → String → Except LookupError (Nat × Nat)
+  | none, l =>
+    let decl := (Array.range g.packages.size).filterMap fun pi => (libIndex? g pi l).map (pi, ·)
+    match decl.toList with
+    | [] => .error (.nothing s!"no package has a lean_lib named '{l}'")
+    | [k] => .ok k
+    | _ =>
+      let names := decl.map fun k => (g.packages[k.1]?.map (plainName ·.name)).getD "?"
+      .error <|
+        .ambiguous
+          s!"lean_lib '{l}' is in packages {", ".intercalate names.toList}; \
+          write 'lib:<package>/{l}'"
+  | some p, l => do
+    let pi ← lookupPackage g p
+    match libIndex? g pi l with
+    | some li =>
+      .ok (pi, li)
+    | none =>
+      .error (.nothing s!"package '{p}' has no lean_lib named '{l}'")
+
+/-- The modules of `lean_lib` `l` of package `pi`. -/
+private def libNodes (g : Graph) (pi : Nat) (l : String) : MatchResult :=
+  let pk := g.packages[pi]!
+  okOr (ownedWhere g fun o => o.pkg == pk.name && o.kind == .lib && plainName o.target == l)
     fun _ => s!"lean_lib '{plainName pk.name}/{l}' has no modules"
 
 /-- The non-external modules that the modules `ns` import directly, sorted
@@ -94,26 +147,15 @@ def importsOf (g : Graph) (ns : Array NodeId) : Array NodeId :=
 /-- What a selector other than `set:` and `imports:` matches in `g`. -/
 private def matchBase (g : Graph) : Selector → MatchResult
   | .pkg p =>
-    match findPackage? g p with
-    | none => .nothing s!"no package named '{p}' (packages: {packageList g})"
-    | some pk =>
-      okOr (nodesWhere g fun n => (owners n).any (·.pkg == pk.name)) fun _ =>
-        s!"package '{p}' has no modules"
-  | .lib none l =>
-    let decl := g.packages.filter fun pk => pk.libs.any (plainName ·.name == l)
-    match decl.toList with
-    | [] => .nothing s!"no package has a lean_lib named '{l}'"
-    | [pk] => libNodes g pk l
-    | _ =>
-      .ambiguous <|
-        s!"lean_lib '{l}' is in packages \
-          {", ".intercalate (decl.map (plainName ·.name)).toList}; write 'lib:<package>/{l}'"
-  | .lib (some p) l =>
-    match findPackage? g p with
-    | none => .nothing s!"no package named '{p}' (packages: {packageList g})"
-    | some pk =>
-      if pk.libs.any (plainName ·.name == l) then libNodes g pk l
-      else .nothing s!"package '{p}' has no lean_lib named '{l}'"
+    match lookupPackage g p with
+    | .error e => e.toMatch
+    | .ok pi =>
+      let name := g.packages[pi]!.name
+      okOr (ownedWhere g (·.pkg == name)) fun _ => s!"package '{p}' has no modules"
+  | .lib pkg? l =>
+    match lookupLib g pkg? l with
+    | .error e => e.toMatch
+    | .ok (pi, _) => libNodes g pi l
   | .mod m exact =>
     let hit (n : Node) : Bool := if exact then n.name == m else m.isPrefixOf n.name
     okOr (nodesWhere g fun n => !isExternal n && hit n) fun _ =>
@@ -135,6 +177,37 @@ private def matchBase (g : Graph) : Selector → MatchResult
         (the graph holds only the external modules the workspace imports directly)"
   | .set n => .nothing s!"set:{n} is resolved through the policy"
   | .imports i => .nothing s!"imports:{i} is resolved by matchWith"
+
+/-- A Lake target's place in the check order of a `[[target-config]]` rule:
+its package's index in `Graph.packages`, its kind (0 for a `lean_lib`, 1 for
+a `lean_exe`), its index in the package's `libs` or `exes`. -/
+abbrev TargetKey :=
+  Nat × Nat × Nat
+
+/-- The targets a `pkg:` or `lib:` selector names: every `lean_lib` then
+every `lean_exe` of a package, or the one library (even one with no
+modules). Or why it names none: the whole message after the selector's
+description ("matches no target: …", "is ambiguous: …"), worded as
+`matchBase` words the same lookup. -/
+def matchTargetSelector (g : Graph) : Selector → Except String (Array TargetKey)
+  | .pkg p =>
+    match lookupPackage g p with
+    | .error e => .error (wording e)
+    | .ok pi =>
+      let pk := g.packages[pi]!
+      let ks :=
+        (Array.range pk.libs.size).map (pi, 0, ·) ++ (Array.range pk.exes.size).map (pi, 1, ·)
+      if ks.isEmpty then
+        .error s!"matches no target: package '{p}' declares no lean_lib or lean_exe"
+      else .ok ks
+  | .lib pkg? l =>
+    match lookupLib g pkg? l with
+    | .error e => .error (wording e)
+    | .ok (pi, li) => .ok #[(pi, 0, li)]
+  | s => .error s!"'{s}' is not a target selector"
+where wording : LookupError → String
+    | .nothing reason => s!"matches no target: {reason}"
+    | .ambiguous detail => s!"is ambiguous: {detail}"
 
 /-- What a selector matches in `g`, with `set:n` read from `sets` (`.ok`,
 empty if `n` is not there). `imports:` matches its inner selector first; a

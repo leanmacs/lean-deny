@@ -18,7 +18,10 @@ A target-config rule says every Lake target (`lean_lib`, `lean_exe`) of
   package's `plugins`, then its own (`LeanDeny.Graph.LibInfo.plugins`). A
   plugin **is** `load-plugin` when it is a package target whose target
   name is the one given and, when a package is given, whose package is that
-  one. A facet key (`@p/t:f`) never matches.
+  one. A plugin written without a package (`plugins = ["t"]`) is the
+  target's own package's, as Lake reads it; a `load-plugin` written without
+  one matches that target name in any package. A facet key (`@p/t:f`) never
+  matches.
 - A target's **modules** are, for a library, the workspace modules it owns;
   for an executable, its root module alone, the only module Lake
   elaborates with the executable's plugins. A target **imports** an
@@ -43,12 +46,6 @@ open Lean LeanDeny.Graph
 
 namespace LeanDeny
 
-/-- A target's place in the check order: its package's index in
-`Graph.packages`, its kind (libraries first), its index in the package's
-`libs` or `exes`. -/
-abbrev TargetKey :=
-  Nat × Nat × Nat
-
 private def keyLt (a b : TargetKey) : Bool :=
   a.1 < b.1 || (a.1 == b.1 && (a.2.1 < b.2.1 || (a.2.1 == b.2.1 && a.2.2 < b.2.2)))
 
@@ -65,47 +62,6 @@ def targetAt? (g : Graph) (k : TargetKey) : Option TargetRef := do
     return {
         pkg := pk.name, kind := .exe, name := x.name, configFile := pk.configFile
         plugins := x.plugins }
-
-private def packageList (g : Graph) : String :=
-  ", ".intercalate (g.packages.map (plainName ·.name)).toList
-
-private def findPackage? (g : Graph) (p : String) : Option Nat :=
-  g.packages.findIdx? (plainName ·.name == p)
-
-/-- The targets a `pkg:` or `lib:` selector names, or why it names none
-(the whole message after the selector's description). -/
-def matchTargets (g : Graph) (s : Selector) : Except String (Array TargetKey) :=
-  let libKey (pi : Nat) (l : String) : Option TargetKey :=
-    (g.packages[pi]?.bind fun pk => pk.libs.findIdx? (plainName ·.name == l)).map (pi, 0, ·)
-  match s with
-  | .pkg p =>
-    match findPackage? g p with
-    | none => .error s!"matches no target: no package named '{p}' (packages: {packageList g})"
-    | some pi =>
-      let pk := g.packages[pi]!
-      let ks :=
-        (Array.range pk.libs.size).map (pi, 0, ·) ++ (Array.range pk.exes.size).map (pi, 1, ·)
-      if ks.isEmpty then
-        .error s!"matches no target: package '{p}' declares no lean_lib or lean_exe"
-      else .ok ks
-  | .lib none l =>
-    let decl := (Array.range g.packages.size).filterMap fun pi => libKey pi l
-    match decl.toList with
-    | [] => .error s!"matches no target: no package has a lean_lib named '{l}'"
-    | [k] => .ok #[k]
-    | _ =>
-      let names := decl.map fun k => (g.packages[k.1]?.map (plainName ·.name)).getD "?"
-      .error
-        s!"is ambiguous: lean_lib '{l}' is in packages {", ".intercalate names.toList}; \
-        write 'lib:<package>/{l}'"
-  | .lib (some p) l =>
-    match findPackage? g p with
-    | none => .error s!"matches no target: no package named '{p}' (packages: {packageList g})"
-    | some pi =>
-      match libKey pi l with
-      | some k => .ok #[k]
-      | none => .error s!"matches no target: package '{p}' has no lean_lib named '{l}'"
-  | s => .error s!"'{s}' is not a target selector"
 
 /-- A target-config rule with its selectors resolved. -/
 structure TargetConfigResolved where
@@ -142,7 +98,7 @@ def resolveTargetConfig (g : Graph) (p : Policy) (sets : Std.HashMap String (Arr
           errs := errs.push (loc ref.pos? ((matchError? ref m).getD ""))
       | use =>
         let isExcept := use == .rule "target-config" r.index "except"
-        match matchTargets g ref.sel with
+        match matchTargetSelector g ref.sel with
         | .ok ks =>
           if isExcept then
             excepts := excepts.push (ref, ks)
@@ -176,25 +132,23 @@ def resolveTargetConfig (g : Graph) (p : Policy) (sets : Std.HashMap String (Arr
         { rule := r, plugin, targets := checked.filterMap (targetAt? g)
           orImports := orImports.filter (!isExternalId g ·) }
 
-/-- Plugin `p` is the one `n` names: a package target with `n`'s target
-name, and `n`'s package when it gives one. -/
-def PluginName.matches (n : PluginName) (p : PluginRef) : Bool :=
+/-- Plugin `p` of target `t` is the one `n` names: a package target with
+`n`'s target name, and `n`'s package when it gives one. A plugin written
+without a package is `t`'s own package's, as Lake reads it (it fetches a
+module's plugins in the module's package). -/
+def PluginName.matches (n : PluginName) (t : TargetRef) (p : PluginRef) : Bool :=
   match p.target? with
   | none => false
-  | some t =>
-    plainName t == n.target &&
+  | some tgt =>
+    plainName tgt == n.target &&
       match n.pkg? with
       | none => true
-      | some pkg => (p.pkg?.map plainName) == some pkg
+      | some pkg => plainName (p.pkg?.getD t.pkg) == pkg
 
 /-- The modules of target `t`: a library's workspace modules, an
 executable's root module. -/
 def targetModules (g : Graph) (t : TargetRef) : Array NodeId :=
-  (Array.range g.nodes.size).filter fun i =>
-    match g.nodes[i]?.map (·.origin) with
-    | some (Origin.workspace os) =>
-      os.any fun o => o.pkg == t.pkg && o.kind == t.kind && o.target == t.name
-    | _ => false
+  targetNodes g t.pkg t.kind t.name
 
 /-- The violation of rule `d` for target `t`. -/
 def TargetConfigResolved.violation (d : TargetConfigResolved) (t : TargetRef) : Violation :=
@@ -211,7 +165,7 @@ loads the plugin nor imports an `or-imports` module, in check order. -/
 def evalTargetConfig (g : Graph) (d : TargetConfigResolved) : Array Violation :=
   let mask := memberMask g d.orImports
   d.targets.filterMap fun t =>
-    if t.plugins.any d.plugin.matches then none
+    if t.plugins.any (d.plugin.matches t) then none
     else
       let imports :=
         !d.orImports.isEmpty && (g.reachable (targetModules g t)).any (mask[·]?.getD false)

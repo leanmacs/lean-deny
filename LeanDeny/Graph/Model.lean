@@ -115,7 +115,8 @@ structure Edge where
 /-- One entry of a target's `plugins`: a Lake build key. -/
 structure PluginRef where
   /-- The key's package, for a package target (`@pkg/target`); `none` for
-  any other key or when the package is elided. -/
+  any other key or when the package is elided (Lake then reads it as the
+  target's own package). -/
   pkg? : Option Name := none
   /-- The key's target, for a package target; `none` for any other key. -/
   target? : Option Name := none

@@ -691,7 +691,11 @@ package `p`; those of `lib:` are that one library, even one with no modules.
 `plugins` (a package-level `plugins = [...]` in `lakefile.toml`, as
 editor-project's packages write it), then its own. A plugin **is**
 `load-plugin` when it is a package target with that target name and, when
-`load-plugin` names a package, that package. A facet key such as
+`load-plugin` names a package, that package. A plugin written without a
+package (`plugins = ["lintShared"]`) is the target's own package's, as Lake
+reads it, so it is `@lint/lintShared` in package `lint` and not in any
+other; a `load-plugin` written without a package (`lintShared`) matches that
+target name in any package. A facet key such as
 `@editor-core/Lint:shared` never matches, and `load-plugin` is not looked up
 in the workspace: Lake fetches a plugin only when it builds, which lean-deny
 never does. Plugins given through `moreLeanArgs` (`--plugin`) are not seen.

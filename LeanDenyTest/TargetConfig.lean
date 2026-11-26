@@ -4,8 +4,9 @@ import LeanDenyTest.Deny
 Tests of `[[target-config]]` rules (`LeanDeny.Rules.TargetConfig`) on
 hand-written graphs and package metadata, from the policy's TOML text to
 what `check` prints: which targets `pkg:` and `lib:` select, `except` and
-de-duplication, matching `load-plugin` by full and bare name (a facet key
-and another package never match), `or-imports` direct and transitive, an
+de-duplication of a failing target, matching `load-plugin` by full and bare
+name (a facet key and another package never match; a plugin without a
+package is the target's own package's), `or-imports` direct and transitive, an
 executable's root alone, the closure not being reflexive, the order, the
 errors a rule can give and their order, loading, and `PluginName.parse?`.
 -/
@@ -63,6 +64,13 @@ def packages : Array PackageInfo :=
       #[exe `«b-tool» `BRoot],
     pkg `empty #[] #[]]
 
+/-- `packages` with every target of `lint` loading the bare `lintShared`
+(Lean DSL `` #[`lintShared] ``, TOML `plugins = ["lintShared"]`): Lake reads
+it as `@lint/lintShared`. -/
+def lintSelfPackages : Array PackageInfo :=
+  let own := #[pl .anonymous `lintShared]
+  packages.set! 0 (pkg `lint #[lib `Lint own, lib `LintTests own] #[exe `«lint-test» `LintTest own])
+
 /-- A target-config table (lines: header, `targets`, `load-plugin`, then
 `extra`, then `reason = "r"`), `targets` given as a TOML value. -/
 def rule (targetsV plugin : String) (extra : String := "") : String :=
@@ -96,6 +104,22 @@ def cases : Array (String × Array PackageInfo × String × Array String) :=
       rule "[\"pkg:a\", \"lib:a/A\", \"lib:AEmpty\"]" "@lint/lintShared"
         "except = \"lib:a/AEmpty\"\n",
       ok1),
+    ("a failing target selected twice is one violation", packages,
+      rule "[\"pkg:b\", \"lib:b/BX\"]" "@lint/lintShared",
+      #[s!"{header 1}: lean_lib b/B does not load @lint/lintShared",
+        "  b/lakefile.toml: lean_lib B",
+        s!"{header 1}: lean_lib b/BX does not load @lint/lintShared",
+        "  b/lakefile.toml: lean_lib BX",
+        s!"{header 1}: lean_lib b/BF does not load @lint/lintShared",
+        "  b/lakefile.toml: lean_lib BF",
+        s!"{header 1}: lean_lib b/BUses does not load @lint/lintShared",
+        "  b/lakefile.toml: lean_lib BUses",
+        s!"{header 1}: lean_exe b/b-tool does not load @lint/lintShared",
+        "  b/lakefile.toml: lean_exe b-tool", "lean-deny: 5 violations in 1 of 1 rule"]),
+    ("a plugin without a package is the target's own package's", lintSelfPackages,
+      rule "[\"pkg:lint\", \"lib:b/B\"]" "@lint/lintShared",
+      #[s!"{header 1}: lean_lib b/B does not load @lint/lintShared",
+        "  b/lakefile.toml: lean_lib B", "lean-deny: 1 violation in 1 of 1 rule"]),
     -- or-imports.
     ("or-imports, direct and transitive; an exe's root alone counts", packages,
       rule "[\"pkg:b\", \"pkg:lint\"]" "@lint/lintShared" "or-imports = \"lib:lint/Lint\"\n",
