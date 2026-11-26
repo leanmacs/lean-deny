@@ -152,6 +152,23 @@ where
   packageGroup (pkg : Name) : Group :=
     { id := plainName pkg, kind := .package, name := plainName pkg, package? := some pkg }
 
+/-- The order a view lists its groups in: workspace ones, then external ones,
+each by id (ids are unique within a level). -/
+private def displayLt (a b : Group) : Bool :=
+  let ea := a.kind == .external
+  let eb := b.kind == .external
+  (!ea && eb) || (ea == eb && a.id < b.id)
+
+/-- The nodes `ns` of `g` in the order `collapse g .module` lists them, which
+is the order of their module-level groups (a node has exactly one).
+(`NodeId` order is `Name.cmp`'s, which puts `AppTest` before `App.Shared`.) -/
+def sortForDisplay (g : Graph) (ns : Array NodeId) : Array Node :=
+  let group (n : Node) : Option Group := (groupsOf .module n)[0]?
+  (ns.filterMap (g.nodes[·]?)).qsort fun a b =>
+    match group a, group b with
+    | some ga, some gb => displayLt ga gb
+    | _, _ => false
+
 /-- The groups that exist even with no members: every target (lib level) or
 package (package level) of the workspace. -/
 private def declaredGroups (g : Graph) : Level → Array Group
@@ -175,13 +192,7 @@ def collapse (g : Graph) (lvl : Level) : View :=
       for gr in gs do
         groups := groups.insertIfNew gr.id gr
       nodeGroups := nodeGroups.push (gs.map (·.id) |>.toList.eraseDups.toArray)
-    -- Workspace groups first, then external ones, each by id (ids are unique).
-    let key (gr : Group) : Bool × String := (gr.kind == .external, gr.id)
-    let sorted :=
-      groups.toArray.map (·.2) |>.qsort fun a b =>
-        let (ea, ia) := key a
-        let (eb, ib) := key b
-        (!ea && eb) || (ea == eb && ia < ib)
+    let sorted := groups.toArray.map (·.2) |>.qsort displayLt
     let mut pos : Std.HashMap String Nat := {}
     for h : i in [0:sorted.size] do
       pos := pos.insert sorted[i].id i

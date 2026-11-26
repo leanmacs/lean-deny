@@ -1,5 +1,6 @@
 import LeanDeny.Cli
 import LeanDeny.Exit
+import LeanDeny.Graph.View
 import LeanDeny.Load
 import LeanDeny.Policy
 import LeanDeny.Policy.Resolve
@@ -50,15 +51,7 @@ def runExplain (opts : ExplainOpts) : IO Outcome := do
   | .error msgs =>
     fail msgs
   | .ok ns =>
-    -- `graph --level module`'s order: workspace modules, then external
-    -- ones, each by name as printed. (`NodeId` order is `Name.cmp`'s, which
-    -- puts `AppTest` before `App.Shared`.)
-    let key (n : Graph.Node) : Bool × String := (n.origin == .external, n.name.toString)
-    let lt (a b : Graph.Node) : Bool :=
-      let (ea, sa) := key a
-      let (eb, sb) := key b
-      (!ea && eb) || (ea == eb && sa < sb)
-    for n in (ns.filterMap (g.nodes[·]?)).qsort lt do
+    for n in Graph.sortForDisplay g ns do
       IO.println n.name.toString
     return .holds
 
