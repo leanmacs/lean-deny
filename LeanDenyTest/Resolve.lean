@@ -17,14 +17,16 @@ namespace LeanDenyTest.Resolve
 with root `Main`. Package `core` (keyword `kernel`): libraries `Core` and
 `Util`. Package `other`: a second library `Util` and an empty library
 `Empty`. Package `bare` (keyword `lonely`) has no modules. Externals:
-`Init` and `Lean.Data.Json`. -/
+`Init` and `Lean.Data.Json`. Imports: `App` imports `App.Shared` and
+`Core.Api`, `Main` imports `App`, `App.Shared` imports `Lean.Data.Json`;
+every module imports `Init` implicitly. -/
 def modules : Array M :=
   let json := #[plain `Lean.Data.Json]
-  #[{ name := `App, pkg := `ws, target := `App },
+  #[{ name := `App, pkg := `ws, target := `App, imports := #[plain `App.Shared, plain `Core.Api] },
     { name := `App.Shared, pkg := `ws, target := `App, imports := json },
     { name := `App.Shared, pkg := `ws, target := `AppTest, imports := json },
     { name := `AppTest, pkg := `ws, target := `AppTest },
-    { name := `Main, pkg := `ws, kind := .exe, target := `app },
+    { name := `Main, pkg := `ws, kind := .exe, target := `app, imports := #[plain `App] },
     { name := `Core.Api, pkg := `core, target := `Core },
     { name := `Core.Impl, pkg := `core, target := `Core },
     { name := `Core.Util, pkg := `core, target := `Util },
@@ -97,7 +99,21 @@ def matchCases : Array (String × String) :=
       modules the workspace imports directly)"),
     ("external:App",
       "nothing: no external module is or is under 'App' (the graph holds only the external \
-      modules the workspace imports directly)")]
+      modules the workspace imports directly)"),
+    -- imports: one hop, non-external targets only (`Init`, `Lean.Data.Json` dropped).
+    ("imports:mod:App!", "ok [App.Shared, Core.Api]"), ("imports:mod:Main!", "ok [App]"),
+    -- The importers stay in when one imports another.
+    ("imports:mod:App", "ok [App.Shared, Core.Api]"),
+    ("imports:pkg:ws", "ok [App, App.Shared, Core.Api]"),
+    ("imports:imports:mod:Main!", "ok [App.Shared, Core.Api]"),
+    ("imports:mod:App.Shared!",
+      "nothing: no module 'mod:App.Shared!' matches imports a workspace module directly"),
+    ("imports:external:Lean",
+      "nothing: no module 'external:Lean' matches imports a workspace module directly"),
+    ("imports:mod:Nope", "nothing: no workspace module is or is under 'Nope'"),
+    ("imports:lib:Util",
+      "ambiguous: lean_lib 'Util' is in packages core, other; write 'lib:<package>/Util'"),
+    ("imports:set:x", "nothing: set:x is resolved through the policy")]
 
 /-- A selector of a set written on line `line`, at column `col`. -/
 def sref (use : Use) (line col : Nat) (text : String) : SelectorRef :=
@@ -209,7 +225,38 @@ def setCases : Array (String × LeanDeny.Policy × Option String × Array String
       mkPolicy
         #[mkSet "b" 1 ["mod:App!"], mkSet "c" 2 ["mod:Core.Api!"],
           mkSet "a" 3 ["set:b", "set:c", "set:c", "set:c"]],
-      some "a", #["a: [App, Core.Api]", "b: [App]", "c: [Core.Api]"])]
+      some "a", #["a: [App, Core.Api]", "b: [App]", "c: [Core.Api]"]),
+    ("imports:set: in select and in except",
+      mkPolicy
+        #[mkSet "main" 1 ["mod:Main!"], mkSet "app" 2 ["mod:App!"],
+          mkSet "deps" 3 ["imports:set:main", "imports:set:app"] ["imports:set:main"],
+          mkSet "two" 4 ["imports:imports:set:main"]],
+      none,
+      #["app: [App]", "deps: [App.Shared, Core.Api]", "main: [Main]",
+        "two: [App.Shared, Core.Api]"]),
+    ("an imports: selector that resolves to nothing, in select and in except",
+      mkPolicy
+        #[mkSet "leaf" 1 ["imports:mod:App.Shared!"],
+          mkSet "a" 2 ["mod:App"] ["imports:mod:App.Shared!"]],
+      none,
+      #["error: p.toml:1:10: selector 'imports:mod:App.Shared!' in set 'leaf' matches no \
+          module: no module 'mod:App.Shared!' matches imports a workspace module directly",
+        "error: p.toml:2:30: selector 'imports:mod:App.Shared!' in the except list of set 'a' \
+          matches no module: no module 'mod:App.Shared!' matches imports a workspace module \
+          directly"]),
+    ("imports:set: of a failed set: one error, and the sets after it are quiet",
+      mkPolicy
+        #[mkSet "bad" 1 ["mod:Nope"], mkSet "c" 2 ["imports:set:bad"],
+          mkSet "d" 3 ["set:c", "pkg:core"] ["mod:Core.Api!"],
+          mkSet "e" 4 ["pkg:ws"] ["imports:set:bad"]],
+      none,
+      #["error: p.toml:1:10: selector 'mod:Nope' in set 'bad' matches no module: no workspace \
+          module is or is under 'Nope'"]),
+    ("only? sees through imports:",
+      mkPolicy
+        #[mkSet "main" 1 ["mod:Main!"], mkSet "broken" 2 ["mod:Nope"],
+          mkSet "top" 3 ["imports:set:main"]],
+      some "top", #["main: [Main]", "top: [App]"])]
 
 /-- A command-line selector. -/
 def cli (text : String) : SelectorRef :=
@@ -237,7 +284,15 @@ def refCases : Array (String × Option LeanDeny.Policy × String) :=
       "error #[unknown set 'nope' in 'p.toml' (it defines no sets)]"),
     ("set:broken", some p,
       "error #[p.toml:3:10: selector 'mod:Nope' in set 'broken' matches no module: no \
-      workspace module is or is under 'Nope']")]
+      workspace module is or is under 'Nope']"),
+    ("imports:set:app", some p, "ok [App, App.Shared, Core.Api]"),
+    ("imports:imports:mod:Main!", none, "ok [App.Shared, Core.Api]"),
+    ("imports:set:app", none, "error #[selector 'imports:set:app' needs a policy]"),
+    ("imports:set:nope", some p,
+      "error #[unknown set 'nope' in 'p.toml' (defined: app, api, broken)]"),
+    ("imports:mod:App.Shared!", none,
+      "error #[selector 'imports:mod:App.Shared!' matches no module: no module \
+      'mod:App.Shared!' matches imports a workspace module directly]")]
 
 def failuresOn (g : Graph) : Array String :=
   Id.run do
@@ -270,8 +325,9 @@ def rootFailures : Array String :=
     let g := { g with packages }
     let cases :=
       #[("mod:App", "ok [App, App.Gen, App.Shared]"), ("mod:App.Gen!", "ok [App.Gen]"),
-        ("mod:App.Gen", "ok [App.Gen]"), ("pkg:ws", "ok [App, AppTest, Main, App.Shared]"),
-        ("lib:App", "ok [App, App.Shared]"),
+        -- A declared root is an importer for imports:.
+        ("imports:mod:App.Gen!", "ok [App]"), ("mod:App.Gen", "ok [App.Gen]"),
+        ("pkg:ws", "ok [App, AppTest, Main, App.Shared]"), ("lib:App", "ok [App, App.Shared]"),
         ("external:App.Gen",
           "nothing: no external module is or is under 'App.Gen' (the graph holds only the \
           external modules the workspace imports directly)")]

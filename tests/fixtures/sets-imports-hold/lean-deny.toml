@@ -1,0 +1,14 @@
+# imports: in a set and in an except list. core-leaf is what Core's modules
+# import minus what Core.Api imports: {Base, Core.Impl, Core.Macros,
+# Core.Prim, Core.Types} minus {Base, Core.Impl, Core.Macros, Core.Types}
+# (Base cancels out), so {Core.Prim}, which imports nothing.
+[sets]
+app = ["mod:App!"]
+app-deps = ["imports:set:app"]
+core-leaf = { select = ["imports:mod:Core"], except = ["imports:mod:Core.Api!"] }
+
+[[deny]]
+from = "set:core-leaf"
+to = "set:app-deps"
+transitive = true
+reason = "x"

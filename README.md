@@ -76,9 +76,22 @@ outside it only. `mod:` also matches the policy's declared roots (see
 | `keyword:<kw>` | every module of every package whose lakefile declares `keywords = ["<kw>"]` (matched exactly) |
 | `external:<Prefix>` | modules from outside the workspace, such as `Lean`, `Std` or `Lake`, by name component. The graph holds only those the workspace imports directly |
 | `set:<name>` | a named set from the policy's `[sets]` table |
+| `imports:<selector>` | the workspace modules that the modules `<selector>` matches import directly |
 
 Module names are written as in `import` (`mod:«my-mod».X`). `lean-deny
 explain <selector>` prints what a selector matches.
+
+`imports:<selector>` derives a set from the graph's edges. It is one hop, not
+the closure: `imports:mod:App!` is what `App` imports, not what those modules
+import in turn. External modules (`Init`, `Lean`, …) are left out; workspace
+modules and declared roots are kept, and a declared root counts as an
+importer too (`imports:mod:EditorSetRoot!`). The inner selector keeps its own
+meaning: `imports:mod:Core.Api!` is what `Core.Api` alone imports,
+`imports:mod:Core` what every module under `Core` imports (a module the
+inner selector matches stays in if another one imports it). It nests:
+`imports:set:entry` and `imports:imports:mod:Main!` (two hops). An
+`imports:` selector that resolves to no module is an error, as any selector
+is.
 
 ### Sets
 
@@ -100,12 +113,13 @@ Set names use letters, digits, `-` and `_`. Each of these is an error
 (exit 2), reported at the policy's `file:line:column` (the column is
 0-based, as Lean prints it):
 
-- a selector that matches no module, such as a misspelt or renamed module;
+- a selector that matches no module, such as a misspelt or renamed module,
+  or an `imports:` selector whose modules import no workspace module;
 - a `lib:<lib>` that several packages declare (ambiguous);
 - an `except` entry that removes no module from its set;
 - a set that its `except` list leaves empty;
-- a `set:` that names no set, or a set that refers to itself, directly or
-  through other sets;
+- a `set:` (also inside `imports:`) that names no set, or a set that refers
+  to itself, directly or through other sets;
 - a malformed selector or set, or an unknown key.
 
 A mistake is reported once. When a set's `select` list already has an error,
@@ -152,6 +166,9 @@ How the rules see a declared root:
 
 - `mod:` matches it, by name component and with `!`; `pkg:`, `lib:`,
   `keyword:` and `external:` never do.
+- `imports:` sees it both ways: `imports:mod:<root>!` is what the root
+  imports, and a module that imports a declared root has it among its
+  imports.
 - `deny`: as any module, in `from`, `to` or `wrappers`.
 - `allow-only`: a declared root is in no package, so **every** one of its
   imports is judged, its implicit `Init` imports included.
@@ -590,7 +607,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 | `lean-deny check [--workspace <dir>] [--config <file>] [--format text\|json\|github]` | implemented | Check the policy. Prints `lean-deny: ok (N rules)` when every rule holds, or each violation and a summary line (see "deny", "allow-only" and "layers"). `--workspace` defaults to `.`; `--config` defaults to `<workspace>/lean-deny.toml`, and an explicit path is relative to the working directory. `--format` defaults to `text`; `json` is versioned and documented in [`docs/check-json.md`](docs/check-json.md); `github` prints GitHub annotations (see "In CI"). The exit code is the same in every format. |
 | `lean-deny graph [--workspace <dir>] [--config <file>] [--format text\|json\|dot] [--level module\|lib\|package]` | implemented | Print the resolved graph (see "Seeing the graph"). Defaults: `--workspace .`, `--config <workspace>/lean-deny.toml`, `--format text`, `--level module`. Reads the policy only for its `[[root]]` tables (see "Declared roots"); every other key is ignored. A default policy that does not exist gives no declared roots; a policy that is not valid TOML gives a warning and no declared roots. |
 | `lean-deny --help`, `lean-deny --version` | implemented | Print usage or the version. |
-| `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a `set:` selector, and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
+| `lean-deny explain [--workspace <dir>] [--config <file>] <selector>` | implemented | List the modules a selector matches, one per line, in the order `graph` prints them. A selector that matches nothing exits 2. The policy (`--config`, default `<workspace>/lean-deny.toml`) is read in full only for a selector that names a set (`set:x`, `imports:set:x`), and then only that set and the sets it refers to are resolved; for any other selector only its `[[root]]` tables are read, as for `graph`. |
 
 ### Exit codes
 
@@ -598,7 +615,7 @@ The workspace must have a `lake-manifest.json` (run `lake update` or any
 |---|---|
 | 0 | Every rule holds (`check`), the graph was printed (`graph`), or at least one matching module was printed (`explain`). |
 | 1 | At least one rule is broken (a `deny`, `allow-only` or `layers` violation). The violations and a summary go to stdout. |
-| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for `set:`. Any internal error is also 2, never 1. |
+| 2 | The command line, the policy or the workspace is bad: a usage error, a missing or malformed policy, an unknown policy key, a workspace that is missing or that Lake cannot load, a selector that matches nothing, a wrapper that excuses nothing, a deny rule whose `from` and `to` share modules, a `from` selector that matches only external modules, an `except` entry that removes nothing, an `allow` entry that allows nothing, allow-only rules that cover the same modules or overlap without nesting, an allow-only rule that covers or governs no module, a layers classify entry that splits a package, a package in two classify entries or in no layer, a layer that holds no package or that an allow pair names but nothing declares, a layers allow pair that allows nothing, a malformed `[[root]]` table, a declared root whose file is missing or that a Lake target already provides. No violation is reported then. The same for `graph`, which reads only the policy's `[[root]]` tables (and only warns on a policy that is not valid TOML), and for `explain`, which reads the policy in full only for a selector that names a set. Any internal error is also 2, never 1. |
 
 `--format` changes only what `check` prints, never its exit code; a usage
 error, a bad `--format` included, is always text on stderr. With

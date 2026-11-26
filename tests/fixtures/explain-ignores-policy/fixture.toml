@@ -1,7 +1,7 @@
-# explain reads the policy in full only for a set: selector; for any other
-# it reads only the [[root]] tables. A policy named by --config that is not
-# valid TOML must not stop an ordinary selector: it warns, and lists the
-# matches without declared roots.
+# explain reads the policy in full only for a selector that names a set
+# (set:, imports:set:); for any other it reads only the [[root]] tables. A
+# policy named by --config that is not valid TOML must not stop an ordinary
+# selector: it warns, and lists the matches without declared roots.
 run = "direct"
 args = ["explain", "--workspace", "../graph-ws", "--config", "bad.toml", "mod:App!"]
 exit = 0

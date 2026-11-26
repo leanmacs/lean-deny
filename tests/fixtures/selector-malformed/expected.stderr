@@ -1,7 +1,8 @@
 lean-deny: error: lean-deny.toml:4:2: invalid selector 'Core.Api': expected '<kind>:<value>', such as 'mod:Editor.Api'
-lean-deny: error: lean-deny.toml:5:2: invalid selector 'crate:core': unknown kind 'crate' (expected pkg, lib, mod, keyword, external or set)
+lean-deny: error: lean-deny.toml:5:2: invalid selector 'crate:core': unknown kind 'crate' (expected pkg, lib, mod, keyword, external, set or imports)
 lean-deny: error: lean-deny.toml:6:2: invalid selector 'pkg:': nothing after 'pkg:'
 lean-deny: error: lean-deny.toml:7:2: invalid selector 'mod:Core..Api': 'Core..Api' is not a module name
 lean-deny: error: lean-deny.toml:8:2: invalid selector 'lib:a/b/c': expected 'lib:<lib>' or 'lib:<package>/<lib>'
 lean-deny: error: lean-deny.toml:9:2: invalid selector 'pkg:core!': '!' (this module alone) is only valid at the end of a mod: selector
 lean-deny: error: lean-deny.toml:10:2: invalid selector 'set:a.b': 'a.b' is not a set name (use letters, digits, '-' and '_')
+lean-deny: error: lean-deny.toml:11:2: invalid selector 'imports:': nothing after 'imports:'

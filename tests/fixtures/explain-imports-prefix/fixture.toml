@@ -1,0 +1,4 @@
+# imports: of every module under Core: one hop each, externals dropped.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "imports:mod:Core"]
+exit = 0

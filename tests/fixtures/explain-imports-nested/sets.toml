@@ -1,0 +1,5 @@
+# explain resolves only the set an imports: selector names (and the sets it
+# refers to): `stale` matches nothing, but is not resolved.
+[sets]
+entry = ["mod:Main!"]
+stale = ["mod:Nope"]

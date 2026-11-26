@@ -1,0 +1,5 @@
+# Core.Prim imports nothing: an imports: selector that resolves to no module
+# is an error, as any selector is.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "imports:mod:Core.Prim!"]
+exit = 2

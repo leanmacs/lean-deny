@@ -1,0 +1,5 @@
+# imports: of one module: its direct workspace imports (Base through a
+# `meta` block), not the external Init.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "imports:mod:Core.Api!"]
+exit = 0

@@ -17,6 +17,11 @@ resolved to modules. Pure.
 - `mod:` compares names by component: `mod:App` matches `App` and
   `App.Shared`, not `AppTest`.
 - A `lib:<lib>` declared by several packages is ambiguous, an error.
+- `imports:<selector>` matches the non-external modules (workspace modules
+  and declared roots) that the modules `<selector>` matches import directly:
+  one hop, not the closure, and the importers themselves stay in only if one
+  of them imports another. Its inner selector keeps its own meaning (`!`,
+  prefix, `set:`, a nested `imports:`).
 
 A selector that matches nothing is an error. So is an `except` entry that
 removes nothing from its set, and a set its `except` list empties: each
@@ -74,8 +79,20 @@ private def libNodes (g : Graph) (pk : PackageInfo) (l : String) : MatchResult :
       (owners n).any fun o => o.pkg == pk.name && o.kind == .lib && plainName o.target == l)
     fun _ => s!"lean_lib '{plainName pk.name}/{l}' has no modules"
 
-/-- What a selector other than `set:` matches in `g`. -/
-def matchSelector (g : Graph) : Selector → MatchResult
+/-- The non-external modules that the modules `ns` import directly, sorted
+and de-duplicated. -/
+def importsOf (g : Graph) (ns : Array NodeId) : Array NodeId :=
+  Id.run do
+    let mut seen := Array.replicate g.nodes.size false
+    for n in ns do
+      for e in g.out[n]?.getD #[] do
+        if let some edge := g.edges[e]? then
+          if g.nodes[edge.dst]?.any (!isExternal ·) then
+            seen := seen.set! edge.dst true
+    return (Array.range g.nodes.size).filter (seen[·]?.getD false)
+
+/-- What a selector other than `set:` and `imports:` matches in `g`. -/
+private def matchBase (g : Graph) : Selector → MatchResult
   | .pkg p =>
     match findPackage? g p with
     | none => .nothing s!"no package named '{p}' (packages: {packageList g})"
@@ -117,6 +134,26 @@ def matchSelector (g : Graph) : Selector → MatchResult
       s!"no external module is or is under '{p}' \
         (the graph holds only the external modules the workspace imports directly)"
   | .set n => .nothing s!"set:{n} is resolved through the policy"
+  | .imports i => .nothing s!"imports:{i} is resolved by matchWith"
+
+/-- What a selector matches in `g`, with `set:n` read from `sets` (`.ok`,
+empty if `n` is not there). `imports:` matches its inner selector first; a
+failure there is its failure, unchanged. -/
+def matchWith (g : Graph) (sets : Std.HashMap String (Array NodeId)) : Selector → MatchResult
+  | .set n => .ok (sets[n]?.getD #[])
+  | .imports i =>
+    match matchWith g sets i with
+    | .ok ns =>
+      okOr (importsOf g ns) fun _ => s!"no module '{i}' matches imports a workspace module directly"
+    | m => m
+  | s => matchBase g s
+
+/-- What a selector that names no set matches in `g`; a `set:` (also inside
+`imports:`) is resolved through the policy (`matchRef`). -/
+def matchSelector (g : Graph) (s : Selector) : MatchResult :=
+  match s.setName? with
+  | some n => .nothing s!"set:{n} is resolved through the policy"
+  | none => matchWith g {} s
 
 /-- The union of two sorted arrays of ids, sorted. -/
 def sortedUnion (a b : Array NodeId) : Array NodeId :=
@@ -164,9 +201,7 @@ def sortedDiff (a b : Array NodeId) : Array NodeId :=
 `sets`: `set:n` is `.ok sets[n]` (empty if `n` is not there). -/
 def matchRef (g : Graph) (sets : Std.HashMap String (Array NodeId)) (r : SelectorRef) :
     MatchResult :=
-  match r.sel with
-  | .set n => .ok (sets[n]?.getD #[])
-  | s => matchSelector g s
+  matchWith g sets r.sel
 
 /-- The message for a selector whose match failed, without a position:
 "selector 'x' in … matches no module: <reason>" or "… is ambiguous:
@@ -199,7 +234,8 @@ private def closure (p : Policy) (start : Nat) : Array Bool :=
 one set (`explain set:x`). Errors are rendered with `Policy.locate`, in
 source order of the sets, then of the selectors within a set. A `set:`
 selector adds no error of its own: a set it names that failed has reported
-already, and the referring set goes on with what that set did match. When a
+already, and the referring set goes on with what that set did match. Nor does
+a selector that names a failed set inside `imports:` and fails itself. When a
 `select` selector of a set failed, or names a set that failed, the set's
 modules are not all known: an except entry that seems to remove nothing, or an
 except list that seems to remove everything, adds no error either. -/
@@ -240,6 +276,10 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
           selectFailed := selectFailed || r.setName?.any failed.contains
         | _, _ =>
           selectFailed := true
+      -- A selector that names a set that failed (`imports:set:<failed>`)
+      -- and fails itself adds no error: that set reported already. The set
+      -- still counts as failed, so the sets that refer to it are quiet too.
+      let mut quietFail := false
       let mut es := #[]
       let loc (pos? : Option Toml.Pos) (msg : String) := Policy.locate p.path pos? msg
       for (r, m) in refs.zip results do
@@ -251,14 +291,17 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
             if removesNone && !fromFailedSet && !selectFailed then
               es := es.push (loc r.pos? s!"{r.describe} removes no module from it")
         | _ =>
-          es := es.push (loc r.pos? ((matchError? r m).getD ""))
+          if fromFailedSet then
+            quietFail := true
+          else
+            es := es.push (loc r.pos? ((matchError? r m).getD ""))
       let result := sortedDiff selected removed
       if !selectFailed && !selected.isEmpty && result.isEmpty then
         es :=
           es.push <|
             loc d.pos?
               s!"set '{d.name}' matches no module: its except list removes every module it selects"
-      if !es.isEmpty then
+      if !es.isEmpty || quietFail then
         failed := failed.insert d.name
         errs := errs.set! i es
       res := res.insert d.name result
@@ -268,25 +311,29 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
     else
       .error all
 
-/-- One selector, such as `explain`'s from the command line. A `set:`
-selector resolves that set's closure in `p?`. A message carries the policy's
-path only when the selector has a position. -/
+/-- One selector, such as `explain`'s from the command line. A selector that
+names a set (`set:x`, `imports:set:x`) resolves that set's closure in `p?`.
+A message carries the policy's path only when the selector has a position. -/
 def resolveRef (g : Graph) (p? : Option Policy) (r : SelectorRef) :
     Except (Array String) (Array NodeId) :=
   let loc (msg : String) : String :=
     match p?, r.pos? with
     | some p, some _ => Policy.locate p.path r.pos? msg
     | _, _ => msg
-  match r.sel with
-  | .set n =>
+  let finish (m : MatchResult) : Except (Array String) (Array NodeId) :=
+    match m with
+    | .ok ns => .ok ns
+    | m => .error #[loc ((matchError? r m).getD "")]
+  match r.sel.setName? with
+  | some n =>
     match p? with
     | none => .error #[loc s!"{r.describe} needs a policy"]
     | some p =>
       if (p.findSet? n).isNone then .error #[p.unknownSet n]
-      else (resolveSets g p (only? := some n)).map fun res => res[n]?.getD #[]
-  | s =>
-    match matchSelector g s with
-    | .ok ns => .ok ns
-    | m => .error #[loc ((matchError? r m).getD "")]
+      else
+        match resolveSets g p (only? := some n) with
+        | .error es => .error es
+        | .ok res => finish (matchRef g res r)
+  | none => finish (matchSelector g r.sel)
 
 end LeanDeny

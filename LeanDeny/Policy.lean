@@ -25,7 +25,7 @@ Any other key is rejected rather than ignored, so a policy full of rules
 cannot pass while checking nothing.
 
 Loading checks everything that needs no graph: the file's shape, each
-selector's syntax, that every `set:` names a set, that no set refers to
+selector's syntax, that every `set:` (also inside `imports:`) names a set, that no set refers to
 itself, and that every layer a `[layers]` `allow` pair names is declared.
 Every error is collected, each starting with `<path>:<line>:<column>: `:
 shape and syntax errors in source order, then
@@ -324,11 +324,10 @@ source order. -/
 def AllowOnlyRule.refs (r : AllowOnlyRule) : Array SelectorRef :=
   (r.sources ++ r.except ++ r.allow).qsort fun a b => posLt a.pos? b.pos?
 
-/-- The set a selector names, if it is a `set:` selector. -/
+/-- The set a selector names, if any: `set:n`, also inside `imports:`
+(`Selector.setName?`). -/
 def SelectorRef.setName? (r : SelectorRef) : Option String :=
-  match r.sel with
-  | .set n => some n
-  | _ => none
+  r.sel.setName?
 
 /-- Errors being collected, rendered with the policy's path. -/
 private structure Errors where
@@ -884,7 +883,7 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
 
 /-- Only the `[[root]]` tables of the parsed TOML document at `path`; every
 other key is ignored, not checked. `graph` and `explain` (for any selector
-but `set:`) read a policy this way, so a policy whose rules are broken cannot
+that names no set) read a policy this way, so a policy whose rules are broken cannot
 stop anyone from looking at the graph. -/
 def Policy.rootsOfToml (path : String) (entries : Array (String × Toml.LValue)) :
     Except (Array String) (Array RootDef) :=

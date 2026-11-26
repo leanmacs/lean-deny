@@ -8,4 +8,5 @@ bad = [
   "lib:a/b/c",
   "pkg:core!",
   "set:a.b",
+  "imports:",
 ]

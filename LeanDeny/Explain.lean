@@ -9,7 +9,8 @@ import LeanDeny.Policy.Resolve
 # `lean-deny explain`
 
 List the modules a selector matches, for authoring a policy. The policy is
-read in full only for a `set:` selector; for any other selector only its
+read in full only for a selector that names a set (`set:x`,
+`imports:set:x`); for any other selector only its
 `[[root]]` tables are read (`loadDeclaredRoots`), so a policy whose rules are half
 written cannot stop anyone from exploring, and a policy that is not valid
 TOML only warns. A selector that matches nothing is an error (exit 2), as it
@@ -28,8 +29,8 @@ def runExplain (opts : ExplainOpts) : IO Outcome := do
   if let .error msgs← checkWorkspaceDir ws then
     return ← fail msgs
   let (policy?, roots) ←
-    match opts.selector with
-    | .set _ =>
+    match opts.selector.setName? with
+    | some _ =>
       let policyPath := opts.config?.getD (defaultPolicyPath ws)
       match ← loadPolicy policyPath with
       | .ok p =>
@@ -43,7 +44,7 @@ def runExplain (opts : ExplainOpts) : IO Outcome := do
       | .error msgs =>
         return ← fail msgs
   -- An unknown set is reported before Lake runs.
-  if let (.set n, some p) := (opts.selector, policy?) then
+  if let (some n, some p) := (opts.selector.setName?, policy?) then
     if (p.findSet? n).isNone then
       return ← fail #[p.unknownSet n]
   let g ←

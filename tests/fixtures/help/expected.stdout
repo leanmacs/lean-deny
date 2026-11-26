@@ -29,7 +29,8 @@ Options for graph:
 Options for explain:
   --workspace <dir>   The Lake workspace to read (default: .)
   --config <file>     The policy file, read for its [[root]] tables, and
-                      in full for a set: selector
+                      in full for a selector that names a set
+                      (set:, imports:set:)
                       (default: <dir>/lean-deny.toml)
 
 Selectors:
@@ -42,6 +43,8 @@ Selectors:
   keyword:<kw>        every module of every package with that keyword
   external:<Prefix>   modules from outside the workspace that it imports
   set:<name>          a set from the policy's [sets] table
+  imports:<selector>  the workspace modules the selector's modules import
+                      directly
 
 Loading the workspace elaborates its and its dependencies' lakefile.lean
 files, so check, graph and explain run their code, as lake does

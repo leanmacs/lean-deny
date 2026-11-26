@@ -180,6 +180,11 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
       .error
         #["p.toml:2:5: set 'a' refers to itself: a -> b -> a",
           "p.toml:4:5: set 'c' refers to itself: c -> c"]),
+    ("a cycle through imports:", "[sets]\na = [\"imports:set:a\"]\n",
+      .error #["p.toml:2:5: set 'a' refers to itself: a -> a"]),
+    ("an unknown set inside imports:", "[sets]\nb = [\"imports:set:nope\"]\n",
+      .error
+        #["p.toml:2:5: selector 'imports:set:nope' in set 'b' names an unknown set (defined: b)"]),
     ("a cycle through except",
       "[sets]\na = { select = [\"pkg:a\"], except = [\"set:b\"] }\nb = [\"set:a\"]\n",
       .error #["p.toml:2:36: set 'a' refers to itself: a -> b -> a"]),
@@ -191,7 +196,7 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
       .error
         #["p.toml:3:4: set 'b' is empty",
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
-            mod, keyword, external or set)",
+            mod, keyword, external, set or imports)",
           "p.toml:6:0: unknown key 'bans' (known keys: sets, deny, allow-only, layers, root)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
 
@@ -278,6 +283,12 @@ def denyCases : Array (String × String × Except (Array String) (Array String))
         reason = \"r\"\n",
       .error
         #["p.toml:6:5: selector 'set:cor' in deny rule 1 ('to') names an unknown set \
+            (defined: core)"]),
+    ("an unknown set inside imports:",
+      "[sets]\ncore = [\"pkg:core\"]\n\n[[deny]]\nfrom = \"set:core\"\nto = \"imports:set:nope\"\n\
+        reason = \"r\"\n",
+      .error
+        #["p.toml:6:5: selector 'imports:set:nope' in deny rule 1 ('to') names an unknown set \
             (defined: core)"]),
     ("an unknown set with no sets", denyWith "wrappers = [\"mod:W\", \"set:w\"]\n",
       .error

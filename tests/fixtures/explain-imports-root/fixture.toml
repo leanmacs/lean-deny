@@ -1,0 +1,4 @@
+# imports: of a declared root: App and App.Extra, not Lean.Data.Json.
+run = "direct"
+args = ["explain", "--workspace", "../root-ws", "--config", "../root-ws/lean-deny.toml", "imports:mod:Gen!"]
+exit = 0

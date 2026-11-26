@@ -1,0 +1,3 @@
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "--config", "sets.toml", "imports:set:entry"]
+exit = 0

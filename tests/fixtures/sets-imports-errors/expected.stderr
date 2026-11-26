@@ -1,0 +1,2 @@
+lean-deny: error: lean-deny.toml:4:8: selector 'imports:mod:Core.Prim!' in set 'leaf' matches no module: no module 'mod:Core.Prim!' matches imports a workspace module directly
+lean-deny: error: lean-deny.toml:5:38: selector 'imports:mod:App.Shared!' in the except list of set 'a' matches no module: no module 'mod:App.Shared!' matches imports a workspace module directly

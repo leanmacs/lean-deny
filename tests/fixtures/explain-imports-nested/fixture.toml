@@ -1,0 +1,4 @@
+# Two hops: what the modules Main imports import.
+run = "direct"
+args = ["explain", "--workspace", "../graph-ws", "--config", "sets.toml", "imports:imports:set:entry"]
+exit = 0

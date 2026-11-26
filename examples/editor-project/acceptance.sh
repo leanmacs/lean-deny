@@ -147,6 +147,7 @@ core-4-lean|lean|lean/Editor/Bound.lean|Lean.Data.Json|1|deny rule 1|lean-deny: 
 core-5|packages|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 3|lean-deny: 1 violation in 1 of 9 rules
 core-5-lean|lean|lean/ModelTest/Editor/Bound.lean|Editor.Ffi.Text|1|deny rule 2|lean-deny: 1 violation in 1 of 2 rules
 host|packages|lean/Editor/Main.lean|Compile.Compiled|1|deny rule 4,deny rule 1,layers|lean-deny: 4 violations in 3 of 9 rules
+host-shipped-themes|packages|lean/Editor/Main.lean|ShippedThemes.EditorPackage|1|deny rule 4,deny rule 1,layers|lean-deny: 4 violations in 3 of 9 rules
 package-library|packages|packages/compile/Compile.lean|Editor.Loop|1|allow-only rule 1|lean-deny: 1 violation in 1 of 9 rules
 package-library-double|packages|packages/compile/Compile.lean|Editor.Text.Model|1|allow-only rule 1|lean-deny: 1 violation in 1 of 9 rules
 package-test|packages|packages/compile/CompileTest/Compile.lean|Editor.Test.Linked.Rig|1|allow-only rule 2|lean-deny: 1 violation in 1 of 9 rules

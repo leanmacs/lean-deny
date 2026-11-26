@@ -5,7 +5,8 @@ import Lean.Data.Name
 
 A selector names a set of modules: `<kind>:<value>`, such as `pkg:core`,
 `lib:core/Core`, `mod:Core.Api`, `mod:Core.Api!`, `keyword:kernel`,
-`external:Lean` or `set:core-api`. This module is the syntax only, pure;
+`external:Lean`, `set:core-api` or `imports:mod:App!` (the workspace modules
+`App` imports directly). This module is the syntax only, pure;
 `LeanDeny.Policy.Resolve` gives a selector its meaning against a graph.
 -/
 
@@ -29,6 +30,9 @@ inductive Selector where
   | external (pfx : Name)
   /-- `set:<name>`. -/
   | set (name : String)
+  /-- `imports:<selector>`: the workspace modules that the modules `inner`
+  matches import directly. -/
+  | imports (inner : Selector)
   deriving BEq, Repr, Inhabited
 
 /-- A valid set name: non-empty, ASCII letters, digits, `-` and `_`. -/
@@ -53,20 +57,16 @@ private def bangReason : String :=
 private def moduleReason (s : String) : String :=
   s!"'{s}' is not a module name"
 
-/-- Parse a selector. The error is the reason only, such as
-`nothing after 'pkg:'`; callers add the selector, its position and its
-context. -/
-def Selector.parse (s : String) : Except String Selector := do
-  if s.any Char.isWhitespace then
-    throw "contains whitespace"
+/-- Parse a selector with no leading `imports:`. -/
+private def parseBase (s : String) : Except String Selector := do
   let (kind, value) ←
     match s.splitOn ":" with
     | k :: v :: vs =>
       pure (k, ":".intercalate (v :: vs))
     | _ =>
       throw "expected '<kind>:<value>', such as 'mod:Editor.Api'"
-  unless ["pkg", "lib", "mod", "keyword", "external", "set"].contains kind do
-    throw s!"unknown kind '{kind}' (expected pkg, lib, mod, keyword, external or set)"
+  unless ["pkg", "lib", "mod", "keyword", "external", "set", "imports"].contains kind do
+    throw s!"unknown kind '{kind}' (expected pkg, lib, mod, keyword, external, set or imports)"
   if value.isEmpty then
     throw s!"nothing after '{kind}:'"
   -- `!` is valid only as the last character of a `mod:` value.
@@ -97,10 +97,28 @@ def Selector.parse (s : String) : Except String Selector := do
   | "external" =>
     let some n := parseModuleName? value | throw (moduleReason value)
     return .external n
-  | _ =>
+  | "set" =>
     unless isSetName value do
       throw s!"'{value}' is not a set name (use letters, digits, '-' and '_')"
     return .set value
+  | _ =>
+    -- `imports:` is peeled off by `Selector.parse`.
+    throw s!"nothing after '{kind}:'"
+
+/-- Parse a selector. The error is the reason only, such as
+`nothing after 'pkg:'`; callers add the selector, its position and its
+context. `imports:<selector>` wraps any selector, which owns its own `!`. -/
+def Selector.parse (s : String) : Except String Selector := do
+  if s.any Char.isWhitespace then
+    throw "contains whitespace"
+  let parts := s.splitOn ":"
+  -- The leading `imports:` prefixes (a component followed by a `:`).
+  let depth := ((parts.dropLast).takeWhile (· == "imports")).length
+  let rest := ":".intercalate (parts.drop depth)
+  if depth > 0 && rest.isEmpty then
+    throw "nothing after 'imports:'"
+  let base ← parseBase rest
+  return depth.repeat .imports base
 
 /-- The canonical text of a selector: `parse (toString s) = .ok s` for every
 selector `parse` returns. -/
@@ -112,6 +130,14 @@ def Selector.toString : Selector → String
   | .keyword k => s!"keyword:{k}"
   | .external p => s!"external:{p}"
   | .set n => s!"set:{n}"
+  | .imports i => s!"imports:{Selector.toString i}"
+
+/-- The set a selector names, if any: `set:n`, also inside `imports:`. A
+selector names at most one set. -/
+def Selector.setName? : Selector → Option String
+  | .set n => some n
+  | .imports i => i.setName?
+  | _ => none
 
 instance : ToString Selector :=
   ⟨Selector.toString⟩

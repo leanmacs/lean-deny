@@ -1,0 +1,6 @@
+# An imports: selector that resolves to no module is an error in select and
+# in except. `b` refers to the failed `leaf`, and adds no second error.
+[sets]
+leaf = ["imports:mod:Core.Prim!"]
+a = { select = ["mod:App"], except = ["imports:mod:App.Shared!"] }
+b = ["imports:set:leaf"]
