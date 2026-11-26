@@ -59,7 +59,8 @@ def witnessLine (g : Graph) (e : Edge) : String :=
   s!"{pos}: {nodeName g e.src}: {e.kind.directive (nodeName g e.dst)}\
     {if e.implicit then " (implicit)" else ""}"
 
-private def plural (n : Nat) (word : String) : String :=
+/-- `1 import`, `2 imports`: `n` and `word`, plural unless `n` is 1. -/
+def plural (n : Nat) (word : String) : String :=
   s!"{n} {word}{if n == 1 then "" else "s"}"
 
 /-- The package named `n`, if the graph has it. -/

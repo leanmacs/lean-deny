@@ -116,7 +116,7 @@ def matchSelector (g : Graph) : Selector → MatchResult
   | .set n => .nothing s!"set:{n} is resolved through the policy"
 
 /-- The union of two sorted arrays of ids, sorted. -/
-private def union (a b : Array NodeId) : Array NodeId :=
+def sortedUnion (a b : Array NodeId) : Array NodeId :=
   Id.run do
     let mut out := #[]
     let mut i := 0
@@ -156,6 +156,22 @@ private def diff (a b : Array NodeId) : Array NodeId :=
       unless b[j]? == some x do
         out := out.push x
     return out
+
+/-- What a selector of a policy matches, with every set already resolved in
+`sets`: `set:n` is `.ok sets[n]` (empty if `n` is not there). -/
+def matchRef (g : Graph) (sets : Std.HashMap String (Array NodeId)) (r : SelectorRef) :
+    MatchResult :=
+  match r.sel with
+  | .set n => .ok (sets[n]?.getD #[])
+  | s => matchSelector g s
+
+/-- The message for a selector whose match failed, without a position:
+"selector 'x' in … matches no module: <reason>" or "… is ambiguous:
+<detail>"; `none` for `.ok`. Every caller words a failed match this way. -/
+def matchError? (r : SelectorRef) : MatchResult → Option String
+  | .ok _ => none
+  | .nothing reason => some s!"{r.describe} matches no module: {reason}"
+  | .ambiguous detail => some s!"{r.describe} is ambiguous: {detail}"
 
 /-- The indices of set `start` and of every set it refers to, directly or not.
 A set is marked when it is pushed, and pushed only if unmarked, so a set named
@@ -202,11 +218,7 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
         continue
       let some d := p.sets[i]? | continue
       let refs := d.refs
-      let results :=
-        refs.map fun r =>
-          match r.sel with
-          | .set n => MatchResult.ok (res[n]?.getD #[])
-          | s => matchSelector g s
+      let results := refs.map (matchRef g res)
       let mut selected := #[]
       let mut removed := #[]
       -- Whether a `select` selector failed, or names a set that failed: then
@@ -217,11 +229,11 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
       for (r, m) in refs.zip results do
         match r.use, m with
         | .setExcept _, .ok ns =>
-          removed := union removed ns
+          removed := sortedUnion removed ns
         | .setExcept _, _ =>
           pure ()
         | _, .ok ns =>
-          selected := union selected ns
+          selected := sortedUnion selected ns
           selectFailed := selectFailed || r.setName?.any failed.contains
         | _, _ =>
           selectFailed := true
@@ -230,15 +242,13 @@ def resolveSets (g : Graph) (p : Policy) (only? : Option String := none) :
       for (r, m) in refs.zip results do
         let fromFailedSet := r.setName?.any failed.contains
         match m with
-        | .nothing reason =>
-          es := es.push (loc r.pos? s!"{r.describe} matches no module: {reason}")
-        | .ambiguous detail =>
-          es := es.push (loc r.pos? s!"{r.describe} is ambiguous: {detail}")
         | .ok ns =>
           if let .setExcept _ := r.use then
             let removesNone := !ns.isEmpty && (diff ns selected).size == ns.size
             if removesNone && !fromFailedSet && !selectFailed then
               es := es.push (loc r.pos? s!"{r.describe} removes no module from it")
+        | _ =>
+          es := es.push (loc r.pos? ((matchError? r m).getD ""))
       let result := diff selected removed
       if !selectFailed && !selected.isEmpty && result.isEmpty then
         es :=
@@ -274,7 +284,6 @@ def resolveRef (g : Graph) (p? : Option Policy) (r : SelectorRef) :
   | s =>
     match matchSelector g s with
     | .ok ns => .ok ns
-    | .nothing reason => .error #[loc s!"{r.describe} matches no module: {reason}"]
-    | .ambiguous detail => .error #[loc s!"{r.describe} is ambiguous: {detail}"]
+    | m => .error #[loc ((matchError? r m).getD "")]
 
 end LeanDeny

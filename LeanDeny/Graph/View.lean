@@ -159,15 +159,22 @@ private def displayLt (a b : Group) : Bool :=
   let eb := b.kind == .external
   (!ea && eb) || (ea == eb && a.id < b.id)
 
-/-- The nodes `ns` of `g` in the order `collapse g .module` lists them, which
-is the order of their module-level groups (a node has exactly one).
-(`NodeId` order is `Name.cmp`'s, which puts `AppTest` before `App.Shared`.) -/
-def sortForDisplay (g : Graph) (ns : Array NodeId) : Array Node :=
-  let group (n : Node) : Option Group := (groupsOf .module n)[0]?
-  (ns.filterMap (g.nodes[·]?)).qsort fun a b =>
+/-- The ids `ns` of `g` in the order `collapse g .module` lists their nodes,
+which is the order of their module-level groups (a node has exactly one):
+workspace modules, then external ones, each by name as a string. (`NodeId`
+order is `Name.cmp`'s, which puts `AppTest` before `App.Shared`.) Ids not
+in `g` sort last. -/
+def displayOrder (g : Graph) (ns : Array NodeId) : Array NodeId :=
+  let group (n : NodeId) : Option Group := g.nodes[n]? >>= fun m => (groupsOf .module m)[0]?
+  ns.qsort fun a b =>
     match group a, group b with
     | some ga, some gb => displayLt ga gb
+    | some _, none => true
     | _, _ => false
+
+/-- The nodes `ns` of `g` in `displayOrder`. -/
+def sortForDisplay (g : Graph) (ns : Array NodeId) : Array Node :=
+  (displayOrder g ns).filterMap (g.nodes[·]?)
 
 /-- The groups that exist even with no members: every target (lib level) or
 package (package level) of the workspace. -/

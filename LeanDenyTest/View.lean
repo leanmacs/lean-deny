@@ -113,12 +113,26 @@ def levelFailures : Array String :=
       if (LeanDeny.Graph.Level.parse? s).isNone then none
       else some s!"Level.parse? accepts {repr s}")
 
+/-- `displayOrder`: workspace modules by name as a string (`App`, `App.Shared`,
+`AppTest`, though `Name.cmp` puts `AppTest` first), then externals. -/
+def displayOrderFailures : Array String :=
+  let ms : Array M :=
+    #[{ name := `AppTest }, { name := `App.Shared, imports := #[plain `Lean.Data.Json] },
+      { name := `App, imports := #[plain `Std] }]
+  match mkGraph ms with
+  | .error e => #[s!"building the displayOrder graph failed: {e}"]
+  | .ok g =>
+    let all := (List.range g.nodes.size).toArray.reverse
+    let got := (displayOrder g all).map fun i => (g.nodes[i]?.map (·.name.toString)).getD "?"
+    LeanDenyTest.Graph.compare "displayOrder" got
+      #["App", "App.Shared", "AppTest", "Init", "Lean.Data.Json", "Std"]
+
 def run : Array String :=
   match mkGraph modules with
   | .error e => #[s!"building the view test graph failed: {e}"]
   | .ok g =>
     let g := { g with packages }
-    levelFailures ++ viewFailures g .module moduleNodes moduleEdges ++
+    displayOrderFailures ++ levelFailures ++ viewFailures g .module moduleNodes moduleEdges ++
       viewFailures g .lib libNodes libEdges ++
       viewFailures g .package packageNodes packageEdges
 
