@@ -1,0 +1,12 @@
+lean-deny: error: lean-deny.toml:6:0: deny rule 1 has no 'from'
+lean-deny: error: lean-deny.toml:6:0: deny rule 1 has no 'reason'
+lean-deny: error: lean-deny.toml:10:7: deny rule 2: 'from' must be a selector or an array of selectors, found an integer
+lean-deny: error: lean-deny.toml:11:5: deny rule 2: 'to' is empty
+lean-deny: error: lean-deny.toml:12:9: deny rule 2: 'reason' is empty
+lean-deny: error: lean-deny.toml:15:20: deny rule 3 ('from'): expected a selector string, found an integer
+lean-deny: error: lean-deny.toml:17:13: deny rule 3: 'transitive' must be true or false, found a string
+lean-deny: error: lean-deny.toml:18:11: deny rule 3: 'wrappers' is empty (omit it)
+lean-deny: error: lean-deny.toml:19:10: deny rule 3: unknown key 'wrapper' (expected from, to, transitive, wrappers, reason)
+lean-deny: error: lean-deny.toml:23:7: invalid selector 'Core.Api': expected '<kind>:<value>', such as 'mod:Editor.Api'
+lean-deny: error: lean-deny.toml:25:9: deny rule 4: 'reason' must be a string, found an integer
+lean-deny: error: lean-deny.toml:16:5: selector 'set:cor' in deny rule 3 ('to') names an unknown set (defined: core)

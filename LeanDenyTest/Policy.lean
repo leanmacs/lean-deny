@@ -2,9 +2,9 @@ import LeanDeny
 
 /-!
 Tests of the policy loader (`LeanDeny.Policy.ofToml`) on TOML texts: the
-three forms of a set, the positions of sets and selectors, every load-time
-error with its exact rendering, `set:` references and cycles, and the
-order sets are resolved in.
+three forms of a set, the two forms of `[[deny]]`, the positions of sets,
+rules and selectors, every load-time error with its exact rendering, `set:`
+references and cycles, and the order sets are resolved in.
 -/
 
 open LeanDeny
@@ -26,6 +26,7 @@ def renderPos : Option Toml.Pos → String
 def renderUse : Use → String
   | .setSelect n => s!"select({n})"
   | .setExcept n => s!"except({n})"
+  | .rule k i f => s!"{k}{i}.{f}"
   | .commandLine => "cli"
 
 def renderRef (r : SelectorRef) : String :=
@@ -37,10 +38,22 @@ def renderSet (d : SetDef) : String :=
   let exc := ", ".intercalate (d.except.map renderRef).toList
   s!"{d.name}@{renderPos d.pos?} [{sel}]{if d.except.isEmpty then "" else s!" except [{exc}]"}"
 
-/-- Every set, then the order by name. -/
+/-- A deny rule as `deny#1@pos from[…] to[…][ transitive][ wrappers[…]] reason="…"`. -/
+def renderRule (r : DenyRule) : String :=
+  let refs (rs : Array SelectorRef) := ", ".intercalate (rs.map renderRef).toList
+  s!"deny#{r.index}@{renderPos r.pos?} from[{refs r.sources}] to[{refs r.targets}]\
+    {if r.transitive then " transitive" else ""}\
+    {if r.wrappers.isEmpty then "" else s!" wrappers[{refs r.wrappers}]"} reason={repr r.reason}"
+
+/-- Every set, then the order by name, then every rule. -/
 def renderPolicy (p : LeanDeny.Policy) : Array String :=
-  p.sets.map renderSet |>.push
-    s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}"
+  (p.sets.map renderSet |>.push
+      s!"order: {" ".intercalate (p.order.map fun i => (p.sets[i]?.map (·.name)).getD "?").toList}") ++
+    p.deny.map renderRule
+
+/-- A deny table with `from`, `to` and `reason`, then `extra` lines. -/
+def denyWith (extra : String) : String :=
+  s!"[[deny]]\nfrom = \"mod:A\"\nto = \"mod:B\"\nreason = \"r\"\n{extra}"
 
 /-- `(case, source, expected)`: the rendered policy (`renderPolicy`) or
 the exact error messages. -/
@@ -71,8 +84,8 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
           "b@3:4 [pkg:b@3:5 select(b)]", "order: b a"]),
     -- Unknown top-level keys.
     ("[[bans]]", "[[bans]]\nfrom = \"pkg:a\"\n",
-      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets)"]),
-    ("foo = 1", "foo = 1\n", .error #["p.toml:1:6: unknown key 'foo' (known keys: sets)"]),
+      .error #["p.toml:1:0: unknown key 'bans' (known keys: sets, deny)"]),
+    ("foo = 1", "foo = 1\n", .error #["p.toml:1:6: unknown key 'foo' (known keys: sets, deny)"]),
     ("sets = 1", "sets = 1\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     ("sets = []", "sets = []\n", .error #["p.toml:1:7: 'sets' must be a table, such as [sets]"]),
     -- Every load-time error of a set.
@@ -141,8 +154,106 @@ def cases : Array (String × String × Except (Array String) (Array String)) :=
         #["p.toml:3:4: set 'b' is empty",
           "p.toml:4:5: invalid selector 'crate:x': unknown kind 'crate' (expected pkg, lib, \
             mod, keyword, external or set)",
-          "p.toml:6:0: unknown key 'bans' (known keys: sets)",
+          "p.toml:6:0: unknown key 'bans' (known keys: sets, deny)",
           "p.toml:2:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b, c)"])]
+
+/-- `[[deny]]` cases, as `cases`. -/
+def denyCases : Array (String × String × Except (Array String) (Array String)) :=
+  #[ -- The two forms, string versus array fields, defaults.
+    ("[[deny]] tables",
+      "[[deny]]\nfrom = \"mod:A\"\nto = [\"mod:B\", \"mod:C!\"]\nreason = \"r1\"\n\n\
+        [[deny]]\nfrom = [\"mod:X\"]\nto = \"external:Lean\"\ntransitive = true\n\
+        wrappers = \"mod:W!\"\nreason = \"r2\"\n",
+      .ok
+        #["order: ",
+          "deny#1@1:0 from[mod:A@2:7 deny1.from] to[mod:B@3:6 deny1.to, mod:C!@3:15 deny1.to] \
+            reason=\"r1\"",
+          "deny#2@6:0 from[mod:X@7:8 deny2.from] to[external:Lean@8:5 deny2.to] transitive \
+            wrappers[mod:W!@10:11 deny2.wrappers] reason=\"r2\""]),
+    ("inline tables",
+      "deny = [{ from = \"mod:A\", to = \"mod:B\", reason = \"r\" }, \
+        { from = \"mod:C\", to = \"mod:D\", reason = \"s\", transitive = false }]\n",
+      .ok
+        #["order: ", "deny#1@1:8 from[mod:A@1:17 deny1.from] to[mod:B@1:31 deny1.to] reason=\"r\"",
+          "deny#2@1:56 from[mod:C@1:65 deny2.from] to[mod:D@1:79 deny2.to] reason=\"s\""]),
+    ("wrappers as an array, with sets",
+      "[sets]\ncore = [\"pkg:core\"]\n\n[[deny]]\nfrom = \"set:core\"\nto = \"keyword:k\"\n\
+        wrappers = [\"mod:W!\", \"set:core\"]\nreason = \"r\"\n",
+      .ok
+        #["core@2:7 [pkg:core@2:8 select(core)]", "order: core",
+          "deny#1@4:0 from[set:core@5:7 deny1.from] to[keyword:k@6:5 deny1.to] \
+            wrappers[mod:W!@7:12 deny1.wrappers, set:core@7:22 deny1.wrappers] reason=\"r\""]),
+    -- The shape of `deny`.
+    ("deny = 1", "deny = 1\n",
+      .error #["p.toml:1:7: 'deny' must be an array of tables, such as [[deny]]"]),
+    ("[deny]", "[deny]\nfrom = \"pkg:a\"\n",
+      .error #["p.toml:1:0: 'deny' must be an array of tables, such as [[deny]]"]),
+    ("deny = []", "deny = []\n", .error #["p.toml:1:7: 'deny' is empty (omit it)"]),
+    ("deny = [1]", "deny = [1]\n",
+      .error #["p.toml:1:8: deny rule 1 must be a table, found an integer"]),
+    -- Every load-time error of a deny table.
+    ("missing keys", "[[deny]]\ntransitive = false\n",
+      .error
+        #["p.toml:1:0: deny rule 1 has no 'from'", "p.toml:1:0: deny rule 1 has no 'to'",
+          "p.toml:1:0: deny rule 1 has no 'reason'"]),
+    ("missing keys come before the entries' errors", "[[deny]]\nto = 1\n",
+      .error
+        #["p.toml:1:0: deny rule 1 has no 'from'", "p.toml:1:0: deny rule 1 has no 'reason'",
+          "p.toml:2:5: deny rule 1: 'to' must be a selector or an array of selectors, found an \
+            integer"]),
+    ("an unknown key", denyWith "wrapper = \"mod:W\"\n",
+      .error
+        #["p.toml:5:10: deny rule 1: unknown key 'wrapper' (expected from, to, transitive, \
+            wrappers, reason)"]),
+    ("from, to and wrappers not selectors",
+      "[[deny]]\nfrom = 1\nto = { a = 1 }\nwrappers = true\nreason = \"r\"\n",
+      .error
+        #["p.toml:2:7: deny rule 1: 'from' must be a selector or an array of selectors, found \
+            an integer",
+          "p.toml:3:5: deny rule 1: 'to' must be a selector or an array of selectors, found a \
+            table",
+          "p.toml:4:11: deny rule 1: 'wrappers' must be a selector or an array of selectors, \
+            found a boolean"]),
+    ("empty lists", "[[deny]]\nfrom = []\nto = []\nwrappers = []\nreason = \"r\"\n",
+      .error
+        #["p.toml:2:7: deny rule 1: 'from' is empty", "p.toml:3:5: deny rule 1: 'to' is empty",
+          "p.toml:4:11: deny rule 1: 'wrappers' is empty (omit it)"]),
+    ("an element not a string", denyWith "wrappers = [\"mod:W\", true]\n",
+      .error
+        #["p.toml:5:21: deny rule 1 ('wrappers'): expected a selector string, found a boolean"]),
+    ("a malformed selector", "[[deny]]\nfrom = \"mod:A\"\nto = [\"pkg:\"]\nreason = \"r\"\n",
+      .error #["p.toml:3:6: invalid selector 'pkg:': nothing after 'pkg:'"]),
+    ("transitive not a boolean", denyWith "transitive = \"yes\"\n",
+      .error #["p.toml:5:13: deny rule 1: 'transitive' must be true or false, found a string"]),
+    ("reason not a string", "[[deny]]\nfrom = \"mod:A\"\nto = \"mod:B\"\nreason = 7\n",
+      .error #["p.toml:4:9: deny rule 1: 'reason' must be a string, found an integer"]),
+    ("reason blank", "[[deny]]\nfrom = \"mod:A\"\nto = \"mod:B\"\nreason = \"  \"\n",
+      .error #["p.toml:4:9: deny rule 1: 'reason' is empty"]),
+    ("a rule with errors keeps its number",
+      "[[deny]]\nto = \"mod:B\"\n\n[[deny]]\nfrom = \"mod:A\"\nto = \"mod:B\"\nreason = 1\n",
+      .error
+        #["p.toml:1:0: deny rule 1 has no 'from'", "p.toml:1:0: deny rule 1 has no 'reason'",
+          "p.toml:7:9: deny rule 2: 'reason' must be a string, found an integer"]),
+    -- References.
+    ("an unknown set",
+      "[sets]\ncore = [\"pkg:core\"]\n\n[[deny]]\nfrom = \"set:core\"\nto = \"set:cor\"\n\
+        reason = \"r\"\n",
+      .error
+        #["p.toml:6:5: selector 'set:cor' in deny rule 1 ('to') names an unknown set \
+            (defined: core)"]),
+    ("an unknown set with no sets", denyWith "wrappers = [\"mod:W\", \"set:w\"]\n",
+      .error
+        #["p.toml:5:21: selector 'set:w' in deny rule 1 ('wrappers') names an unknown set \
+            (the policy defines no sets)"]),
+    -- A rule and a set with errors: shape and syntax in source order, then the
+    -- sets' references, then the rules'.
+    ("a rule and a set with errors",
+      "[[deny]]\nfrom = \"set:nope\"\nto = []\nreason = \"r\"\n\n[sets]\na = [\"set:zz\"]\nb = []\n",
+      .error
+        #["p.toml:3:5: deny rule 1: 'to' is empty", "p.toml:8:4: set 'b' is empty",
+          "p.toml:7:5: selector 'set:zz' in set 'a' names an unknown set (defined: a, b)",
+          "p.toml:2:7: selector 'set:nope' in deny rule 1 ('from') names an unknown set \
+            (defined: a, b)"])]
 
 def renderResult : Except (Array String) (Array String) → String
   | .ok xs => s!"ok {repr xs}"
@@ -154,6 +265,7 @@ def renderingFailures : Array String :=
   let want :=
     [(r (.setSelect "core"), "selector 'mod:X' in set 'core'"),
       (r (.setExcept "core"), "selector 'mod:X' in the except list of set 'core'"),
+      (r (.rule "deny" 2 "from"), "selector 'mod:X' in deny rule 2 ('from')"),
       (r .commandLine, "selector 'mod:X'")]
   let fs :=
     want.toArray.filterMap fun (ref, w) =>
@@ -161,14 +273,16 @@ def renderingFailures : Array String :=
       else some s!"describe: expected {repr w}, got {repr ref.describe}"
   let locs :=
     [(Policy.locate "p.toml" (some { line := 3, column := 0 }) "m", "p.toml:3:0: m"),
-      (Policy.locate "p.toml" none "m", "p.toml: m")]
+      (Policy.locate "p.toml" none "m", "p.toml: m"),
+      (Policy.posText "p.toml" (some { line := 4, column := 7 }), "p.toml:4:7"),
+      (Policy.posText "p.toml" none, "p.toml")]
   fs ++
     locs.toArray.filterMap fun (got, w) =>
       if got == w then none else some s!"locate: expected {repr w}, got {repr got}"
 
 def run : IO (Array String) := do
   let mut fs := renderingFailures
-  for (name, src, want) in cases do
+  for (name, src, want) in cases ++ denyCases do
     let got := (← load src).map renderPolicy
     let same :=
       match got, want with

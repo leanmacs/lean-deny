@@ -4,17 +4,23 @@ import LeanDeny.Policy.Selector
 /-!
 # Policy file
 
-`lean-deny.toml`. This version knows one top-level key, `[sets]`: named
-sets of modules, each a list of selectors (`LeanDeny.Policy.Selector`) or a
-table with a `select` and an `except` list. No rule kinds exist yet. Any
-other key is rejected rather than ignored, so a policy full of rules cannot
-pass while checking nothing.
+`lean-deny.toml`. This version knows two top-level keys:
+
+- `[sets]`: named sets of modules, each a list of selectors
+  (`LeanDeny.Policy.Selector`) or a table with a `select` and an `except`
+  list;
+- `[[deny]]`: deny rules, each with `from`, `to`, `transitive`, `wrappers`
+  and `reason` (`LeanDeny.Rules.Deny` evaluates them).
+
+Any other key is rejected rather than ignored, so a policy full of rules
+cannot pass while checking nothing.
 
 Loading checks everything that needs no graph: the file's shape, each
 selector's syntax, that every `set:` names a set, and that no set refers to
-itself. Every error is collected, in source order, each starting with
-`<path>:<line>:<column>: `. What the selectors match is checked against the
-graph later (`LeanDeny.Policy.Resolve`).
+itself. Every error is collected, each starting with
+`<path>:<line>:<column>: `: shape and syntax errors in source order, then
+the sets' references, then the rules' references. What the selectors match
+is checked against the graph later (`LeanDeny.Policy.Resolve`).
 -/
 
 open System
@@ -22,23 +28,26 @@ open System
 namespace LeanDeny
 
 /-- Where a selector is written. Error messages name it, so an author can
-find the rule a selector belongs to. Phase 2+ add one constructor per rule
-kind, e.g. `| rule (kind : String) (index : Nat) (field : String)` rendered
-" in deny rule 1 ('from')". -/
+find the rule a selector belongs to. -/
 inductive Use where
   /-- The bare array, or the `select` list, of set `name`. -/
   | setSelect (name : String)
   /-- The `except` list of set `name`. -/
   | setExcept (name : String)
+  /-- Field `field` of rule `index` (1-based, in source order among the rules
+  of `kind`): `.rule "deny" 1 "to"`. -/
+  | rule (kind : String) (index : Nat) (field : String)
   /-- `lean-deny explain <selector>`. -/
   | commandLine
   deriving BEq, Repr, Inhabited
 
 /-- The clause a message puts after the selector: " in set 'core'",
-" in the except list of set 'core'", or "" on the command line. -/
+" in the except list of set 'core'", " in deny rule 1 ('to')", or "" on the
+command line. -/
 def Use.clause : Use → String
   | .setSelect n => s!" in set '{n}'"
   | .setExcept n => s!" in the except list of set '{n}'"
+  | .rule k i f => s!" in {k} rule {i} ('{f}')"
   | .commandLine => ""
 
 /-- One selector as written in the policy or on the command line. -/
@@ -66,6 +75,33 @@ structure SetDef where
   except : Array SelectorRef
   deriving BEq, Repr, Inhabited
 
+/-- One `[[deny]]` table: no module of `sources` may import a module of
+`targets`, directly or (with `transitive`) through others, unless the
+importer, or a module the chain passes through, is a wrapper. (`from` is a
+Lean keyword, hence the field names.) -/
+structure DenyRule where
+  /-- 1-based, in source order among the `deny` tables; a table with errors
+  keeps its number. -/
+  index : Nat
+  /-- The table's position: its `[[deny]]` header (column 0), or the `{` of
+  an inline table. -/
+  pos? : Option Toml.Pos
+  /-- `from`: non-empty in a valid policy. -/
+  sources : Array SelectorRef := #[]
+  /-- `to`: non-empty in a valid policy. -/
+  targets : Array SelectorRef := #[]
+  /-- `transitive`, default `false`: direct imports only. -/
+  transitive : Bool := false
+  /-- `wrappers`, default none. -/
+  wrappers : Array SelectorRef := #[]
+  /-- `reason`: not blank in a valid policy. -/
+  reason : String := ""
+  deriving BEq, Repr, Inhabited
+
+/-- "deny rule 1". -/
+def DenyRule.label (r : DenyRule) : String :=
+  s!"deny rule {r.index}"
+
 /-- A parsed policy. -/
 structure Policy where
   /-- The policy path as given. It starts every message about the file. -/
@@ -74,17 +110,27 @@ structure Policy where
   sets : Array SetDef := #[]
   /-- Indices into `sets`, each set after every set it refers to. -/
   order : Array Nat := #[]
+  /-- The `[[deny]]` rules, in source order. -/
+  deny : Array DenyRule := #[]
   deriving Repr, Inhabited
 
-/-- Top-level keys this version knows. Phase 2+ append rule tables here. -/
+/-- Top-level keys this version knows. -/
 def knownKeys : Array String :=
-  #["sets"]
+  #["sets", "deny"]
+
+/-- The number of rules of every kind. -/
+def Policy.ruleCount (p : Policy) : Nat :=
+  p.deny.size
+
+/-- `<path>:<line>:<column>`, or `<path>` with no position. -/
+def Policy.posText (path : String) (pos? : Option Toml.Pos) : String :=
+  match pos? with
+  | some p => s!"{path}:{p.line}:{p.column}"
+  | none => path
 
 /-- `<path>:<line>:<column>: <msg>`, or `<path>: <msg>` with no position. -/
 def Policy.locate (path : String) (pos? : Option Toml.Pos) (msg : String) : String :=
-  match pos? with
-  | some p => s!"{path}:{p.line}:{p.column}: {msg}"
-  | none => s!"{path}: {msg}"
+  s!"{Policy.posText path pos?}: {msg}"
 
 /-- The set named `name`. -/
 def Policy.findSet? (p : Policy) (name : String) : Option SetDef :=
@@ -108,6 +154,11 @@ private def posLt : Option Toml.Pos → Option Toml.Pos → Bool
 def SetDef.refs (d : SetDef) : Array SelectorRef :=
   (d.select ++ d.except).qsort fun a b => posLt a.pos? b.pos?
 
+/-- A deny rule's selectors, `from`, `to` and `wrappers` together, in source
+order. -/
+def DenyRule.refs (r : DenyRule) : Array SelectorRef :=
+  (r.sources ++ r.targets ++ r.wrappers).qsort fun a b => posLt a.pos? b.pos?
+
 /-- The set a selector names, if it is a `set:` selector. -/
 def SelectorRef.setName? (r : SelectorRef) : Option String :=
   match r.sel with
@@ -122,9 +173,9 @@ private structure Errors where
 private def Errors.add (e : Errors) (pos? : Option Toml.Pos) (msg : String) : Errors :=
   { e with msgs := e.msgs.push (Policy.locate e.path pos? msg) }
 
-/-- The selectors of one list of set `set`: each string parsed, every other
-element an error. -/
-private def parseSelectors (e : Errors) (set : String) (use : Use) (xs : Array Toml.LValue) :
+/-- The selectors of one list: each string parsed, every other element an
+error that starts with `ctx` (`set 'core'`, `deny rule 1 ('to')`). -/
+private def parseSelectors (e : Errors) (ctx : String) (use : Use) (xs : Array Toml.LValue) :
     Errors × Array SelectorRef :=
   Id.run do
     let mut e := e
@@ -138,7 +189,7 @@ private def parseSelectors (e : Errors) (set : String) (use : Use) (xs : Array T
         | .error reason =>
           e := e.add pos? s!"invalid selector '{s}': {reason}"
       | _ =>
-        e := e.add x.pos? s!"set '{set}': expected a selector string, found {x.kindName}"
+        e := e.add x.pos? s!"{ctx}: expected a selector string, found {x.kindName}"
     return (e, refs)
 
 /-- One entry of `[sets]`. Even a set with errors is returned, with the
@@ -154,7 +205,7 @@ private def parseSet (e : Errors) (name : String) (v : Toml.LValue) : Errors × 
     | .array pos? xs =>
       if xs.isEmpty then
         return (e.add pos? s!"set '{name}' is empty", base)
-      let (e', select) := parseSelectors e name (.setSelect name) xs
+      let (e', select) := parseSelectors e s!"set '{name}'" (.setSelect name) xs
       return (e', { base with select })
     | .table pos? entries =>
       unless entries.any (·.1 == "select") do
@@ -173,7 +224,7 @@ private def parseSet (e : Errors) (name : String) (v : Toml.LValue) : Errors × 
                 else s!"set '{name}': 'except' is empty (omit it)"
             continue
           let use := if k == "select" then Use.setSelect name else Use.setExcept name
-          let (e', refs) := parseSelectors e name use xs
+          let (e', refs) := parseSelectors e s!"set '{name}'" use xs
           e := e'
           d := if k == "select" then { d with select := refs } else { d with except := refs }
         | _ =>
@@ -185,6 +236,74 @@ private def parseSet (e : Errors) (name : String) (v : Toml.LValue) : Errors × 
             s!"set '{name}' must be an array of selectors or a table with 'select' and \
               'except', found {v.kindName}",
           base)
+
+/-- The keys of a deny table, in the order messages list them. -/
+private def denyKeys : Array String :=
+  #["from", "to", "transitive", "wrappers", "reason"]
+
+/-- Entry `index` (1-based) of the `deny` array. Even a rule with errors is
+returned, with the selectors that parsed, so its `set:` references are still
+checked. Missing keys are reported first, at the table, then each entry in
+source order. -/
+private def parseDeny (e : Errors) (index : Nat) (v : Toml.LValue) : Errors × DenyRule :=
+  Id.run do
+    let label := s!"deny rule {index}"
+    let base : DenyRule := { index, pos? := v.pos? }
+    let .table pos? entries := v
+      | return (e.add v.pos? s!"{label} must be a table, found {v.kindName}", base)
+    let mut e := e
+    for k in #["from", "to", "reason"] do
+      unless entries.any (·.1 == k) do
+        e := e.add pos? s!"{label} has no '{k}'"
+    let mut r := base
+    for (k, x) in entries do
+      match k with
+      | "from" | "to" | "wrappers" =>
+        -- One selector, or an array of them (their union).
+        let xs ←
+          match x with
+          | .string .. =>
+            pure #[x]
+          | .array _ xs =>
+            pure xs
+          | _ =>
+            e :=
+              e.add x.pos? <|
+                s!"{label}: '{k}' must be a selector or an array of selectors, found {x.kindName}"
+            continue
+        if xs.isEmpty then
+          e :=
+            e.add x.pos? <|
+              if k == "wrappers" then s!"{label}: 'wrappers' is empty (omit it)"
+              else s!"{label}: '{k}' is empty"
+          continue
+        let (e', refs) := parseSelectors e s!"{label} ('{k}')" (.rule "deny" index k) xs
+        e := e'
+        r :=
+          match k with
+          | "from" => { r with sources := refs }
+          | "to" => { r with targets := refs }
+          | _ => { r with wrappers := refs }
+      | "transitive" =>
+        match x with
+        | .boolean _ b =>
+          r := { r with transitive := b }
+        | _ =>
+          e := e.add x.pos? s!"{label}: 'transitive' must be true or false, found {x.kindName}"
+      | "reason" =>
+        match x with
+        | .string _ s =>
+          if s.trimAscii.toString.isEmpty then
+            e := e.add x.pos? s!"{label}: 'reason' is empty"
+          else
+            r := { r with reason := s }
+        | _ =>
+          e := e.add x.pos? s!"{label}: 'reason' must be a string, found {x.kindName}"
+      | _ =>
+        e :=
+          e.add x.pos? <|
+            s!"{label}: unknown key '{k}' (expected {", ".intercalate denyKeys.toList})"
+    return (e, r)
 
 /-- The depth-first walk that finds cycles and the order. -/
 private structure Walk where
@@ -243,12 +362,29 @@ private def checkRefs (e : Errors) (sets : Array SetDef) : Errors × Array Nat :
         w := visit sets index (sets.size + 1) i #[] w
     return (w.errs, w.order)
 
+/-- Check that every `set:` in a rule names a set, in rule order, then source
+order within a rule. -/
+private def checkRuleRefs (e : Errors) (sets : Array SetDef) (rules : Array DenyRule) : Errors :=
+  Id.run do
+    let names := sets.map (·.name)
+    let defined :=
+      if names.isEmpty then "the policy defines no sets"
+      else s!"defined: {", ".intercalate names.toList}"
+    let mut e := e
+    for rule in rules do
+      for r in rule.refs do
+        if let some n := r.setName? then
+          unless names.contains n do
+            e := e.add r.pos? s!"{r.describe} names an unknown set ({defined})"
+    return e
+
 /-- Build the policy from the parsed TOML document at `path`. -/
 def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
     Except (Array String) Policy :=
   Id.run do
     let mut e : Errors := { path }
     let mut sets := #[]
+    let mut deny := #[]
     for (k, v) in entries do
       if k == "sets" then
         match v with
@@ -259,11 +395,23 @@ def Policy.ofToml (path : String) (entries : Array (String × Toml.LValue)) :
             sets := sets.push d
         | _ =>
           e := e.add v.pos? "'sets' must be a table, such as [sets]"
+      else if k == "deny" then
+        match v with
+        | .array pos? xs =>
+          if xs.isEmpty then
+            e := e.add pos? "'deny' is empty (omit it)"
+          for (x, i) in xs.zipIdx do
+            let (e', r) := parseDeny e (i + 1) x
+            e := e'
+            deny := deny.push r
+        | _ =>
+          e := e.add v.pos? "'deny' must be an array of tables, such as [[deny]]"
       else
         e := e.add v.pos? s!"unknown key '{k}' (known keys: {", ".intercalate knownKeys.toList})"
-    let (errs, order) := checkRefs e sets
+    let (e', order) := checkRefs e sets
+    let errs := checkRuleRefs e' sets deny
     if errs.msgs.isEmpty then
-      return .ok { path, sets, order }
+      return .ok { path, sets, order, deny }
     return .error errs.msgs
 
 /-- The default policy file of a workspace. -/

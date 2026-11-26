@@ -1,0 +1,25 @@
+# deny tables with shape mistakes, each reported at its line (exit 2, before
+# Lake runs).
+[sets]
+core = ["pkg:core"]
+
+[[deny]]
+to = "pkg:core"
+
+[[deny]]
+from = 1
+to = []
+reason = ""
+
+[[deny]]
+from = ["set:core", 2]
+to = "set:cor"
+transitive = "yes"
+wrappers = []
+wrapper = ["mod:X"]
+reason = "r"
+
+[[deny]]
+from = "Core.Api"
+to = "pkg:core"
+reason = 7

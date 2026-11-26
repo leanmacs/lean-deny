@@ -1,0 +1,3 @@
+# `deny` must be an array of tables: `[deny]` is a single table.
+[deny]
+from = "pkg:a"
