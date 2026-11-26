@@ -1,0 +1,5 @@
+# The editor-project acceptance policy, cut down, over editor-ws, where every
+# rule holds (exit 0).
+run = "direct"
+args = ["check", "--workspace", "../editor-ws", "--config", "lean-deny.toml"]
+exit = 0

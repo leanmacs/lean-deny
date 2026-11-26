@@ -1,0 +1,13 @@
+name = "shell"
+
+[[require]]
+name = "editor-core"
+path = "../lean"
+
+[[require]]
+name = "shell-api"
+path = "../shell-api"
+
+[[lean_lib]]
+name = "Shell"
+globs = ["Shell.*"]

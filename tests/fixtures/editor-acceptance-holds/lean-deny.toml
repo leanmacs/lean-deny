@@ -1,0 +1,85 @@
+# The acceptance policy (examples/editor-project/lean-deny.toml) cut down to
+# the miniature editor-project in ../editor-ws: the same sets, rules, order
+# and reasons, over its few modules. docs/editor-project-acceptance.md,
+# "The fixtures".
+
+[sets]
+packages = { select = ["keyword:editor-interface", "pkg:compile", "pkg:shell"] }
+toolchain = ["external:Init", "external:Std", "external:Lean", "external:Lake"]
+linked-kit = ["mod:Editor.Test.Linked"]
+doubles = { select = ["mod:Editor.Test", "mod:Editor.Text.Model", "mod:FilesApiTest"], except = ["set:linked-kit"] }
+internal = { select = [
+  "mod:Editor!", "mod:Editor.Core!", "mod:Editor.Main!", "mod:Editor.Headless!", "mod:Editor.Loop!",
+  "mod:Editor.Config", "mod:Editor.Ffi", "mod:Editor.Text.Real!", "mod:Editor.Window.Real!",
+] }
+api = { select = ["lib:Editor", "lib:FilesApi"], except = ["set:internal", "set:doubles", "set:linked-kit"] }
+linked-root-extra = { select = ["mod:Editor!", "mod:Editor.Headless!", "mod:Editor.Text.Real!", "mod:Editor.Window.Real!"], except = ["mod:Editor.Window.Real!"] }
+package-tests = ["mod:CompileTest"]
+package-linked = ["mod:CompileTest.Linked"]
+package-linked-roots = ["mod:CompileTest.Linked!"]
+library-may = ["set:api", "set:packages", "set:toolchain"]
+test-may = ["set:library-may", "set:doubles"]
+linked-may = ["set:test-may", "set:linked-kit"]
+linked-root-may = ["set:linked-may", "set:linked-root-extra"]
+host-roots = ["mod:Editor!", "mod:Editor.Main!", "mod:Editor.Test.Fixture.Main!"]
+entry-modules = ["mod:Compile.EditorPackage!", "mod:Shell.EditorPackage!"]
+feature-modules = ["set:entry-modules", "mod:Compile.Compiled!", "mod:Shell.Compiled!"]
+# Core imports, rule 1 (standing form): the core imports no package.
+[[deny]]
+from = "pkg:editor-core"
+to = "set:packages"
+transitive = true
+reason = "a package may depend on the core, and the core on no package (core imports check, rule 1)"
+
+# Core imports, rule 4.
+[[deny]]
+from = ["mod:Editor!", "mod:ModelTest!"]
+to = ["external:Lean", "external:Lake"]
+transitive = true
+reason = "the config base and the model tests' root are plain Lean (core imports check, rule 4)"
+
+# Core imports, rule 5.
+[[deny]]
+from = "mod:ModelTest!"
+to = "mod:Editor.Ffi"
+transitive = true
+reason = "model-test links no Rust library (core imports check, rule 5)"
+
+# Host imports.
+[[deny]]
+from = "set:host-roots"
+to = "set:feature-modules"
+transitive = true
+reason = "the host is handed its packages as a value and names none of them (host imports check)"
+
+# Package imports: four tiers.
+[[allow-only]]
+from = "set:packages"
+allow = "set:library-may"
+reason = "a package's library imports the core's API alone (package imports check)"
+
+[[allow-only]]
+from = "set:package-tests"
+allow = "set:test-may"
+reason = "a package's tests may also import the core's test doubles (package imports check)"
+
+[[allow-only]]
+from = "set:package-linked"
+allow = "set:linked-may"
+reason = "a package's linked test may also import the linked test kit (package imports check)"
+
+[[allow-only]]
+from = "set:package-linked-roots"
+allow = "set:linked-root-may"
+reason = "a linked test's root may also import the real bindings, the headless host and the config base (package imports check)"
+
+# Three layers.
+[layers]
+classify = [
+  { layer = "core", select = "pkg:editor-core" },
+  { layer = "interface", select = "keyword:editor-interface" },
+]
+default = "implementation"
+allow = [["interface", "core"], ["implementation", "core"], ["implementation", "interface"], ["interface", "interface"]]
+same-package = "allow"
+reason = "three layers (layer imports check)"

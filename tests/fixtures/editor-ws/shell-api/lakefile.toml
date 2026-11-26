@@ -1,0 +1,9 @@
+name = "shell-api"
+keywords = ["editor-interface"]
+
+[[require]]
+name = "editor-core"
+path = "../lean"
+
+[[lean_lib]]
+name = "ShellApi"

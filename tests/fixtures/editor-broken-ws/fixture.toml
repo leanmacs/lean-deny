@@ -1,0 +1,6 @@
+# The editor-acceptance fixtures' workspace, editor-ws plus one breaking
+# import per rule of the acceptance policy (tests/fixtures/editor-acceptance-*):
+# its own policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0

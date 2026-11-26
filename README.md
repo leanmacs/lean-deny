@@ -660,8 +660,12 @@ broken (`deny-*` for `deny`, most over the `graph-ws` workspace;
 for `layers`, over the `layer-ws` and `layer-bad-ws` workspaces);
 `check-json-*` and `check-github-*` for `--format json` and `github` (over
 the same workspaces), and `lake-lint-github` for
-`lake lint -- --format github`. After `lake build --wfail && lake test`,
-`git status --porcelain` must print nothing; CI checks that too.
+`lake lint -- --format github`. The `editor-acceptance-*` fixtures run a
+cut-down copy of the editor-project policy (`examples/editor-project/`) over
+`editor-ws`, a miniature editor-project, where it holds, and
+`editor-broken-ws`, where each rule bites once. After
+`lake build --wfail && lake test`, `git status --porcelain` must print
+nothing; CI checks that too.
 
 The sources are formatted and linted with
 [lean-fmt](https://github.com/jcreinhold/lean-fmt). After `lake build`, at

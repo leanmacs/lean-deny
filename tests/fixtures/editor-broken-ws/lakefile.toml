@@ -1,0 +1,13 @@
+name = "default-set"
+
+[[require]]
+name = "editor-core"
+path = "lean"
+
+[[require]]
+name = "compile"
+path = "compile"
+
+[[require]]
+name = "shell"
+path = "shell"

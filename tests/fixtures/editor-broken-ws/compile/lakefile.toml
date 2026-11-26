@@ -1,0 +1,21 @@
+name = "compile"
+
+[[require]]
+name = "editor-core"
+path = "../lean"
+
+[[require]]
+name = "compile-api"
+path = "../compile-api"
+
+[[lean_lib]]
+name = "Compile"
+globs = ["Compile.*"]
+
+[[lean_lib]]
+name = "CompileTest"
+globs = ["CompileTest.+"]
+
+[[lean_exe]]
+name = "compile-test"
+root = "CompileTest.Model"

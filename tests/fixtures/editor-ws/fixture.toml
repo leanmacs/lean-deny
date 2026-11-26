@@ -1,0 +1,6 @@
+# The editor-acceptance fixtures' workspace, a miniature editor-project where
+# every rule of the acceptance policy holds (tests/fixtures/editor-acceptance-*):
+# its own policy has no rules.
+run = "direct"
+args = ["check"]
+exit = 0
