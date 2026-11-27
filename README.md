@@ -165,7 +165,4 @@ point lean-deny at workspaces you would build.
 
 ## Licence
 
-GPL-3.0-or-later. See [`LICENSE`](LICENSE). Running lean-deny as a separate
-program (`lake exe`, `lake lint`) does not put your workspace's code under
-the GPL, in our reading of the FSF's FAQ. Importing its `LeanDeny` library
-into your code does. This is not legal advice.
+GPL-3.0-or-later. See [`LICENSE`](LICENSE).
