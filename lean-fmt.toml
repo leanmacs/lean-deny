@@ -1,4 +1,4 @@
-# lean-fmt's config (README, "Development"). Everything outside tests/ is
+# lean-fmt's config (docs/development.md). Everything outside tests/ is
 # checked with the defaults. tests/ holds the fixtures: separate Lake
 # workspaces, several deliberately malformed (e.g. `import 42`), whose
 # bytes are pinned by their expected outputs, so neither format nor check

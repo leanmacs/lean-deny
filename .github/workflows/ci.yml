@@ -34,7 +34,7 @@ jobs:
       - name: Build and test
         run: lake build --wfail && lake test
 
-      # lean-fmt (README, "Development"), hosted in tools/lean-fmt. A cache
+      # lean-fmt (docs/development.md), hosted in tools/lean-fmt. A cache
       # of its own, so a source change does not evict the formatter build.
       - name: Cache lean-fmt
         uses: actions/cache@v6

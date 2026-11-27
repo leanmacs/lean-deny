@@ -9,7 +9,7 @@ lean-deny graph [--workspace <dir>] [--config <file>] [--format text|json|dot]
 (default `.`) and prints it, grouped at a level (default `module`), as text
 (default), JSON or Graphviz DOT. It reads the policy (`--config`, default
 `<dir>/lean-deny.toml`) only for its `[[root]]` tables, the declared roots
-(README, "Declared roots"); every other key is ignored, not checked. A
+(docs/policy.md, "Declared roots"); every other key is ignored, not checked. A
 default policy file that does not exist gives no declared roots; one that is
 not valid TOML gives a warning on stderr and no declared roots. On success
 it exits 0 and prints the rendering on stdout and nothing on stderr

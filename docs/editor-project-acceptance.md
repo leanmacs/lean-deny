@@ -80,7 +80,7 @@ the two core rules that name none.
 writes `lean/.lake/config/`. editor-project already has both directories, so
 a run in place would write into them. That is why every run here is against
 a copy, and why the script refuses to finish clean if anything under
-editor-project changed. (The README says only `<workspace>/.lake/config/` is
+editor-project changed. (`LeanDeny/Graph/LakeApi.lean` says only `<workspace>/.lake/config/` is
 written; the empty `.lake/` of a path dependency is the one extra, and it is
 harmless.)
 
@@ -114,7 +114,7 @@ roots were the core's test executables and the two generated roots, not the
 packages' tests. Over all 282 `Editor.*` files, `Editor.Test.Shell` is the
 only one outside `Editor.Core`'s closure.
 
-The policy states rule 2 as `reachable rule 1` (README, "reachable"), and
+The policy states rule 2 as `reachable rule 1` (docs/rules.md, "reachable"), and
 the acceptance baseline over the unmodified copy expects exactly that
 violation: `Editor.Test.Shell is outside the import closure of Editor.Core`,
 with the module's file. The fix rule 2 prescribes ("Import a new core
@@ -129,7 +129,7 @@ two root modules, `EditorSetRoot` and `EditorSetFixtures`, into
 `packages/.lake/build/root/` from a facet (`setRoot`, `fixturesRoot`, and
 `generatedLib` with `roots := #[]`). No `lean_lib` or `lean_exe` declares
 them, and their files exist only after a build. The policy declares both
-with `[[root]]` tables (README, "Declared roots"), each a module name and
+with `[[root]]` tables (docs/policy.md, "Declared roots"), each a module name and
 its path relative to the workspace directory, `packages/`:
 
 ```toml
@@ -156,7 +156,7 @@ So the host's modules are the closure of `Editor`, `Editor.Main` and
 each import only their own package's `<P>.Compiled` (and `Evil.Theorems`;
 `ShippedThemes.EditorPackage` imports its library root `ShippedThemes`).
 The policy derives the four host sets from the roots' imports with
-`imports:` selectors (README, "Selectors"), so none is listed by hand:
+`imports:` selectors (docs/policy.md, "Selectors"), so none is listed by hand:
 
 ```toml
 entry-modules = { select = ["imports:mod:EditorSetRoot!"], except = ["mod:Editor"] }
@@ -563,7 +563,7 @@ The whole confirmation, in order:
    0, its last line is `acceptance: every expectation held`, and it printed
    no `MISMATCH` (which includes "files under editor-project changed").
 3. `lake build --wfail && lake test` and both lean-fmt checks (the
-   `rdm verify` command in the README), which run the `editor-acceptance-*`
+   `rdm verify` command in docs/development.md), which run the `editor-acceptance-*`
    fixtures.
 4. `git status --porcelain` in lean-deny's repository prints nothing.
 

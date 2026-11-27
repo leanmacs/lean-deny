@@ -1,4 +1,4 @@
-# The host of the Lean formatter (README, "Development"). It holds no Lean
+# The host of the Lean formatter (docs/development.md). It holds no Lean
 # source: a Lake package whose one `require` is lean-fmt, so lean-deny
 # itself requires no git repository and a workspace that requires
 # lean-deny fetches nothing for it. Run from the repo root:

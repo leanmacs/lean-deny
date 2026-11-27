@@ -5,7 +5,7 @@ Tests of the policy loader (`LeanDeny.Policy.ofToml`) on TOML texts: the
 three forms of a set, the two forms of `[[deny]]` and of `[[allow-only]]`,
 the three forms of `[layers]`, the positions of sets, rules and selectors,
 every load-time error with its exact rendering, `set:` references and
-cycles, the order sets are resolved in, and that the README's sketched
+cycles, the order sets are resolved in, and that the README's quick-start
 policy loads.
 -/
 
@@ -694,7 +694,7 @@ def rootsOnlyFailures : IO (Array String) := do
       fs := fs.push s!"rootsOfToml {name}: expected {repr want}, got {repr got}"
   return fs
 
-/-- The policy README.md's "A policy, sketched" shows, verbatim. -/
+/-- The policy README.md's "Quick start" shows, verbatim. -/
 def readmeSketch : String :=
   "# lean-deny.toml
 
@@ -736,7 +736,7 @@ allow = [
 ]
 "
 
-/-- The README's sketched policy loads, with every rule. -/
+/-- The README's quick-start policy loads, with every rule. -/
 def sketchFailures : IO (Array String) := do
   match ← load readmeSketch with
   | .error es =>
